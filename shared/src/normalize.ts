@@ -199,21 +199,60 @@ export function normalizeTitle(raw: string | null | undefined): string {
 /* Compensation                                                               */
 /* -------------------------------------------------------------------------- */
 
+/** How often the figure is paid. Without this, 45/hour and 45,000/year are indistinguishable. */
+export const PAY_PERIODS = ['HOUR', 'DAY', 'WEEK', 'MONTH', 'YEAR'] as const;
+export type PayPeriod = (typeof PAY_PERIODS)[number];
+
 export interface ParsedCompensation {
   minCents: number | null;
   maxCents: number | null;
   currency: string | null;
+  period: PayPeriod | null;
 }
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
+  'C$': 'CAD',
+  A$: 'AUD',
+  R$: 'BRL',
   $: 'USD',
   '£': 'GBP',
   '€': 'EUR',
   '₹': 'INR',
   '¥': 'JPY',
   '₩': 'KRW',
-  'C$': 'CAD',
-  A$: 'AUD',
+  '₪': 'ILS',
+  '₺': 'TRY',
+  '₦': 'NGN',
+  R: 'ZAR',
+};
+
+const PERIOD_PATTERNS: [RegExp, PayPeriod][] = [
+  [/\b(per\s*hour|hourly|\/\s*h(ou)?r|\bp\/h\b|\bph\b)/i, 'HOUR'],
+  [/\b(per\s*day|daily|\/\s*day|per\s*diem)/i, 'DAY'],
+  [/\b(per\s*week|weekly|\/\s*w(ee)?k)/i, 'WEEK'],
+  [/\b(per\s*month|monthly|\/\s*mo(nth)?\b|\bpm\b)/i, 'MONTH'],
+  [/\b(per\s*(year|annum)|annually|yearly|p\.?a\.?\b|\/\s*(yr|year)|lpa\b|a\s*year)/i, 'YEAR'],
+];
+
+/**
+ * Scale words. Lakh and crore matter because Indian listings quote "18 LPA" or
+ * "₹15,00,000" — and the second one only parses correctly if thousands
+ * separators are stripped without assuming groups of three.
+ */
+const SCALES: [RegExp, number][] = [
+  [/^(cr|crore|crores)$/i, 1e7],
+  [/^(l|lac|lacs|lakh|lakhs|lpa)$/i, 1e5],
+  [/^(m|mn|million)$/i, 1e6],
+  [/^k$/i, 1e3],
+];
+
+/** Plausible lower bound for a figure at each cadence, to reject stray numbers. */
+const MIN_PLAUSIBLE: Record<PayPeriod, number> = {
+  HOUR: 3,
+  DAY: 20,
+  WEEK: 100,
+  MONTH: 300,
+  YEAR: 1000,
 };
 
 /**
@@ -224,18 +263,28 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
  * raw string either way, so a miss is recoverable but never wrong.
  */
 export function parseCompensation(raw: string | null | undefined): ParsedCompensation {
-  const empty: ParsedCompensation = { minCents: null, maxCents: null, currency: null };
+  const empty: ParsedCompensation = {
+    minCents: null,
+    maxCents: null,
+    currency: null,
+    period: null,
+  };
   if (!raw) return empty;
 
   const text = raw.trim();
   if (!text) return empty;
 
+  /* Currency ------------------------------------------------------------- */
+
   let currency: string | null = null;
 
-  const isoMatch = text.match(/\b(USD|EUR|GBP|INR|CAD|AUD|JPY|SGD|CHF|SEK|NOK|DKK|PLN|BRL|MXN)\b/i);
+  const isoMatch = text.match(
+    /\b(USD|EUR|GBP|INR|CAD|AUD|NZD|JPY|SGD|HKD|CHF|SEK|NOK|DKK|PLN|CZK|BRL|MXN|ZAR|AED|ILS|TRY|NGN|KRW|CNY|RUB)\b/i
+  );
   if (isoMatch) {
     currency = isoMatch[1].toUpperCase();
   } else {
+    // Longest symbols first: "C$" and "R$" must beat the bare "$" and "R".
     for (const [symbol, code] of Object.entries(CURRENCY_SYMBOLS)) {
       if (text.includes(symbol)) {
         currency = code;
@@ -244,10 +293,30 @@ export function parseCompensation(raw: string | null | undefined): ParsedCompens
     }
   }
 
-  // Numbers with optional thousands separators (any grouping, so Indian
-  // 15,00,000 works too) and an optional k/m suffix.
-  const numberPattern = /(\d[\d,\s]*(?:\.\d+)?)\s*([km])?\b/gi;
+  /* Period --------------------------------------------------------------- */
+
+  let period: PayPeriod | null = null;
+  for (const [pattern, value] of PERIOD_PATTERNS) {
+    if (pattern.test(text)) {
+      period = value;
+      break;
+    }
+  }
+
+  // Lakh/crore notation is effectively an Indian-market signal, and LPA states
+  // the cadence outright.
+  if (/\b(lpa|lakh|lakhs|lac|lacs|crore|crores|cr)\b/i.test(text)) {
+    currency ??= 'INR';
+    period ??= 'YEAR';
+  }
+
+  /* Amounts -------------------------------------------------------------- */
+
+  // Digits with any thousands grouping (so Indian 15,00,000 parses) followed by
+  // an optional scale word.
+  const numberPattern = /(\d[\d,\s]*(?:\.\d+)?)\s*([a-z]{1,6})?/gi;
   const values: number[] = [];
+  const floor = MIN_PLAUSIBLE[period ?? 'YEAR'];
 
   for (const match of text.matchAll(numberPattern)) {
     const digits = match[1].replace(/[,\s]/g, '');
@@ -256,19 +325,24 @@ export function parseCompensation(raw: string | null | undefined): ParsedCompens
     let value = Number.parseFloat(digits);
     if (!Number.isFinite(value)) continue;
 
-    const suffix = match[2]?.toLowerCase();
-    if (suffix === 'k') value *= 1_000;
-    else if (suffix === 'm') value *= 1_000_000;
+    const word = match[2] ?? '';
+    let scaled = false;
+    for (const [pattern, factor] of SCALES) {
+      if (pattern.test(word)) {
+        value *= factor;
+        scaled = true;
+        break;
+      }
+    }
 
-    // Filter out things that clearly aren't money: years, "401k" already became
-    // 401000 so we bound the low end too.
-    if (value < 1_000 || value > 100_000_000) continue;
-    if (value >= 1900 && value <= 2100 && !suffix) continue;
+    // A bare four-digit number in the 1900–2100 range is a year, not money.
+    if (!scaled && value >= 1900 && value <= 2100 && Number.isInteger(value)) continue;
+    if (value < floor || value > 1e11) continue;
 
     values.push(Math.round(value));
   }
 
-  if (values.length === 0) return { ...empty, currency };
+  if (values.length === 0) return { ...empty, currency, period };
 
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -277,12 +351,69 @@ export function parseCompensation(raw: string | null | undefined): ParsedCompens
     minCents: min * 100,
     maxCents: max === min ? null : max * 100,
     currency,
+    period,
   };
+}
+
+/**
+ * Normalise to an annual figure so packages quoted at different cadences can be
+ * compared. Approximate by design — 2080 working hours, 260 days, 52 weeks —
+ * and only ever used for display and aggregate stats, never to restate an
+ * employer's number back to them.
+ */
+export function toAnnualCents(cents: number, period: PayPeriod | null): number {
+  switch (period) {
+    case 'HOUR':
+      return Math.round(cents * 2080);
+    case 'DAY':
+      return Math.round(cents * 260);
+    case 'WEEK':
+      return Math.round(cents * 52);
+    case 'MONTH':
+      return Math.round(cents * 12);
+    default:
+      return cents;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
 /* Dates                                                                       */
 /* -------------------------------------------------------------------------- */
+
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/**
+ * Locale-neutral date, e.g. "6 Aug 2026".
+ *
+ * Deliberately not toLocaleDateString. Two reasons:
+ *
+ * - The marketing pages are prerendered, so a locale-formatted date would be
+ *   baked in using the build machine's locale and then disagree with what the
+ *   browser renders — a hydration mismatch on every dated element.
+ * - "08/06/2026" means two different days depending on where you live. Day
+ *   followed by an abbreviated month is unambiguous everywhere.
+ *
+ * Read in UTC so a date-only string like "2026-08-06" cannot slip to the
+ * previous day for anyone west of Greenwich.
+ */
+export function formatDate(iso: string | Date): string {
+  const date = typeof iso === 'string' ? new Date(iso) : iso;
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
 
 export function daysBetween(from: Date | string, to: Date | string = new Date()): number {
   const a = typeof from === 'string' ? new Date(from) : from;

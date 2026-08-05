@@ -31,13 +31,27 @@ export interface FieldRule {
   weight?: number;
 }
 
-/** Never touched, whatever the labels say. */
+/**
+ * Never touched, whatever the labels say.
+ *
+ * Covers government identifiers across every market the extension runs in, not
+ * just the US. Writing a national ID into a form the user has not read is the
+ * worst thing this extension could do, so the list is deliberately broad and
+ * errs toward refusing a field it could have safely filled.
+ *
+ * Word boundaries matter here: /\bpan\b/ must not fire on "company" or
+ * "panel", and it does not, because \b requires a non-word character on both
+ * sides.
+ */
 export const BLOCKED_PATTERNS: RegExp[] = [
+  // Credentials
   /\bpassword\b/,
   /\bpasscode\b/,
   /\bpin\b/,
-  /\bssn\b/,
-  /social.?security/,
+  /\bsecurity.?question\b/,
+  /mother'?s.?maiden/,
+
+  // Payment and banking
   /\bcredit.?card\b/,
   /\bcard.?number\b/,
   /\bcvv\b/,
@@ -46,10 +60,55 @@ export const BLOCKED_PATTERNS: RegExp[] = [
   /\bbank\b/,
   /\brouting\b/,
   /\biban\b/,
+  /\bswift\b/,
+  /\bbic\b/,
   /\bsort.?code\b/,
+  /\bifsc\b/,
+  /\bupi\b/,
+
+  // Government identifiers — United States and Canada
+  /\bssn\b/,
+  /social.?security/,
+  /\bsin\b/,
+  /social.?insurance/,
+
+  // United Kingdom and Ireland
+  /national.?insurance/,
+  /\bni\s*(number|no)\b/,
+  /\bnino\b/,
+  /\bppsn\b/,
+
+  // India
+  /\baadhaar\b/,
+  /\baadhar\b/,
+  /\buidai\b/,
+  /\bpan\b/,
+  /\bpan.?card\b/,
+  /\buan\b/,
+  /\bpf.?(number|no|account)\b/,
+
+  // Europe
+  /\bnif\b/,
+  /\bnie\b/,
+  /\bbsn\b/,
+  /codice.?fiscale/,
+  /steuer.?id/,
+  /\binsz\b/,
+
+  // Elsewhere
+  /\btfn\b/,
+  /\bcpf\b/,
+  /\bcnpj\b/,
+  /\brfc\b/,
+  /\bcurp\b/,
+
+  // Generic identity documents
   /\btax.?id\b/,
   /\bpassport\b/,
-  /\bnational.?id\b/,
+  /\bnational.?id/,
+  /\bidentity.?(card|number)\b/,
+  /driv(ing|er'?s).?licen[cs]e/,
+  /\bvisa.?number\b/,
   /date.?of.?birth/,
   /\bdob\b/,
 ];
@@ -204,20 +263,112 @@ export const FIELD_RULES: FieldRule[] = [
     patterns: [/relocat/, /willing.?to.?move/],
     weight: 30,
   },
+  /*
+   * Pay. "Expected" must outrank "current" on a form that asks for both, so
+   * each rule carries the other as a negative rather than relying on order.
+   */
   {
-    field: 'noticePeriod',
-    patterns: [/notice.?period/, /how.?soon.?can.?you.?start/, /available.?start.?date/, /availability/],
-    weight: 20,
+    field: 'expectedCompensation',
+    patterns: [
+      /expected.?(ctc|salary|compensation|package|pay)/,
+      /desired.?(salary|compensation|pay|ctc)/,
+      /salary.?expectation/,
+      /compensation.?expectation/,
+      /salary.?required/,
+    ],
+    negative: [/current/, /present/, /existing/],
+    weight: 30,
   },
   {
-    field: 'salaryExpectation',
+    field: 'currentCompensation',
     patterns: [
-      /salary.?expectation/,
-      /expected.?(salary|compensation)/,
-      /compensation.?expectation/,
-      /desired.?(salary|compensation|pay)/,
+      /current.?(ctc|salary|compensation|package|pay)/,
+      /present.?(ctc|salary|compensation)/,
+      /existing.?(ctc|salary)/,
+      /\bctc\b/,
     ],
-    weight: 25,
+    negative: [/expected/, /desired/, /required/],
+    weight: 28,
+  },
+
+  {
+    field: 'noticePeriod',
+    patterns: [/notice.?period/, /\bnotice\b/, /how.?soon.?can.?you.?(join|start)/],
+    negative: [/last.?working/, /notice.?board/],
+    weight: 26,
+  },
+  {
+    field: 'lastWorkingDay',
+    patterns: [/last.?working.?(day|date)/, /\blwd\b/, /last.?date.?of.?employment/],
+    weight: 30,
+  },
+  {
+    field: 'earliestStartDate',
+    patterns: [
+      /earliest.?(start|joining|available)/,
+      /available.?(to.?)?start/,
+      /joining.?date/,
+      /start.?date/,
+      /availability/,
+    ],
+    negative: [/notice/, /previous/, /employment.?start/],
+    weight: 18,
+  },
+
+  {
+    field: 'totalExperience',
+    patterns: [
+      /total.?(work.?|professional.?)?experience/,
+      /years.?of.?experience/,
+      /\byoe\b/,
+      /experience.?in.?years/,
+      /relevant.?experience/,
+    ],
+    negative: [/describe/, /tell.?us/],
+    weight: 24,
+  },
+
+  {
+    field: 'preferredLocations',
+    patterns: [/preferred.?(location|city|work.?location)/, /desired.?location/, /location.?preference/],
+    weight: 26,
+  },
+
+  /* Education. Scores are gated to the markets that ask for them. */
+  {
+    field: 'highestQualification',
+    patterns: [/highest.?(qualification|education|degree)/, /education.?level/, /qualification\b/],
+    negative: [/percentage|marks|score|year/],
+    weight: 22,
+  },
+  {
+    field: 'graduationYear',
+    patterns: [
+      /(passing|passout|pass.?out|graduation|completion).?year/,
+      /year.?of.?(passing|graduation|completion)/,
+      /\bbatch\b/,
+    ],
+    weight: 26,
+  },
+  {
+    field: 'secondaryScore',
+    patterns: [/\b(10th|tenth|sslc|matriculation|class.?x)\b/, /secondary.?(school.?)?(percentage|marks)/],
+    negative: [/12th|twelfth/],
+    weight: 28,
+  },
+  {
+    field: 'higherSecondaryScore',
+    patterns: [/\b(12th|twelfth|hsc|intermediate|class.?xii)\b/, /higher.?secondary/],
+    weight: 28,
+  },
+  {
+    field: 'graduationScore',
+    patterns: [
+      /(graduation|degree|bachelor|\bug\b).?(percentage|marks|cgpa|gpa|score|aggregate)/,
+      /(cgpa|gpa)\b/,
+    ],
+    negative: [/10th|12th|tenth|twelfth|sslc|hsc/],
+    weight: 24,
   },
   {
     field: 'referralSource',

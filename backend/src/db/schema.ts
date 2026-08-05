@@ -15,9 +15,19 @@ import {
   APPLICATION_SOURCE,
   APPLICATION_STATUS,
   ATS_PROVIDER,
+  EMPTY_AVAILABILITY,
+  EMPTY_COMPENSATION,
+  EMPTY_DEMOGRAPHICS,
   EVENT_ACTOR,
   EVENT_TYPE,
   POSTING_STATUS,
+  type AvailabilityProfile,
+  type CompensationProfile,
+  type Demographics,
+  type Education,
+  type ProfileRegion,
+  type SavedAnswer,
+  type WorkExperience,
 } from '@jobpilot/shared';
 
 /** Drizzle wants a non-empty tuple; the shared arrays are readonly. */
@@ -214,17 +224,48 @@ export const profiles = pgTable(
     authorizedToWork: boolean('authorized_to_work'),
     requiresSponsorship: boolean('requires_sponsorship'),
     willingToRelocate: boolean('willing_to_relocate'),
-    noticePeriod: text('notice_period'),
-    salaryExpectation: text('salary_expectation'),
     referralSource: text('referral_source'),
 
-    experience: jsonb('experience').$type<unknown[]>().notNull().default([]),
-    education: jsonb('education').$type<unknown[]>().notNull().default([]),
-    savedAnswers: jsonb('saved_answers').$type<unknown[]>().notNull().default([]),
-    demographics: jsonb('demographics')
-      .$type<Record<string, unknown>>()
+    /*
+     * jsonb columns are typed with the shared domain types rather than
+     * Record<string, unknown>. Those types are interfaces, and TypeScript will
+     * not assign an interface to an index-signature type — so the loose typing
+     * made every insert fail. Naming them properly is both the fix and
+     * stronger typing end to end.
+     */
+
+    /** ISO country codes the user can work in without sponsorship. */
+    workAuthCountries: jsonb('work_auth_countries').$type<string[]>().notNull().default([]),
+    preferredLocations: jsonb('preferred_locations').$type<string[]>().notNull().default([]),
+
+    /**
+     * Optional field groups the user has enabled, e.g. ['IN'] or ['US','UK'].
+     * Autofill refuses market-specific fields whose region is not listed, which
+     * is what stops a German form being offered a school-leaving percentage.
+     */
+    regions: jsonb('regions').$type<ProfileRegion[]>().notNull().default([]),
+
+    /**
+     * Current and expected pay. Held as jsonb because each side carries an
+     * amount, a currency, and a cadence — and because it is only ever read and
+     * written whole.
+     */
+    compensation: jsonb('compensation')
+      .$type<CompensationProfile>()
       .notNull()
-      .default({ enabled: false }),
+      .default(EMPTY_COMPENSATION),
+    availability: jsonb('availability')
+      .$type<AvailabilityProfile>()
+      .notNull()
+      .default(EMPTY_AVAILABILITY),
+
+    experience: jsonb('experience').$type<WorkExperience[]>().notNull().default([]),
+    education: jsonb('education').$type<Education[]>().notNull().default([]),
+    savedAnswers: jsonb('saved_answers').$type<SavedAnswer[]>().notNull().default([]),
+    demographics: jsonb('demographics')
+      .$type<Demographics>()
+      .notNull()
+      .default(EMPTY_DEMOGRAPHICS),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

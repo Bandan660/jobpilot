@@ -97,7 +97,11 @@ function resolveValue(profile: Profile, match: FieldMatch): string | null {
     if (DEMOGRAPHIC_FIELDS.includes(match.field) && !profile.demographics.enabled) {
       return null;
     }
-    const value = profileValue(profile, match.field);
+
+    // The label is passed through because some fields are formatted from it:
+    // "Notice period (months)" wants 2, not 60, and "Current CTC (LPA)" wants
+    // 18, not 1800000. profileValue also uses it to apply the regional gate.
+    const value = profileValue(profile, match.field, match.label);
     if (value) return value;
   }
 

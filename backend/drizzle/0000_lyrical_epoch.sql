@@ -67,6 +67,42 @@ CREATE TABLE IF NOT EXISTS "notes" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "profiles" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"first_name" text,
+	"last_name" text,
+	"preferred_name" text,
+	"email" text,
+	"phone" text,
+	"address_line1" text,
+	"city" text,
+	"state" text,
+	"postal_code" text,
+	"country" text,
+	"linkedin_url" text,
+	"github_url" text,
+	"portfolio_url" text,
+	"other_url" text,
+	"current_company" text,
+	"current_title" text,
+	"authorized_to_work" boolean,
+	"requires_sponsorship" boolean,
+	"willing_to_relocate" boolean,
+	"referral_source" text,
+	"work_auth_countries" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"preferred_locations" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"regions" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"compensation" jsonb DEFAULT '{"current":{"amountCents":null,"currency":null,"period":null},"expected":{"amountCents":null,"currency":null,"period":null}}'::jsonb NOT NULL,
+	"availability" jsonb DEFAULT '{"noticePeriodDays":null,"servingNotice":null,"lastWorkingDay":null,"earliestStartDate":null}'::jsonb NOT NULL,
+	"experience" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"education" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"saved_answers" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"demographics" jsonb DEFAULT '{"enabled":false,"gender":null,"ethnicity":null,"veteranStatus":null,"disabilityStatus":null}'::jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" text NOT NULL,
@@ -104,6 +140,12 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "profiles" ADD CONSTRAINT "profiles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "application_events_app_idx" ON "application_events" USING btree ("application_id","occurred_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "application_events_type_idx" ON "application_events" USING btree ("type","occurred_at");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "applications_user_url_idx" ON "applications" USING btree ("user_id","job_url_canonical") WHERE "applications"."job_url_canonical" is not null;--> statement-breakpoint
@@ -114,4 +156,5 @@ CREATE INDEX IF NOT EXISTS "applications_company_stats_idx" ON "applications" US
 CREATE UNIQUE INDEX IF NOT EXISTS "companies_slug_idx" ON "companies" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "contacts_app_idx" ON "contacts" USING btree ("application_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "notes_app_idx" ON "notes" USING btree ("application_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "profiles_user_idx" ON "profiles" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "users_email_idx" ON "users" USING btree (lower("email"));

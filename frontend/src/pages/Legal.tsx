@@ -1,3 +1,4 @@
+import { formatDate } from '@jobpilot/shared';
 import { usePageMeta } from '../usePageMeta.js';
 import { SITE } from '../content/site.js';
 
@@ -14,11 +15,7 @@ import { SITE } from '../content/site.js';
  */
 
 function updated(): string {
-  return new Date(SITE.policyUpdated).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  return formatDate(SITE.policyUpdated);
 }
 
 export function Privacy() {

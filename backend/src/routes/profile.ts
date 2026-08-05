@@ -2,13 +2,43 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { answerKey, type Profile } from '@jobpilot/shared';
+import {
+  EDUCATION_LEVELS,
+  EMPTY_AVAILABILITY,
+  EMPTY_COMPENSATION,
+  EMPTY_DEMOGRAPHICS,
+  PAY_PERIODS,
+  PROFILE_REGIONS,
+  SCORE_TYPES,
+  answerKey,
+  type Profile,
+} from '@jobpilot/shared';
 import { createDb } from '../db/client.js';
 import { profiles } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { AppContext } from '../env.js';
 
 const nullableText = (max: number) => z.string().max(max).nullable().optional();
+
+const moneySchema = z.object({
+  // Minor units. Bounded generously — annual packages in weaker currencies run
+  // to eight or nine figures without being implausible.
+  amountCents: z.number().int().min(0).max(1e15).nullable(),
+  currency: z.string().max(8).nullable(),
+  period: z.enum(PAY_PERIODS).nullable(),
+});
+
+const compensationSchema = z.object({
+  current: moneySchema,
+  expected: moneySchema,
+});
+
+const availabilitySchema = z.object({
+  noticePeriodDays: z.number().int().min(0).max(365).nullable(),
+  servingNotice: z.boolean().nullable(),
+  lastWorkingDay: z.string().max(10).nullable(),
+  earliestStartDate: z.string().max(10).nullable(),
+});
 
 const experienceSchema = z.object({
   id: z.string().max(64),
@@ -24,11 +54,13 @@ const experienceSchema = z.object({
 const educationSchema = z.object({
   id: z.string().max(64),
   school: z.string().max(200),
+  level: z.enum(EDUCATION_LEVELS).nullable(),
   degree: z.string().max(200).nullable(),
   field: z.string().max(200).nullable(),
   startDate: z.string().max(10).nullable(),
   endDate: z.string().max(10).nullable(),
-  gpa: z.string().max(20).nullable(),
+  score: z.string().max(20).nullable(),
+  scoreType: z.enum(SCORE_TYPES).nullable(),
 });
 
 const savedAnswerSchema = z.object({
@@ -38,12 +70,17 @@ const savedAnswerSchema = z.object({
   answer: z.string().max(8000),
 });
 
+/**
+ * Nullable but not optional: this object is stored whole, so an absent key and
+ * a null value must not be different states. `nullableText` is for top-level
+ * columns, where a missing key correctly means "leave unchanged".
+ */
 const demographicsSchema = z.object({
   enabled: z.boolean(),
-  gender: nullableText(100),
-  ethnicity: nullableText(100),
-  veteranStatus: nullableText(100),
-  disabilityStatus: nullableText(100),
+  gender: z.string().max(100).nullable(),
+  ethnicity: z.string().max(100).nullable(),
+  veteranStatus: z.string().max(100).nullable(),
+  disabilityStatus: z.string().max(100).nullable(),
 });
 
 const profileSchema = z.object({
@@ -70,9 +107,14 @@ const profileSchema = z.object({
   authorizedToWork: z.boolean().nullable().optional(),
   requiresSponsorship: z.boolean().nullable().optional(),
   willingToRelocate: z.boolean().nullable().optional(),
-  noticePeriod: nullableText(200),
-  salaryExpectation: nullableText(200),
   referralSource: nullableText(200),
+
+  workAuthCountries: z.array(z.string().max(3)).max(40).optional(),
+  preferredLocations: z.array(z.string().max(120)).max(20).optional(),
+  regions: z.array(z.enum(PROFILE_REGIONS)).max(PROFILE_REGIONS.length).optional(),
+
+  compensation: compensationSchema.optional(),
+  availability: availabilitySchema.optional(),
 
   experience: z.array(experienceSchema).max(40).optional(),
   education: z.array(educationSchema).max(20).optional(),
@@ -80,26 +122,29 @@ const profileSchema = z.object({
   demographics: demographicsSchema.optional(),
 });
 
-const EMPTY_DEMOGRAPHICS = {
-  enabled: false,
-  gender: null,
-  ethnicity: null,
-  veteranStatus: null,
-  disabilityStatus: null,
-};
-
 type ProfileRow = typeof profiles.$inferSelect;
 
+/**
+ * Merges stored jsonb over the empty shapes.
+ *
+ * Rows written before a field existed will be missing it, so the defaults are
+ * spread underneath rather than trusting whatever is in the column.
+ */
 function toDto(row: ProfileRow): Profile {
   return {
     ...row,
-    experience: (row.experience ?? []) as Profile['experience'],
-    education: (row.education ?? []) as Profile['education'],
-    savedAnswers: (row.savedAnswers ?? []) as Profile['savedAnswers'],
-    demographics: {
-      ...EMPTY_DEMOGRAPHICS,
-      ...(row.demographics as object),
-    } as Profile['demographics'],
+    workAuthCountries: row.workAuthCountries ?? [],
+    preferredLocations: row.preferredLocations ?? [],
+    regions: row.regions ?? [],
+    compensation: {
+      current: { ...EMPTY_COMPENSATION.current, ...row.compensation?.current },
+      expected: { ...EMPTY_COMPENSATION.expected, ...row.compensation?.expected },
+    },
+    availability: { ...EMPTY_AVAILABILITY, ...row.availability },
+    experience: row.experience ?? [],
+    education: row.education ?? [],
+    savedAnswers: row.savedAnswers ?? [],
+    demographics: { ...EMPTY_DEMOGRAPHICS, ...row.demographics },
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -120,7 +165,12 @@ profileRoutes.get('/', async (c) => {
   // Create on first read so the client never has to handle a missing profile.
   const [created] = await db
     .insert(profiles)
-    .values({ userId, demographics: EMPTY_DEMOGRAPHICS })
+    .values({
+      userId,
+      demographics: EMPTY_DEMOGRAPHICS,
+      compensation: EMPTY_COMPENSATION,
+      availability: EMPTY_AVAILABILITY,
+    })
     .returning();
 
   return c.json({ profile: toDto(created) });
@@ -139,19 +189,24 @@ profileRoutes.put('/', async (c) => {
   const userId = c.get('userId');
   const input = parsed.data;
 
+  // Pulled out of the spread rather than overwritten in place: the parsed
+  // shape has `key` optional, and the raw array leaking through would store
+  // answers the matcher can never look up.
+  const { savedAnswers: submitted, ...rest } = input;
+
   // Recompute answer keys server-side. The extension looks answers up by key,
   // so letting a client send its own would let one bad write break matching
   // for every future form.
-  const savedAnswers = input.savedAnswers?.map((answer) => ({
+  const savedAnswers = submitted?.map((answer) => ({
     ...answer,
     key: answerKey(answer.label),
   }));
 
   const values = {
-    ...input,
+    ...rest,
     ...(savedAnswers ? { savedAnswers } : {}),
     updatedAt: new Date(),
-  };
+  } satisfies Partial<typeof profiles.$inferInsert>;
 
   const [row] = await db
     .insert(profiles)

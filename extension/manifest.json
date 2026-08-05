@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "jobpilot - Job Application Tracker",
+  "name": "jobpilot - Autofill & Job Application Tracker",
   "version": "0.1.0",
-  "description": "Automatically tracks every job you apply to, warns you about duplicates, and tells you when a posting goes down.",
+  "description": "Autofills job applications from one profile, warns you before you apply twice, and tells you when a posting comes down.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://boards.greenhouse.io/*",
@@ -11,6 +11,7 @@
     "https://jobs.ashbyhq.com/*",
     "http://localhost:8787/*"
   ],
+  "optional_host_permissions": ["https://*/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -21,7 +22,27 @@
         "https://boards.greenhouse.io/*",
         "https://job-boards.greenhouse.io/*",
         "https://jobs.lever.co/*",
-        "https://jobs.ashbyhq.com/*"
+        "https://jobs.ashbyhq.com/*",
+        "https://*.myworkdayjobs.com/*",
+        "https://jobs.smartrecruiters.com/*",
+        "https://apply.workable.com/*",
+        "https://*.teamtailor.com/*",
+        "https://*.recruitee.com/*",
+        "https://*.jobs.personio.de/*",
+        "https://*.jobs.personio.com/*",
+        "https://*.bamboohr.com/*",
+        "https://jobs.jobvite.com/*",
+        "https://*.icims.com/*",
+        "https://*.taleo.net/*",
+        "https://*.successfactors.com/*",
+        "https://*.zohorecruit.com/*",
+        "https://*.darwinbox.in/*",
+        "https://*.keka.com/*",
+        "https://www.naukri.com/*",
+        "https://www.instahyre.com/*",
+        "https://cutshort.io/*",
+        "https://www.hirist.tech/*",
+        "https://www.seek.com.au/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

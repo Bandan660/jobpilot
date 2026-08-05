@@ -340,10 +340,7 @@ export function relatedPosts(post: Post, limit = 2): Post[] {
     .map((entry) => entry.post);
 }
 
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
+// Re-exported from shared so posts, the dashboard, and the legal pages all
+// render dates identically — and so nothing here formats with a locale that
+// would differ between the prerender and the browser.
+export { formatDate } from '@jobpilot/shared';
