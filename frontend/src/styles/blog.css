@@ -1,0 +1,381 @@
+/**
+ * Blog index and article.
+ *
+ * Covers are generated SVG rather than photographs, so they carry the theme
+ * and stay sharp — but they still need to behave like images: fixed aspect
+ * ratio, cropped rather than squashed, and never taller than their card.
+ */
+
+.blog-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  padding-block: var(--gap-xl) var(--gap-lg);
+}
+
+/*
+ * Measure is set on the heading itself, not the container. Constraining the
+ * whole block forced the paragraph narrow too, and at --step-4 a long headline
+ * wrapped to six lines.
+ */
+.blog-head h1 {
+  font-size: clamp(2rem, 4.4vw, 3.25rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  max-width: 20ch;
+}
+
+.blog-head p {
+  color: var(--text-dim);
+  font-size: var(--step-1);
+  max-width: 60ch;
+}
+
+/* Cards -------------------------------------------------------------------- */
+
+.post-card-link {
+  display: block;
+  height: 100%;
+}
+
+.post-card {
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel);
+  transition: border-color 240ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.post-card:hover {
+  border-color: var(--line-bright);
+  transform: translateY(-3px);
+}
+
+.post-card-media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+
+.post-cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Slow drift on hover, so the cover feels like a surface rather than a sticker. */
+.post-card-media .post-cover {
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.post-card:hover .post-card-media .post-cover {
+  transform: scale(1.04);
+}
+
+.post-card-category {
+  position: absolute;
+  left: var(--gap-sm);
+  top: var(--gap-sm);
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line-bright);
+  font-size: var(--step--2);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.post-card-category[data-inline='true'] {
+  position: static;
+}
+
+.post-card-body {
+  padding: var(--gap-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.post-card-body h2 {
+  font-size: var(--step-1);
+  letter-spacing: -0.025em;
+  transition: color 200ms ease;
+}
+
+.post-card:hover .post-card-body h2 {
+  color: var(--signal-text);
+}
+
+.post-card-body p {
+  color: var(--muted);
+  font-size: var(--step--1);
+  line-height: 1.55;
+}
+
+.post-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: var(--gap-xs);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+/* Featured card runs two-up on wide screens. */
+@media (min-width: 860px) {
+  .post-card[data-featured='true'] .post-card-link {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .post-card[data-featured='true'] .post-card-media {
+    aspect-ratio: auto;
+    border-bottom: none;
+    border-right: 1px solid var(--line);
+  }
+
+  .post-card[data-featured='true'] .post-card-body {
+    padding: var(--gap-lg);
+    justify-content: center;
+  }
+
+  .post-card[data-featured='true'] .post-card-body h2 {
+    font-size: var(--step-2);
+  }
+
+  .post-card[data-featured='true'] .post-card-body p {
+    font-size: var(--step-0);
+  }
+}
+
+.post-grid {
+  display: grid;
+  gap: var(--gap-md);
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: var(--gap-md);
+  padding-bottom: var(--gap-2xl);
+}
+
+@media (min-width: 640px) {
+  .post-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .post-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Reveal wrappers must not break the equal-height grid. */
+.post-grid > .reveal {
+  display: flex;
+}
+
+.post-grid > .reveal > .post-card {
+  width: 100%;
+}
+
+/* Article ------------------------------------------------------------------ */
+
+.reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.reading-progress span {
+  display: block;
+  height: 100%;
+  background: var(--signal);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-top: var(--gap-lg);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+.breadcrumb a:hover {
+  color: var(--text);
+}
+
+.article-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  padding-block: var(--gap-lg);
+}
+
+/* Same fix as .blog-head: measure on the heading, not the block. */
+.article-head h1 {
+  font-size: clamp(1.875rem, 4vw, 3rem);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  max-width: 22ch;
+}
+
+.article-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+.article-lede {
+  font-size: var(--step-1);
+  color: var(--text-dim);
+  max-width: 58ch;
+  line-height: 1.6;
+}
+
+.article-media {
+  aspect-ratio: 21 / 9;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: var(--gap-xl);
+}
+
+.article-layout {
+  display: grid;
+  gap: var(--gap-xl);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 1000px) {
+  .article-layout {
+    grid-template-columns: minmax(0, 1fr) 210px;
+    gap: var(--gap-2xl);
+  }
+}
+
+/* Contents list, sticky beside the article on wide screens. */
+.toc {
+  order: -1;
+  border-left: 2px solid var(--line);
+  padding-left: var(--gap-md);
+}
+
+@media (min-width: 1000px) {
+  .toc {
+    order: 1;
+    position: sticky;
+    top: 92px;
+  }
+}
+
+.toc-label {
+  display: block;
+  font-size: var(--step--2);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: var(--gap-sm);
+}
+
+.toc ol {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  counter-reset: toc;
+}
+
+.toc a {
+  display: block;
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  line-height: 1.45;
+  transition: color 160ms ease;
+}
+
+.toc a:hover {
+  color: var(--signal-text);
+}
+
+/* Prose overrides for the article context. */
+.article .prose {
+  max-width: 68ch;
+  gap: var(--gap-md);
+}
+
+.article .prose p {
+  font-size: var(--step-0);
+  line-height: 1.75;
+}
+
+.article .prose h2 {
+  font-size: var(--step-2);
+  margin-top: var(--gap-lg);
+  scroll-margin-top: 90px;
+}
+
+.article .prose ul {
+  gap: var(--gap-sm);
+}
+
+.article .prose li {
+  line-height: 1.7;
+}
+
+.article .prose blockquote {
+  font-size: var(--step-1);
+  line-height: 1.5;
+  padding-block: var(--gap-xs);
+  letter-spacing: -0.01em;
+}
+
+.article-foot {
+  margin-top: var(--gap-xl);
+  padding-top: var(--gap-md);
+  border-top: 1px solid var(--line);
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-xs);
+}
+
+.tag {
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+.related {
+  margin-top: var(--gap-2xl);
+}
+
+.related-head {
+  font-size: var(--step-2);
+  letter-spacing: -0.025em;
+}

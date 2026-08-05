@@ -1,0 +1,338 @@
+/**
+ * Design tokens.
+ *
+ * Concept: an instrument panel. jobpilot runs in the background and reports
+ * back, so the visual language is cockpit instrumentation — amber signal
+ * lighting, status lamps, telemetry readouts.
+ *
+ * THEMING
+ * Every themed value is declared twice: a plain fallback, then the real
+ * light-dark() pair. Browsers without light-dark() (pre-Chrome 123) ignore the
+ * second declaration and keep the dark fallback, so they degrade to a working
+ * page rather than an unstyled one.
+ *
+ * light-dark() reads the *used* color-scheme, so switching themes is a single
+ * property change on :root rather than redeclaring the whole palette four
+ * times. The [data-theme] rules at the bottom are what the toggle sets, and
+ * they beat the OS preference in both directions.
+ *
+ * The two palettes are not inversions of each other. Amber that reads as
+ * instrument lighting on near-black is illegible as text on white, so the
+ * accent splits: --signal is the fill, --signal-text is the accessible text
+ * and border version, and only the light palette darkens it.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Ground and surfaces */
+  --ink: #080d16;
+  --ink: light-dark(#f6f8fc, #080d16);
+  --panel: #0f1726;
+  --panel: light-dark(#ffffff, #0f1726);
+  --panel-raised: #162134;
+  --panel-raised: light-dark(#eef2f8, #162134);
+  --line: #1e2b42;
+  --line: light-dark(#dde4ef, #1e2b42);
+  --line-bright: #2b3c59;
+  --line-bright: light-dark(#c3cddc, #2b3c59);
+
+  /* Text */
+  --text: #e8edf7;
+  --text: light-dark(#0b1420, #e8edf7);
+  --text-dim: #a8b8d0;
+  --text-dim: light-dark(#3a4757, #a8b8d0);
+  --muted: #7e91b0;
+  --muted: light-dark(#66748a, #7e91b0);
+
+  /* Accent: instrument amber. Used sparingly — it marks the one thing that
+     matters in a given view, never decoration. */
+  --signal: #ffb020;
+  --signal: light-dark(#f0a017, #ffb020);
+  --signal-bright: #ffc24d;
+  --signal-bright: light-dark(#ffb332, #ffc24d);
+  /* Accent as text or border. Darkened in light mode to stay legible. */
+  --signal-text: #ffb020;
+  --signal-text: light-dark(#8a5200, #ffb020);
+  --signal-dim: #b87d12;
+  --signal-dim: light-dark(#dca94a, #b87d12);
+  --signal-wash: rgba(255, 176, 32, 0.12);
+  --signal-wash: light-dark(rgba(240, 160, 23, 0.14), rgba(255, 176, 32, 0.12));
+  /* Text placed on top of a --signal fill. Dark in both themes. */
+  --on-signal: #1a1204;
+
+  /* Semantic status. Separate from the accent by design. */
+  --live: #3fcf8e;
+  --live: light-dark(#047857, #3fcf8e);
+  --live-wash: rgba(63, 207, 142, 0.12);
+  --live-wash: light-dark(rgba(4, 120, 87, 0.1), rgba(63, 207, 142, 0.12));
+  --down: #ff6b5e;
+  --down: light-dark(#b91c1c, #ff6b5e);
+  --down-wash: rgba(255, 107, 94, 0.12);
+  --down-wash: light-dark(rgba(185, 28, 28, 0.09), rgba(255, 107, 94, 0.12));
+  --wait: #7c8da6;
+  --wait: light-dark(#5a6b82, #7c8da6);
+  --wait-wash: rgba(124, 141, 166, 0.12);
+  --wait-wash: light-dark(rgba(90, 107, 130, 0.1), rgba(124, 141, 166, 0.12));
+
+  /* Effects */
+  --hover-wash: rgba(255, 255, 255, 0.03);
+  --hover-wash: light-dark(rgba(11, 20, 32, 0.035), rgba(255, 255, 255, 0.03));
+  --header-bg: rgba(8, 13, 22, 0.85);
+  --header-bg: light-dark(rgba(246, 248, 252, 0.85), rgba(8, 13, 22, 0.85));
+  --shadow: rgba(0, 0, 0, 0.7);
+  --shadow: light-dark(rgba(15, 30, 60, 0.14), rgba(0, 0, 0, 0.7));
+  --hero-glow: rgba(255, 176, 32, 0.1);
+  --hero-glow: light-dark(rgba(240, 160, 23, 0.18), rgba(255, 176, 32, 0.1));
+
+  /*
+   * Type scale. Raised a full step across the board — the previous 15px base
+   * read as cramped at desktop widths, and the uppercase micro-labels were
+   * below comfortable reading size.
+   */
+  --step--2: 0.8125rem;
+  --step--1: 0.875rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.75rem;
+  --step-3: 2.5rem;
+  --step-4: clamp(2.75rem, 6vw, 4.25rem);
+
+  /*
+   * Geist: a technical grotesque with a near-mechanical rhythm, paired with
+   * its monospace sibling for the telemetry. Chosen because the instrument
+   * concept wants precision rather than warmth — and because it is neither of
+   * the two faces that turn up on every generated landing page.
+   */
+  --font-body: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo,
+    Consolas, monospace;
+
+  /* Rhythm */
+  --gap-xs: 0.375rem;
+  --gap-sm: 0.875rem;
+  --gap-md: 1.25rem;
+  --gap-lg: 2rem;
+  --gap-xl: 3.5rem;
+  --gap-2xl: 6rem;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shell: 1120px;
+}
+
+/* Explicit choice from the toggle. Overrides the OS preference both ways. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Digits that sit in columns must not jitter as values change. */
+table,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Shared primitives -------------------------------------------------------- */
+
+.shell {
+  width: 100%;
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+/**
+ * Section eyebrow. The amber tick marks the start of a section and nothing
+ * else, so it never implies ordering or hierarchy it does not have.
+ */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.eyebrow::before {
+  content: '';
+  width: 14px;
+  height: 2px;
+  background: var(--signal);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-xs);
+  padding: 0.75rem 1.125rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--signal);
+  color: var(--on-signal);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--signal-bright);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line-bright);
+  color: var(--text);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--muted);
+  background: var(--hover-wash);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--signal-text);
+  font: inherit;
+  font-size: var(--step--1);
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+/* Status lamp — a filled dot plus label, the instrument-panel readout. */
+.lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.625rem 0.2rem 0.4rem;
+  border-radius: 999px;
+}
+
+.lamp::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.lamp-live {
+  color: var(--live);
+  background: var(--live-wash);
+}
+
+.lamp-down {
+  color: var(--down);
+  background: var(--down-wash);
+}
+
+.lamp-wait {
+  color: var(--wait);
+  background: var(--wait-wash);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error-text {
+  color: var(--down);
+  font-size: var(--step--1);
+}
+
+/* Theme toggle ------------------------------------------------------------- */
+
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  background: transparent;
+  border: 1px solid var(--line-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+  border-color: var(--muted);
+  background: var(--hover-wash);
+}

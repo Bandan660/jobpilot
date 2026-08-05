@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f8fc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080d16" />
+
+    <!--
+      Applies a saved theme choice before first paint. Without this the page
+      renders in the OS theme for one frame and then snaps to the chosen one.
+      Deliberately tiny and dependency-free: it runs before the bundle loads.
+    -->
+    <script>
+      try {
+        var saved = localStorage.getItem('jobpilot.theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', saved);
+        }
+      } catch (e) {
+        /* private mode or storage disabled — fall back to the OS preference */
+      }
+    </script>
+
+    <!-- Per-route titles and descriptions are set by usePageMeta; these are the
+         defaults a crawler sees before the app boots. -->
+    <title>jobpilot — a job tracker that updates itself</title>
+    <meta
+      name="description"
+      content="jobpilot records every job application from your browser, warns you before you apply twice, and tells you when a posting comes down."
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="jobpilot — a job tracker that updates itself" />
+    <meta
+      property="og:description"
+      content="Apply like normal. jobpilot captures the application, catches duplicates, and flags postings that have gone down."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

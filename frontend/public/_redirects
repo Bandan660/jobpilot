@@ -1,0 +1,4 @@
+# Cloudflare Pages SPA fallback.
+# Client-side routing means /blog/some-post has no file on disk; without this
+# a direct visit or refresh on any route other than / returns 404.
+/*  /index.html  200

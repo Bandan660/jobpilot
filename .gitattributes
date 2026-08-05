@@ -1,0 +1,9 @@
+# Normalize to LF in the repository; Git still checks out CRLF on Windows.
+# Without this, committing from Windows stores CRLF and every file shows as
+# fully changed when anyone edits it on macOS or Linux, or in CI.
+* text=auto eol=lf
+
+# Binary — never touch these.
+*.png binary
+*.woff2 binary
+*.ico binary

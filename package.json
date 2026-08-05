@@ -1,0 +1,24 @@
+{
+  "name": "jobpilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Self-updating job application tracker with browser capture",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend",
+    "extension"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w @jobpilot/shared",
+    "dev:api": "npm run dev -w @jobpilot/backend",
+    "dev:web": "npm run dev -w @jobpilot/frontend",
+    "build:extension": "npm run build -w @jobpilot/extension",
+    "db:generate": "npm run db:generate -w @jobpilot/backend",
+    "db:push": "npm run db:push -w @jobpilot/backend",
+    "setup": "npm install && npm run build:shared"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

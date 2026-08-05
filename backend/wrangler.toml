@@ -1,0 +1,22 @@
+name = "jobpilot-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Dead-posting checker. Every 6 hours; each run processes one batch.
+# Cron Triggers are included on the Workers free plan.
+[triggers]
+crons = ["0 */6 * * *"]
+
+[vars]
+# Non-secret config. Secrets (DATABASE_URL, JWT_SECRET) are set separately:
+#   npx wrangler secret put DATABASE_URL
+#   npx wrangler secret put JWT_SECRET
+# For local dev they go in backend/.dev.vars instead.
+CORS_ORIGINS = "http://localhost:5173"
+POSTING_RECHECK_AFTER_HOURS = "24"
+POSTING_CHECK_BATCH_SIZE = "25"
+GHOST_AFTER_DAYS = "30"
+
+[observability]
+enabled = true

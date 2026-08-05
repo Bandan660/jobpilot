@@ -1,0 +1,1189 @@
+/**
+ * Illustrations and motion for the marketing pages.
+ *
+ * Everything here is drawn in CSS rather than shipped as an image: it stays
+ * sharp at any density, follows the theme tokens, and can animate. The
+ * "screenshots" are the real component classes wherever possible so the
+ * marketing page cannot drift from the product.
+ *
+ * All motion is decorative. The global prefers-reduced-motion rule in
+ * tokens.css collapses every animation to its final frame, which for each of
+ * these is the meaningful end state — captured, removed, filled.
+ */
+
+/* Hero entrance ------------------------------------------------------------ */
+
+/*
+ * Runs once on load. Pure CSS with nth-child delays rather than JS: the hero is
+ * above the fold, so it must not wait for hydration to become visible.
+ */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-copy > * {
+  animation: rise-in 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/*
+ * LCP EXCEPTION.
+ *
+ * The hero heading is the largest contentful paint on most pages. Fading it in
+ * means it is invisible until its animation delay elapses, and Lighthouse
+ * measures LCP against when content becomes visible — so a fade here costs
+ * real points for a purely decorative effect.
+ *
+ * It gets a transform-only entrance instead: painted immediately, still moves.
+ */
+.hero-copy > h1 {
+  animation: rise-shift 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0ms;
+}
+
+@keyframes rise-shift {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.hero-copy > *:nth-child(1) {
+  animation-delay: 60ms;
+}
+.hero-copy > *:nth-child(2) {
+  animation-delay: 130ms;
+}
+.hero-copy > *:nth-child(3) {
+  animation-delay: 210ms;
+}
+.hero-copy > *:nth-child(4) {
+  animation-delay: 290ms;
+}
+.hero-copy > *:nth-child(5) {
+  animation-delay: 360ms;
+}
+
+.hero .panel-mock {
+  animation: rise-in 820ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 240ms;
+}
+
+/* Rows deal in one at a time, like a board filling. */
+.hero .panel-mock .mock-row {
+  animation: rise-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero .panel-mock .mock-row:nth-child(2) {
+  animation-delay: 420ms;
+}
+.hero .panel-mock .mock-row:nth-child(3) {
+  animation-delay: 500ms;
+}
+.hero .panel-mock .mock-row:nth-child(4) {
+  animation-delay: 580ms;
+}
+.hero .panel-mock .mock-row:nth-child(5) {
+  animation-delay: 660ms;
+}
+.hero .panel-mock .mock-row:nth-child(6) {
+  animation-delay: 740ms;
+}
+
+/* Buttons ------------------------------------------------------------------ */
+
+.btn {
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease,
+    transform 140ms ease, box-shadow 200ms ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -8px var(--signal);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* Tile sheen --------------------------------------------------------------- */
+
+/* A single pass of light across the tile on hover. Cheap, and it makes the
+   cluster feel like lit instruments rather than static boxes. */
+.tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, var(--signal-wash) 50%, transparent 70%);
+  opacity: 0;
+  transform: translateX(-60%);
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.tile:hover::after {
+  opacity: 1;
+  animation: tile-sheen 900ms ease-out;
+}
+
+@keyframes tile-sheen {
+  from {
+    transform: translateX(-60%);
+  }
+  to {
+    transform: translateX(60%);
+  }
+}
+
+/* Waypoint ping ------------------------------------------------------------ */
+
+/* One expanding ring when a waypoint is reached — an arrival, not a loop. */
+.waypoint-marker::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid var(--signal);
+  opacity: 0;
+}
+
+.waypoint.is-active .waypoint-marker::after {
+  animation: waypoint-ping 900ms ease-out 1;
+}
+
+@keyframes waypoint-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* Scroll reveal ------------------------------------------------------------ */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * Above-the-fold reveals opt out of the fade entirely. A Reveal wrapping the
+ * LCP element would otherwise hold it at opacity 0 until the observer fires —
+ * the same problem as the hero heading, one layer up.
+ */
+.reveal[data-immediate='true'] {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+/* Staggered children within a revealed group. */
+.reveal[data-delay='1'] {
+  transition-delay: 90ms;
+}
+.reveal[data-delay='2'] {
+  transition-delay: 180ms;
+}
+.reveal[data-delay='3'] {
+  transition-delay: 270ms;
+}
+
+/* Never leave content hidden when motion is suppressed. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Platform marquee --------------------------------------------------------- */
+
+.marquee {
+  position: relative;
+  overflow: hidden;
+  /* Fade the edges so items enter and leave rather than being clipped. */
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  gap: var(--gap-lg);
+  width: max-content;
+  animation: marquee-scroll 34s linear infinite;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  /* The track holds two identical copies, so -50% is a seamless loop point. */
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  font-size: var(--step-1);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.marquee-item[data-state='planned'] {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.marquee-item .lamp {
+  font-size: 0.6875rem;
+}
+
+/* Browser frame ------------------------------------------------------------ */
+
+.browser {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 30px 70px -28px var(--shadow);
+  position: relative;
+}
+
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: 0.55rem 0.875rem;
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--line);
+}
+
+.browser-dots {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.browser-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line-bright);
+}
+
+.browser-url {
+  flex: 1;
+  min-width: 0;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-body {
+  padding: var(--gap-md);
+  min-height: 232px;
+  position: relative;
+}
+
+/* Capture demo ------------------------------------------------------------- */
+
+/*
+ * One 9s timeline shared by every moving part: the button press at 22%, the
+ * banner at 27%, the tracker row at 36%, then a long hold and reset. Keeping
+ * a single duration on all of them is what keeps the sequence in sync.
+ */
+
+.demo-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.demo-field {
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  padding-inline: 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.demo-field-file {
+  border-style: dashed;
+}
+
+.demo-submit {
+  align-self: flex-start;
+  margin-top: var(--gap-xs);
+  background: var(--signal);
+  color: var(--on-signal);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.9rem;
+  font-size: var(--step--1);
+  font-weight: 650;
+  animation: demo-press 9s ease-in-out infinite;
+}
+
+@keyframes demo-press {
+  0%,
+  20% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  23% {
+    transform: scale(0.94);
+    filter: brightness(0.88);
+  }
+  26%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* Pointer that travels to the button and clicks. */
+.demo-cursor {
+  position: absolute;
+  left: 18%;
+  top: 78%;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  animation: demo-cursor-move 9s ease-in-out infinite;
+}
+
+.demo-cursor svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes demo-cursor-move {
+  0% {
+    opacity: 0;
+    transform: translate(40px, 30px);
+  }
+  8% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  23% {
+    transform: translate(1px, 1px) scale(0.9);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  40%,
+  100% {
+    opacity: 0;
+    transform: translate(-6px, -14px);
+  }
+}
+
+/* The in-page notice jobpilot injects after a capture. */
+.demo-banner {
+  position: absolute;
+  top: var(--gap-sm);
+  right: var(--gap-sm);
+  left: var(--gap-sm);
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  background: var(--panel-raised);
+  border: 1px solid var(--line-bright);
+  border-left: 3px solid var(--live);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.7rem;
+  box-shadow: 0 10px 24px -12px var(--shadow);
+  opacity: 0;
+  animation: demo-banner-in 9s ease-out infinite;
+}
+
+@keyframes demo-banner-in {
+  0%,
+  25% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  29%,
+  86% {
+    opacity: 1;
+    transform: none;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+.demo-banner-title {
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.demo-banner-sub {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.demo-brand-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--signal);
+  color: var(--on-signal);
+  font-size: 0.625rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* The tracker row that appears underneath, in a second panel. */
+.demo-tracker {
+  margin-top: var(--gap-sm);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.demo-tracker .mock-row[data-new='true'] {
+  opacity: 0;
+  animation: demo-row-in 9s ease-out infinite;
+  background: var(--signal-wash);
+}
+
+@keyframes demo-row-in {
+  0%,
+  34% {
+    opacity: 0;
+    transform: translateY(-8px);
+    background: var(--signal-wash);
+  }
+  40% {
+    opacity: 1;
+    transform: none;
+    background: var(--signal-wash);
+  }
+  55%,
+  86% {
+    opacity: 1;
+    transform: none;
+    background: transparent;
+  }
+  93%,
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* Icon chip eyebrow -------------------------------------------------------- */
+
+.chip-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  margin-bottom: var(--gap-md);
+}
+
+.icon-chip {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--signal-wash);
+  border: 1px solid var(--signal-dim);
+  color: var(--signal-text);
+  flex-shrink: 0;
+}
+
+.icon-chip svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.chip-label {
+  font-size: var(--step-1);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/* Works-on pill row -------------------------------------------------------- */
+
+.works-on {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--gap-md);
+}
+
+.works-on-label {
+  font-size: 0.8125rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.works-on-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.34rem 0.875rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--text-dim);
+  box-shadow: 0 2px 8px -4px var(--shadow);
+}
+
+.works-on-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live);
+  flex-shrink: 0;
+}
+
+.works-on-pill[data-more='true'] {
+  color: var(--muted);
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Autofill demo ------------------------------------------------------------ */
+
+/*
+ * A 10s loop: the cursor travels to the extension panel's Autofill button,
+ * presses it, and the form fields fill one after another. Each field carries
+ * the same animation with a staggered delay, which also makes them clear in
+ * sequence rather than all at once.
+ */
+
+.af-page {
+  display: grid;
+  gap: var(--gap-md);
+  padding: var(--gap-md);
+  min-height: 264px;
+  position: relative;
+}
+
+.af-company {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-size: var(--step-0);
+}
+
+.af-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--line-bright);
+}
+
+.af-role {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-top: -0.625rem;
+}
+
+.af-fields {
+  display: grid;
+  gap: 0.625rem;
+  max-width: 62%;
+}
+
+.af-field {
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  padding-inline: 0.55rem;
+  gap: 0.4rem;
+  overflow: hidden;
+  animation: af-field-flash 10s ease-out infinite;
+}
+
+.af-field-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  flex-shrink: 0;
+  min-width: 54px;
+}
+
+.af-field-value {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  animation: af-value-in 10s ease-out infinite;
+}
+
+.af-field:nth-child(1),
+.af-field:nth-child(1) .af-field-value {
+  animation-delay: 0s;
+}
+.af-field:nth-child(2),
+.af-field:nth-child(2) .af-field-value {
+  animation-delay: 0.18s;
+}
+.af-field:nth-child(3),
+.af-field:nth-child(3) .af-field-value {
+  animation-delay: 0.36s;
+}
+.af-field:nth-child(4),
+.af-field:nth-child(4) .af-field-value {
+  animation-delay: 0.54s;
+}
+.af-field:nth-child(5),
+.af-field:nth-child(5) .af-field-value {
+  animation-delay: 0.72s;
+}
+
+@keyframes af-value-in {
+  0%,
+  22% {
+    opacity: 0;
+  }
+  26%,
+  88% {
+    opacity: 1;
+  }
+  94%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The amber outline the real extension flashes on each filled field. */
+@keyframes af-field-flash {
+  0%,
+  22% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
+  26% {
+    border-color: var(--signal);
+    box-shadow: 0 0 0 2px var(--signal-wash);
+  }
+  40%,
+  100% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
+}
+
+/* Extension panel overlaying the page, as it appears in the browser. */
+.af-panel {
+  position: absolute;
+  top: var(--gap-sm);
+  right: var(--gap-sm);
+  width: 168px;
+  background: var(--panel-raised);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 14px 32px -14px var(--shadow);
+  overflow: hidden;
+}
+
+.af-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.af-panel-body {
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.af-panel-line {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-bright);
+}
+
+.af-panel-line:nth-child(2) {
+  width: 72%;
+}
+
+.af-panel-btn {
+  margin-top: 0.15rem;
+  background: var(--signal);
+  color: var(--on-signal);
+  border-radius: 4px;
+  text-align: center;
+  padding: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  animation: demo-press 10s ease-in-out infinite;
+}
+
+/* Cursor travelling to the panel button. */
+.af-cursor {
+  position: absolute;
+  right: 34px;
+  top: 128px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  animation: af-cursor 10s ease-in-out infinite;
+}
+
+.af-cursor svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+@keyframes af-cursor {
+  0% {
+    opacity: 0;
+    transform: translate(-70px, 60px);
+  }
+  7% {
+    opacity: 1;
+  }
+  18% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  21% {
+    transform: translate(1px, 1px) scale(0.9);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  42%,
+  100% {
+    opacity: 0;
+    transform: translate(-16px, -20px);
+  }
+}
+
+/* Alternating feature rows -------------------------------------------------- */
+
+.feature-row {
+  display: grid;
+  gap: var(--gap-xl);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  padding-block: var(--gap-xl);
+  border-top: 1px solid var(--line);
+}
+
+.feature-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+@media (min-width: 900px) {
+  .feature-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: var(--gap-2xl);
+  }
+
+  /* Visual on the left for every other row, without reordering the DOM. */
+  .feature-row[data-flip='true'] .feature-visual {
+    order: -1;
+  }
+}
+
+.feature-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: flex-start;
+}
+
+.feature-copy h3 {
+  font-size: var(--step-2);
+}
+
+.feature-copy p {
+  color: var(--text-dim);
+  max-width: 46ch;
+}
+
+.feature-points {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  font-size: var(--step--1);
+  color: var(--muted);
+  margin-top: var(--gap-xs);
+}
+
+.feature-points li {
+  display: flex;
+  gap: var(--gap-sm);
+}
+
+.feature-points li::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--signal);
+  flex-shrink: 0;
+  margin-top: 0.625rem;
+}
+
+.feature-visual {
+  min-width: 0;
+}
+
+/* Duplicate illustration --------------------------------------------------- */
+
+.dup-sources {
+  display: grid;
+  gap: var(--gap-sm);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dup-source {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.7rem;
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: dup-pulse 6s ease-in-out infinite;
+}
+
+.dup-source:nth-child(2) {
+  animation-delay: 0.4s;
+}
+.dup-source:nth-child(3) {
+  animation-delay: 0.8s;
+}
+.dup-source:nth-child(4) {
+  animation-delay: 1.2s;
+}
+
+@keyframes dup-pulse {
+  0%,
+  40%,
+  100% {
+    border-color: var(--line);
+  }
+  50%,
+  70% {
+    border-color: var(--signal-dim);
+  }
+}
+
+.dup-arrow {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  padding-block: var(--gap-sm);
+  font-size: 1rem;
+}
+
+.dup-result {
+  border: 1px solid var(--signal-dim);
+  background: var(--signal-wash);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-sm) 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+/* Posting-down illustration ------------------------------------------------ */
+
+.posting-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-sm) 0.875rem;
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.posting-card + .posting-card {
+  margin-top: var(--gap-sm);
+}
+
+.posting-card .lamp {
+  margin-left: auto;
+}
+
+/* The lamp that flips from live to removed, mid-loop. */
+.lamp-swap {
+  position: relative;
+  display: inline-grid;
+  margin-left: auto;
+}
+
+.lamp-swap > .lamp {
+  grid-area: 1 / 1;
+}
+
+.lamp-swap > .lamp:first-child {
+  animation: swap-out 7s ease-in-out infinite;
+}
+
+.lamp-swap > .lamp:last-child {
+  animation: swap-in 7s ease-in-out infinite;
+}
+
+@keyframes swap-out {
+  0%,
+  44% {
+    opacity: 1;
+  }
+  52%,
+  92% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes swap-in {
+  0%,
+  44% {
+    opacity: 0;
+  }
+  52%,
+  92% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.sweep-log {
+  margin-top: var(--gap-md);
+  border-top: 1px solid var(--line);
+  padding-top: var(--gap-sm);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sweep-log span {
+  opacity: 0;
+  animation: sweep-line 7s linear infinite;
+}
+
+.sweep-log span:nth-child(1) {
+  animation-delay: 0.2s;
+}
+.sweep-log span:nth-child(2) {
+  animation-delay: 1.2s;
+}
+.sweep-log span:nth-child(3) {
+  animation-delay: 2.2s;
+}
+
+@keyframes sweep-line {
+  0% {
+    opacity: 0;
+  }
+  6%,
+  88% {
+    opacity: 1;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.sweep-log b {
+  color: var(--down);
+  font-weight: 650;
+}
+
+/* Funnel illustration ------------------------------------------------------ */
+
+.funnel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: var(--gap-sm);
+  font-size: 0.8125rem;
+}
+
+.funnel-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 650;
+}
+
+.funnel-bar {
+  height: 22px;
+  border-radius: 4px;
+  background: var(--panel-raised);
+  overflow: hidden;
+}
+
+.funnel-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--signal);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Bars grow only once the chart scrolls into view. */
+.is-visible .funnel-fill {
+  transform: scaleX(1);
+}
+
+.funnel-row:nth-child(2) .funnel-fill {
+  transition-delay: 100ms;
+}
+.funnel-row:nth-child(3) .funnel-fill {
+  transition-delay: 200ms;
+}
+.funnel-row:nth-child(4) .funnel-fill {
+  transition-delay: 300ms;
+}
+.funnel-row:nth-child(5) .funnel-fill {
+  transition-delay: 400ms;
+}
+
+.funnel-fill[data-tone='dim'] {
+  background: var(--line-bright);
+}
+
+.funnel-count {
+  text-align: right;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .funnel-fill {
+    transform: scaleX(1);
+  }
+}
+
+/* Facts band --------------------------------------------------------------- */
+
+.facts {
+  display: grid;
+  gap: var(--gap-md);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-left: var(--gap-md);
+  border-left: 2px solid var(--signal);
+}
+
+.fact-value {
+  font-size: var(--step-3);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.fact-label {
+  font-size: var(--step--1);
+  color: var(--muted);
+  max-width: 30ch;
+}

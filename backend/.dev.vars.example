@@ -1,0 +1,8 @@
+# Copy to backend/.dev.vars for local `wrangler dev`. Never commit .dev.vars.
+
+# Neon connection string. Use the POOLED one (host contains "-pooler").
+DATABASE_URL="postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/jobpilot?sslmode=require"
+
+# Generate with:
+#   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+JWT_SECRET="change-me"

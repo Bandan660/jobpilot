@@ -1,0 +1,273 @@
+﻿/* Authenticated app: login and dashboard. Scoped so it cannot collide with
+   the marketing rules. */
+
+.app-shell {
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding: var(--gap-lg) 20px var(--gap-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.app-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  padding-bottom: var(--gap-md);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-bar .brand {
+  margin-right: auto;
+}
+
+.app-bar .account {
+  font-size: var(--step--1);
+  color: var(--muted);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Stat readouts ------------------------------------------------------------ */
+
+.readouts {
+  display: grid;
+  gap: var(--gap-sm);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.readout {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--gap-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+/* The one readout that needs attention gets the accent; the rest stay quiet. */
+.readout[data-emphasis='true'] {
+  border-color: var(--signal-dim);
+  background: linear-gradient(var(--signal-wash), transparent), var(--panel);
+}
+
+.readout-value {
+  font-size: var(--step-3);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.readout[data-emphasis='true'] .readout-value {
+  color: var(--signal-text);
+}
+
+.readout-label {
+  font-size: 0.8125rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+/* Panels ------------------------------------------------------------------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--gap-md);
+}
+
+.panel-alert {
+  border-color: var(--signal-dim);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--gap-md);
+}
+
+.panel-head h2 {
+  font-size: var(--step-1);
+}
+
+.alert-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.alert-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+  font-size: var(--step--1);
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--line);
+}
+
+.alert-list li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* Table -------------------------------------------------------------------- */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--step--1);
+}
+
+th {
+  text-align: left;
+  font-size: 0.8125rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 650;
+  padding: 0 0.6rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+td {
+  padding: 0.7rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover {
+  background: var(--hover-wash);
+}
+
+.role-link {
+  color: var(--text);
+  border-bottom: 1px solid transparent;
+}
+
+.role-link:hover {
+  border-bottom-color: var(--signal);
+}
+
+.cell-dim {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+/* Forms -------------------------------------------------------------------- */
+
+input,
+select {
+  font: inherit;
+  font-size: var(--step--1);
+  padding: 0.625rem 0.7rem;
+  background: var(--ink);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+
+input::placeholder {
+  color: var(--muted);
+}
+
+select {
+  cursor: pointer;
+  text-transform: capitalize;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+/* Auth --------------------------------------------------------------------- */
+
+.auth-shell {
+  min-height: calc(100vh - 60px);
+  display: grid;
+  place-items: center;
+  padding: var(--gap-lg) 20px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--gap-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.auth-card h1 {
+  font-size: var(--step-2);
+}
+
+.auth-card > p {
+  color: var(--muted);
+  font-size: var(--step--1);
+  margin-top: calc(var(--gap-md) * -0.6);
+}
+
+.auth-footer {
+  text-align: center;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+
+.demo-hint {
+  background: var(--signal-wash);
+  border: 1px solid var(--signal-dim);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-sm);
+  font-size: var(--step--1);
+  color: var(--text-dim);
+}
+
+.centered {
+  padding: var(--gap-2xl);
+  text-align: center;
+  color: var(--muted);
+}
+
+.banner-error {
+  background: var(--down-wash);
+  border: 1px solid var(--down);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-sm) var(--gap-md);
+  color: var(--text);
+  font-size: var(--step--1);
+}
+

@@ -1,0 +1,10 @@
+# Update the Sitemap host once the real domain is live.
+User-agent: *
+Allow: /
+
+# The app itself is behind auth and has nothing to index.
+Disallow: /dashboard
+Disallow: /login
+Disallow: /signup
+
+Sitemap: https://jobpilot.app/sitemap.xml
