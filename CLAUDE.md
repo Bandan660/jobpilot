@@ -129,6 +129,13 @@ separate times — a missing CORS header, a missing response field, and a
 suffix rule that "did not work". Poll until the new behaviour appears rather
 than asserting on the first response.
 
+**The frontend API URL must live in `frontend/.env.production`.** Deploys go
+out as `wrangler pages deploy dist` — a locally-built bundle — so Cloudflare
+Pages' own build variables never apply. Setting it only in the dashboard ships a
+production bundle that calls `localhost:8787` and fails every request with
+`ERR_CONNECTION_REFUSED`. Verify after building:
+`grep -c localhost:8787 dist/assets/*.js` must be 0.
+
 **drizzle-kit prompts interactively** when it cannot distinguish a new column
 from a rename, which hangs a non-interactive shell.
 
