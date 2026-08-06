@@ -3,7 +3,8 @@ export interface Env {
   DATABASE_URL: string;
   JWT_SECRET: string;
   /** Resume objects. Keys are user-scoped; see routes/resumes.ts. */
-  RESUMES: R2Bucket;
+  /** Absent until R2 is enabled on the account; routes 503 rather than crash. */
+  RESUMES?: R2Bucket;
   CORS_ORIGINS: string;
   /** Comma-separated host suffixes, e.g. ".jobpilot-3lg.pages.dev". */
   CORS_ORIGIN_SUFFIXES: string;

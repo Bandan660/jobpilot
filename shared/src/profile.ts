@@ -148,6 +148,10 @@ export interface Profile {
   compensation: CompensationProfile;
   availability: AvailabilityProfile;
 
+  /** Free-form. Application forms ask for these as often as they ask for a resume. */
+  skills: string[];
+  languages: string[];
+
   experience: WorkExperience[];
   education: Education[];
   savedAnswers: SavedAnswer[];
@@ -236,6 +240,8 @@ export const PROFILE_FIELDS = [
   'willingToRelocate',
   'preferredLocations',
   'referralSource',
+  'skills',
+  'languages',
   'currentCompensation',
   'expectedCompensation',
   'noticePeriod',
@@ -330,6 +336,8 @@ export const EMPTY_PROFILE: Omit<Profile, 'id' | 'userId' | 'createdAt' | 'updat
   workAuthCountries: [],
   preferredLocations: [],
   referralSource: null,
+  skills: [],
+  languages: [],
   compensation: EMPTY_COMPENSATION,
   availability: EMPTY_AVAILABILITY,
   experience: [],
@@ -452,6 +460,10 @@ export function profileValue(
 
     case 'preferredLocations':
       return profile.preferredLocations.length ? profile.preferredLocations.join(', ') : null;
+    case 'skills':
+      return profile.skills.length ? profile.skills.join(', ') : null;
+    case 'languages':
+      return profile.languages.length ? profile.languages.join(', ') : null;
 
     case 'currentCompensation':
       return formatMoney(profile.compensation.current, label);

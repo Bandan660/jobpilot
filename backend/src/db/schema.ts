@@ -281,6 +281,9 @@ export const profiles = pgTable(
       .notNull()
       .default(EMPTY_AVAILABILITY),
 
+    skills: jsonb('skills').$type<string[]>().notNull().default([]),
+    languages: jsonb('languages').$type<string[]>().notNull().default([]),
+
     experience: jsonb('experience').$type<WorkExperience[]>().notNull().default([]),
     education: jsonb('education').$type<Education[]>().notNull().default([]),
     savedAnswers: jsonb('saved_answers').$type<SavedAnswer[]>().notNull().default([]),

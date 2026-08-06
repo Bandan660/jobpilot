@@ -116,6 +116,9 @@ const profileSchema = z.object({
   compensation: compensationSchema.optional(),
   availability: availabilitySchema.optional(),
 
+  skills: z.array(z.string().max(80)).max(150).optional(),
+  languages: z.array(z.string().max(60)).max(40).optional(),
+
   experience: z.array(experienceSchema).max(40).optional(),
   education: z.array(educationSchema).max(20).optional(),
   savedAnswers: z.array(savedAnswerSchema).max(200).optional(),
@@ -150,6 +153,8 @@ function toDto(row: ProfileRow): Profile {
       expected: { ...EMPTY_COMPENSATION.expected, ...row.compensation?.expected },
     },
     availability: { ...EMPTY_AVAILABILITY, ...row.availability },
+    skills: row.skills ?? [],
+    languages: row.languages ?? [],
     experience: row.experience ?? [],
     education: row.education ?? [],
     savedAnswers: row.savedAnswers ?? [],

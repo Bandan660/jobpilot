@@ -47,6 +47,18 @@ export const resumeRoutes = new Hono<AppContext>();
 
 resumeRoutes.use('*', requireAuth);
 
+/**
+ * R2 has to be switched on in the dashboard before the binding exists. Without
+ * this guard every resume route dies on `undefined.put` with a 500 that says
+ * nothing useful.
+ */
+function bucket(c: { env: { RESUMES?: R2Bucket } }): R2Bucket {
+  if (!c.env.RESUMES) {
+    throw new HTTPException(503, { message: 'Resume storage is not configured yet.' });
+  }
+  return c.env.RESUMES;
+}
+
 resumeRoutes.get('/', async (c) => {
   const db = createDb(c.env);
   const rows = await db
@@ -121,7 +133,7 @@ resumeRoutes.post('/', async (c) => {
   const id = crypto.randomUUID();
   const key = `resumes/${userId}/${id}`;
 
-  await c.env.RESUMES.put(key, bytes, {
+  await bucket(c).put(key, bytes, {
     httpMetadata: { contentType },
     // Stored so an orphaned object can be traced back without the database.
     customMetadata: { userId, fileName },
@@ -164,7 +176,7 @@ resumeRoutes.get('/:id/file', async (c) => {
 
   if (!row) throw new HTTPException(404, { message: 'Resume not found' });
 
-  const object = await c.env.RESUMES.get(row.storageKey);
+  const object = await bucket(c).get(row.storageKey);
   if (!object) {
     // Row without an object: the upload failed midway or the object was
     // removed out of band. Say so rather than returning an empty file.
@@ -226,7 +238,7 @@ resumeRoutes.delete('/:id', async (c) => {
 
   // Object first: a deleted row with a surviving object is an orphan nobody
   // can see or clean up. A surviving row with no object is at least visible.
-  await c.env.RESUMES.delete(row.storageKey);
+  await bucket(c).delete(row.storageKey);
   await db.delete(resumes).where(eq(resumes.id, row.id));
 
   // Promote another so the user is not left with resumes and no default.

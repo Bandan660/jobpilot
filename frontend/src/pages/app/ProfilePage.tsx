@@ -11,6 +11,7 @@ import {
 import { api } from '../../api.js';
 import { usePageMeta } from '../../usePageMeta.js';
 import { Resumes } from './Resumes.js';
+import { ChipList, EducationSection, ExperienceSection } from './ProfileSections.js';
 
 /**
  * The profile autofill reads from.
@@ -86,21 +87,64 @@ export function ProfilePage() {
         </p>
       </header>
 
-      <section className="panel">
-        <div className="panel-head">
-          <h2>
-            {readiness.complete} of {readiness.total} core fields ready
-          </h2>
-          <span className={`lamp lamp-${readiness.missing.length === 0 ? 'live' : 'wait'}`}>
-            autofill
-          </span>
-        </div>
-        {readiness.missing.length > 0 && (
-          <p className="muted">Still blank: {readiness.missing.join(', ')}.</p>
-        )}
-      </section>
+      <div className="profile-layout">
+        <aside className="profile-aside">
+          <div className="panel identity">
+            <span className="identity-avatar">
+              {[draft.firstName, draft.lastName]
+                .filter(Boolean)
+                .map((n) => n![0])
+                .join('')
+                .toUpperCase() || '?'}
+            </span>
+            <strong>
+              {[draft.firstName, draft.lastName].filter(Boolean).join(' ') || 'Your name'}
+            </strong>
+            {draft.currentTitle && (
+              <p className="muted">
+                {draft.currentTitle}
+                {draft.currentCompany ? ` @ ${draft.currentCompany}` : ''}
+              </p>
+            )}
 
-      <Group title="Contact" hint="Goes into the contact fields on every application.">
+            <div className="strength">
+              <div className="strength-head">
+                <span>Autofill readiness</span>
+                <strong>{Math.round((readiness.complete / readiness.total) * 100)}%</strong>
+              </div>
+              <div className="strength-bar">
+                <span style={{ width: `${(readiness.complete / readiness.total) * 100}%` }} />
+              </div>
+              {readiness.missing.length > 0 ? (
+                <p className="muted">Still blank: {readiness.missing.join(', ')}.</p>
+              ) : (
+                <p className="muted">Everything autofill needs is set.</p>
+              )}
+            </div>
+          </div>
+
+          <nav className="profile-nav" aria-label="Profile sections">
+            {[
+              ['contact', 'Contact'],
+              ['resumes', 'Resumes'],
+              ['links', 'Links'],
+              ['experience', 'Work experience'],
+              ['education', 'Education'],
+              ['skills', 'Skills'],
+              ['eligibility', 'Work eligibility'],
+              ['availability', 'Availability'],
+              ['compensation', 'Compensation'],
+            ].map(([id, label]) => (
+              <a key={id} href={`#${id}`}>
+                {label}
+              </a>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="profile-main">
+
+      <Group id="contact" title="Contact" hint="Goes into the contact fields on every application.">
         <div className="form-grid">
           <Text label="First name" value={draft.firstName} onChange={(v) => patch({ firstName: v })} />
           <Text label="Last name" value={draft.lastName} onChange={(v) => patch({ lastName: v })} />
@@ -115,9 +159,11 @@ export function ProfilePage() {
         </div>
       </Group>
 
-      <Resumes />
+      <div id="resumes">
+        <Resumes />
+      </div>
 
-      <Group title="Links" hint="Asked for constantly, tedious to retype.">
+      <Group id="links" title="Links" hint="Asked for constantly, tedious to retype.">
         <div className="form-grid">
           <Text label="LinkedIn" type="url" value={draft.linkedinUrl} onChange={(v) => patch({ linkedinUrl: v })} />
           <Text label="GitHub" type="url" value={draft.githubUrl} onChange={(v) => patch({ githubUrl: v })} />
@@ -134,6 +180,7 @@ export function ProfilePage() {
       </Group>
 
       <Group
+        id="eligibility"
         title="Work eligibility"
         hint="The questions that filter applications automatically, so worth getting right."
       >
@@ -184,7 +231,7 @@ export function ProfilePage() {
         </fieldset>
       </Group>
 
-      <Group title="Availability">
+      <Group id="availability" title="Availability">
         <div className="form-grid">
           <NumberField
             label="Notice period (days)"
@@ -209,6 +256,7 @@ export function ProfilePage() {
       </Group>
 
       <Group
+        id="compensation"
         title="Compensation"
         hint="Stored in whole units of the currency. Forms asking in lakhs get the converted figure."
       >
@@ -238,32 +286,35 @@ export function ProfilePage() {
         />
       </Group>
 
-      {(draft.experience?.length ?? 0) > 0 && (
-        <Group title="Experience" hint="Parsed from your resume. Remove anything wrong.">
-          <ul className="entry-list">
-            {draft.experience?.map((role) => (
-              <li key={role.id}>
-                <div>
-                  <strong>{role.title || 'Untitled role'}</strong>
-                  <p className="muted">
-                    {[role.company, role.startDate, role.current ? 'present' : role.endDate]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                </div>
-                <button
-                  className="btn-link"
-                  onClick={() =>
-                    patch({ experience: draft.experience?.filter((e) => e.id !== role.id) })
-                  }
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Group>
-      )}
+      <div id="experience">
+        <ExperienceSection
+          entries={draft.experience ?? []}
+          onChange={(next) => patch({ experience: next })}
+        />
+      </div>
+
+      <div id="education">
+        <EducationSection
+          entries={draft.education ?? []}
+          onChange={(next) => patch({ education: next })}
+        />
+      </div>
+
+      <div id="skills">
+        <ChipList
+          label="Skills"
+          hint="Asked for directly on many forms, and searched by recruiters."
+          placeholder="Type a skill and press Enter"
+          values={draft.skills ?? []}
+          onChange={(next) => patch({ skills: next })}
+        />
+        <ChipList
+          label="Languages"
+          placeholder="Type a language and press Enter"
+          values={draft.languages ?? []}
+          onChange={(next) => patch({ languages: next })}
+        />
+      </div>
 
       {(draft.savedAnswers?.length ?? 0) > 0 && (
         <Group title="Saved answers" hint="Reused when the same question comes up again.">
@@ -287,6 +338,9 @@ export function ProfilePage() {
           </ul>
         </Group>
       )}
+
+        </div>
+      </div>
 
       {error && <p className="banner-error">{error}</p>}
 
@@ -319,16 +373,18 @@ function defaults(draft: ProfileInput) {
 }
 
 function Group({
+  id,
   title,
   hint,
   children,
 }: {
+  id?: string;
   title: string;
   hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="panel form-group">
+    <section className="panel form-group" id={id}>
       <div className="form-group-head">
         <h2>{title}</h2>
         {hint && <p className="muted">{hint}</p>}

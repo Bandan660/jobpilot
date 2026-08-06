@@ -506,3 +506,223 @@
 .save-bar[data-active='true'] {
   border-color: var(--signal-dim);
 }
+
+/* Profile page --------------------------------------------------------------- */
+
+.profile-layout {
+  display: grid;
+  gap: var(--gap-md);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .profile-layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  /* Readiness and the section list stay in view while a long form scrolls. */
+  .profile-aside {
+    position: sticky;
+    top: 78px;
+  }
+}
+
+.profile-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.profile-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  min-width: 0;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-xs);
+  text-align: center;
+}
+
+.identity-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--signal-wash);
+  color: var(--signal-text);
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.strength {
+  width: 100%;
+  margin-top: var(--gap-sm);
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  text-align: left;
+}
+
+.strength-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.strength-head strong {
+  color: var(--signal-text);
+  font-size: var(--step-0);
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.strength-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--panel-raised);
+  overflow: hidden;
+}
+
+.strength-bar span {
+  display: block;
+  height: 100%;
+  background: var(--signal);
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.profile-nav {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--gap-xs);
+}
+
+.profile-nav a {
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--step--1);
+  color: var(--muted);
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.profile-nav a:hover {
+  background: var(--hover-wash);
+  color: var(--text);
+}
+
+/* Clears the sticky app header when jumping to a section. */
+.form-group[id],
+.profile-main [id] {
+  scroll-margin-top: 80px;
+}
+
+.section-head-row {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap-md);
+}
+
+/* Entries -------------------------------------------------------------------- */
+
+.entry-block {
+  flex-direction: row;
+  gap: var(--gap-md);
+}
+
+.entry-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  width: 100%;
+}
+
+.entry-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.entry-desc {
+  margin-top: var(--gap-xs);
+  color: var(--text-dim);
+  font-size: var(--step--1);
+  white-space: pre-wrap;
+  max-width: 70ch;
+}
+
+.score-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--gap-xs);
+}
+
+textarea {
+  font: inherit;
+  font-size: var(--step--1);
+  padding: 0.6rem 0.8rem;
+  background: var(--ink);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  resize: vertical;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+/* Chips ---------------------------------------------------------------------- */
+
+.chip-set {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-bright);
+  background: var(--panel-raised);
+  font-size: var(--step--2);
+  color: var(--text-dim);
+}
+
+.chip-static {
+  border-color: var(--line);
+}
+
+.chip button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.chip button:hover {
+  color: var(--down);
+}

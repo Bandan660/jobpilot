@@ -329,6 +329,18 @@ export const FIELD_RULES: FieldRule[] = [
   },
 
   {
+    field: 'skills',
+    patterns: [/skills?/, /technical.?skills/, /key.?skills/, /technologies/],
+    negative: [/soft.?skill.?example/, /describe/],
+    weight: 20,
+  },
+  {
+    field: 'languages',
+    patterns: [/languages?.?(known|spoken)/, /^languages?$/, /languages/],
+    negative: [/programming/],
+    weight: 22,
+  },
+  {
     field: 'preferredLocations',
     patterns: [/preferred.?(location|city|work.?location)/, /desired.?location/, /location.?preference/],
     weight: 26,
