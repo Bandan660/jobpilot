@@ -18,6 +18,7 @@ export function toApplicationDto(row: ApplicationRow, company: CompanyRow): Appl
     titleSlug: row.titleSlug,
     location: row.location,
     remote: row.remote,
+    employmentType: row.employmentType as Application['employmentType'],
     jobUrl: row.jobUrl,
     jobUrlCanonical: row.jobUrlCanonical,
     externalId: row.externalId,

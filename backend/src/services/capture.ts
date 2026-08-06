@@ -115,6 +115,7 @@ export async function captureApplication(
         // Only fill gaps; never clobber data the user may have corrected by hand.
         location: existing.location ?? job.location,
         remote: existing.remote ?? job.remote,
+        employmentType: existing.employmentType ?? job.employmentType,
         externalId: existing.externalId ?? job.externalId,
         compRaw: existing.compRaw ?? job.compRaw,
         compMinCents: existing.compMinCents ?? comp.minCents,
@@ -153,6 +154,7 @@ export async function captureApplication(
       titleSlug,
       location: job.location,
       remote: job.remote,
+      employmentType: job.employmentType,
       jobUrl: job.jobUrl,
       jobUrlCanonical: canonicalUrl,
       externalId: job.externalId,

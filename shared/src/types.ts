@@ -60,6 +60,51 @@ export const ATS_PROVIDER = [
 ] as const;
 export type AtsProvider = (typeof ATS_PROVIDER)[number];
 
+/**
+ * Employment type.
+ *
+ * Values match schema.org's JobPosting employmentType, so a posting that
+ * declares it is captured rather than guessed. INTERN and CONTRACTOR are
+ * spelled the way the spec spells them, not the way a form label would.
+ */
+export const EMPLOYMENT_TYPE = [
+  'FULL_TIME',
+  'PART_TIME',
+  'CONTRACTOR',
+  'TEMPORARY',
+  'INTERN',
+  'VOLUNTEER',
+  'PER_DIEM',
+  'OTHER',
+] as const;
+export type EmploymentType = (typeof EMPLOYMENT_TYPE)[number];
+
+export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
+  FULL_TIME: 'Full-time',
+  PART_TIME: 'Part-time',
+  CONTRACTOR: 'Contract',
+  TEMPORARY: 'Temporary',
+  INTERN: 'Internship',
+  VOLUNTEER: 'Volunteer',
+  PER_DIEM: 'Per diem',
+  OTHER: 'Other',
+};
+
+/** Maps the many spellings found in the wild onto the enum. */
+export function normalizeEmploymentType(raw: string | null | undefined): EmploymentType | null {
+  if (!raw) return null;
+  const value = raw.toUpperCase().replace(/[\s-]+/g, '_');
+
+  if (/FULL/.test(value)) return 'FULL_TIME';
+  if (/PART/.test(value)) return 'PART_TIME';
+  if (/CONTRACT|FREELANCE|C2H/.test(value)) return 'CONTRACTOR';
+  if (/INTERN/.test(value)) return 'INTERN';
+  if (/TEMP/.test(value)) return 'TEMPORARY';
+  if (/VOLUNTEER/.test(value)) return 'VOLUNTEER';
+  if (/PER_DIEM/.test(value)) return 'PER_DIEM';
+  return null;
+}
+
 /** How an application entered the system. */
 export const APPLICATION_SOURCE = [
   'EXTENSION_AUTO',
@@ -111,6 +156,7 @@ export interface Application {
   titleSlug: string;
   location: string | null;
   remote: boolean | null;
+  employmentType: EmploymentType | null;
 
   /** Original posting URL, exactly as captured. */
   jobUrl: string | null;
@@ -189,6 +235,7 @@ export interface CapturedJob {
   company: string | null;
   location: string | null;
   remote: boolean | null;
+  employmentType: EmploymentType | null;
   externalId: string | null;
   ats: AtsProvider;
   compRaw: string | null;

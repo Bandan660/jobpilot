@@ -58,6 +58,7 @@ function buildJob(adapter: JobAdapter, url: URL): CapturedJob | null {
     company,
     location: pick('location'),
     remote: pick('remote'),
+    employmentType: pick('employmentType'),
     externalId: pick('externalId'),
     ats: adapter.ats,
     compRaw: pick('compRaw'),

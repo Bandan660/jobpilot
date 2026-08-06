@@ -30,6 +30,7 @@ function app(
     titleSlug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     location: 'Remote',
     remote: true,
+    employmentType: 'FULL_TIME',
     jobUrl: `https://jobs.lever.co/${slug}/${id}`,
     jobUrlCanonical: `https://jobs.lever.co/${slug}/${id}`,
     externalId: id,

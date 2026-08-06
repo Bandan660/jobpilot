@@ -19,6 +19,7 @@ import {
   EMPTY_COMPENSATION,
   EMPTY_DEMOGRAPHICS,
   EVENT_ACTOR,
+  EMPLOYMENT_TYPE,
   EVENT_TYPE,
   POSTING_STATUS,
   type AvailabilityProfile,
@@ -38,6 +39,7 @@ export const applicationStatusEnum = pgEnum('application_status', asEnumValues(A
 export const postingStatusEnum = pgEnum('posting_status', asEnumValues(POSTING_STATUS));
 export const atsProviderEnum = pgEnum('ats_provider', asEnumValues(ATS_PROVIDER));
 export const applicationSourceEnum = pgEnum('application_source', asEnumValues(APPLICATION_SOURCE));
+export const employmentTypeEnum = pgEnum('employment_type', asEnumValues(EMPLOYMENT_TYPE));
 export const eventTypeEnum = pgEnum('event_type', asEnumValues(EVENT_TYPE));
 export const eventActorEnum = pgEnum('event_actor', asEnumValues(EVENT_ACTOR));
 
@@ -91,6 +93,7 @@ export const applications = pgTable(
     titleSlug: text('title_slug').notNull(),
     location: text('location'),
     remote: boolean('remote'),
+    employmentType: employmentTypeEnum('employment_type'),
 
     jobUrl: text('job_url'),
     jobUrlCanonical: text('job_url_canonical'),

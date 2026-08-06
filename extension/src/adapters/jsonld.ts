@@ -1,4 +1,4 @@
-import type { CapturedJob } from '@jobpilot/shared';
+import { normalizeEmploymentType, type CapturedJob } from '@jobpilot/shared';
 
 /**
  * schema.org JobPosting extractor.
@@ -133,6 +133,11 @@ export function extractFromJsonLd(doc: Document): Partial<CapturedJob> | null {
       company,
       location: extractLocation(posting),
       remote: extractRemote(posting),
+      employmentType: normalizeEmploymentType(
+        Array.isArray(posting.employmentType)
+          ? String(posting.employmentType[0])
+          : (posting.employmentType as string | undefined)
+      ),
       externalId: extractIdentifier(posting),
       compRaw: extractSalary(posting),
     };

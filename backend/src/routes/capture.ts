@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
-import { ATS_PROVIDER, type DuplicateCheckResponse } from '@jobpilot/shared';
+import { ATS_PROVIDER, EMPLOYMENT_TYPE, type DuplicateCheckResponse } from '@jobpilot/shared';
 import { createDb } from '../db/client.js';
 import { captureApplication } from '../services/capture.js';
 import { findDuplicates } from '../services/duplicates.js';
@@ -14,6 +14,7 @@ const capturedJob = z.object({
   company: z.string().max(200).nullable(),
   location: z.string().max(200).nullable(),
   remote: z.boolean().nullable(),
+  employmentType: z.enum(EMPLOYMENT_TYPE).nullable(),
   externalId: z.string().max(200).nullable(),
   ats: z.enum(ATS_PROVIDER),
   compRaw: z.string().max(500).nullable(),

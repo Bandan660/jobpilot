@@ -666,3 +666,47 @@
   justify-content: flex-end;
   gap: var(--gap-sm);
 }
+
+/* Add-application modal ------------------------------------------------------ */
+
+.modal-wide {
+  max-width: 560px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+}
+
+/* Two columns for the short fields, so a seven-field form does not read as a
+   long vertical scroll. */
+.modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-md);
+}
+
+@media (max-width: 520px) {
+  .modal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.req {
+  color: var(--down);
+  margin-left: 0.15rem;
+}
+
+.ob-field[data-disabled='true'] {
+  opacity: 0.5;
+}
+
+.ob-field small {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  color: var(--muted);
+  font-size: var(--step--2);
+}

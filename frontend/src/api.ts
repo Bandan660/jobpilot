@@ -5,6 +5,7 @@ import type {
   ApplicationEvent,
   ApplicationStatus,
   AuthResponse,
+  EmploymentType,
   FunnelStats,
   Note,
   Profile,
@@ -145,7 +146,10 @@ const liveApi = {
     title: string;
     company: string;
     jobUrl?: string | null;
+    location?: string | null;
+    employmentType?: EmploymentType | null;
     status?: ApplicationStatus;
+    appliedAt?: string | null;
   }) =>
     request<{ application: Application }>('/api/applications', {
       method: 'POST',

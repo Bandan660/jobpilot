@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-o
 import { z } from 'zod';
 import {
   APPLICATION_STATUS,
+  EMPLOYMENT_TYPE,
   canonicalizeJobUrl,
   normalizeCompany,
   normalizeTitle,
@@ -150,8 +151,9 @@ const createBody = z.object({
   company: z.string().min(1).max(200),
   jobUrl: z.string().url().max(2048).nullable().optional(),
   location: z.string().max(200).nullable().optional(),
+  employmentType: z.enum(EMPLOYMENT_TYPE).nullable().optional(),
   status: z.enum(APPLICATION_STATUS).default('APPLIED'),
-  appliedAt: z.string().datetime().nullable().optional(),
+  appliedAt: z.string().max(30).nullable().optional(),
   compRaw: z.string().max(500).nullable().optional(),
 });
 
@@ -187,6 +189,7 @@ applicationRoutes.post('/', async (c) => {
       title: input.title,
       titleSlug: normalizeTitle(input.title),
       location: input.location ?? null,
+      employmentType: input.employmentType ?? null,
       jobUrl: input.jobUrl ?? null,
       jobUrlCanonical: canonicalizeJobUrl(input.jobUrl ?? null),
       status: input.status,
@@ -221,6 +224,7 @@ const importBody = z.object({
         appliedAt: z.string().max(30).nullable().optional(),
         jobUrl: z.string().max(2048).nullable().optional(),
         location: z.string().max(200).nullable().optional(),
+        employmentType: z.enum(EMPLOYMENT_TYPE).nullable().optional(),
       })
     )
     .min(1)
@@ -284,6 +288,7 @@ applicationRoutes.post('/import', async (c) => {
           title: row.title,
           titleSlug: normalizeTitle(row.title),
           location: row.location ?? null,
+          employmentType: row.employmentType ?? null,
           jobUrl: row.jobUrl ?? null,
           jobUrlCanonical: canonical,
           status,

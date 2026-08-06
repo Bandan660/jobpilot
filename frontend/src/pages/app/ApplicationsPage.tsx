@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   APPLICATION_STATUS,
+  EMPLOYMENT_TYPE,
+  EMPLOYMENT_TYPE_LABELS,
   daysBetween,
   formatDate,
   type Application,
   type ApplicationStatus,
+  type EmploymentType,
 } from '@jobpilot/shared';
 import { api } from '../../api.js';
 import { ArchiveIcon, BuildingIcon, PinIcon, SearchIcon } from '../../components/icons.js';
@@ -112,7 +115,13 @@ export function ApplicationsPage() {
     <div className="dash">
       <header className="tracker-head">
         <h1>Your job tracker</h1>
-        <Toolbar applications={applications} onImported={(msg) => { setNotice(msg); void load(); }} />
+        <Toolbar
+          applications={applications}
+          onImported={(msg) => {
+            setNotice(msg);
+            void load();
+          }}
+        />
       </header>
 
       {/* Count, tabs and filters read as one control strip rather than three
@@ -316,6 +325,7 @@ function Toolbar({
 
       {adding && (
         <AddApplication
+          companies={[...new Set(applications.map((a) => a.company.name))].sort()}
           onClose={() => setAdding(false)}
           onAdded={() => {
             setAdding(false);
@@ -327,19 +337,41 @@ function Toolbar({
   );
 }
 
-function AddApplication({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+function AddApplication({
+  companies,
+  onClose,
+  onAdded,
+}: {
+  companies: string[];
+  onClose: () => void;
+  onAdded: () => void;
+}) {
   const [title, setTitle] = useState('');
   const [company, setCompany] = useState('');
+  const [location, setLocation] = useState('');
   const [jobUrl, setJobUrl] = useState('');
+  const [employmentType, setEmploymentType] = useState<EmploymentType | ''>('FULL_TIME');
   const [status, setStatus] = useState<ApplicationStatus>('APPLIED');
+  const [appliedAt, setAppliedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Saved jobs have not been applied to, so a date would be a lie.
+  const needsDate = status !== 'SAVED';
 
   async function submit() {
     setSaving(true);
     setError(null);
     try {
-      await api.createApplication({ title, company, jobUrl: jobUrl || null, status });
+      await api.createApplication({
+        title: title.trim(),
+        company: company.trim(),
+        location: location.trim() || null,
+        jobUrl: jobUrl.trim() || null,
+        employmentType: employmentType || null,
+        status,
+        appliedAt: needsDate && appliedAt ? new Date(appliedAt).toISOString() : null,
+      });
       onAdded();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add');
@@ -350,36 +382,97 @@ function AddApplication({ onClose, onAdded }: { onClose: () => void; onAdded: ()
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
-        className="modal"
+        className="modal modal-wide"
         role="dialog"
         aria-modal="true"
         aria-label="Add application"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>Add an application</h2>
+        <header className="modal-head">
+          <h2>Add application</h2>
+          <button className="icon-btn" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </header>
+
         <p className="muted">For anything the extension did not capture.</p>
 
         <label className="ob-field">
-          Role
+          Position title <span className="req">*</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
         </label>
+
         <label className="ob-field">
-          Company
-          <input value={company} onChange={(e) => setCompany(e.target.value)} />
+          Company <span className="req">*</span>
+          {/* Suggests companies already in the tracker so the same employer
+              does not end up under three spellings. Free text either way. */}
+          <input
+            list="known-companies"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+          />
+          <datalist id="known-companies">
+            {companies.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
         </label>
+
+        <div className="modal-grid">
+          <label className="ob-field">
+            Location
+            <input value={location} onChange={(e) => setLocation(e.target.value)} />
+          </label>
+
+          <label className="ob-field">
+            Job type
+            <select
+              value={employmentType}
+              onChange={(e) => setEmploymentType(e.target.value as EmploymentType | '')}
+            >
+              <option value="">Not specified</option>
+              {EMPLOYMENT_TYPE.map((type) => (
+                <option key={type} value={type}>
+                  {EMPLOYMENT_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ob-field">
+            Status
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as ApplicationStatus)}
+            >
+              {APPLICATION_STATUS.map((s) => (
+                <option key={s} value={s}>
+                  {s.toLowerCase()}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ob-field" data-disabled={!needsDate}>
+            Date applied
+            <input
+              type="date"
+              value={needsDate ? appliedAt : ''}
+              disabled={!needsDate}
+              onChange={(e) => setAppliedAt(e.target.value)}
+            />
+          </label>
+        </div>
+
         <label className="ob-field">
           Posting URL
-          <input type="url" value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} />
-        </label>
-        <label className="ob-field">
-          Status
-          <select value={status} onChange={(e) => setStatus(e.target.value as ApplicationStatus)}>
-            {APPLICATION_STATUS.map((s) => (
-              <option key={s} value={s}>
-                {s.toLowerCase()}
-              </option>
-            ))}
-          </select>
+          <input
+            type="url"
+            value={jobUrl}
+            onChange={(e) => setJobUrl(e.target.value)}
+            placeholder="https://…"
+          />
+          <small>Adding it lets jobpilot tell you when the posting comes down.</small>
         </label>
 
         {error && <p className="error-text">{error}</p>}
@@ -391,9 +484,9 @@ function AddApplication({ onClose, onAdded }: { onClose: () => void; onAdded: ()
           <button
             className="btn btn-primary"
             onClick={() => void submit()}
-            disabled={saving || !title || !company}
+            disabled={saving || !title.trim() || !company.trim()}
           >
-            {saving ? 'Adding…' : 'Add'}
+            {saving ? 'Adding…' : 'Add application'}
           </button>
         </div>
       </div>
