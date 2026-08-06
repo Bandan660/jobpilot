@@ -116,6 +116,19 @@ content across the whole site.
 **PowerShell mangles UTF-8.** Editing files through `Get-Content`/`Set-Content`
 double-encodes punctuation. Use Node or the editing tools for source files.
 
+**PowerShell pipes add a BOM.** Piping a value into a native command
+(`$x | npx wrangler secret put NAME`) re-encodes stdout as UTF-8-with-BOM, and
+the three invisible bytes end up inside the secret. Nothing displays them —
+not the dashboard, not the error, which quotes the value back looking correct.
+`cleanSecret()` in `db/client.ts` strips them defensively; pipe through bash if
+you need to set one by hand.
+
+**Cloudflare deploys take ~30s to propagate.** Testing immediately after
+`wrangler deploy` hits the previous version. This has looked like a bug three
+separate times — a missing CORS header, a missing response field, and a
+suffix rule that "did not work". Poll until the new behaviour appears rather
+than asserting on the first response.
+
 **drizzle-kit prompts interactively** when it cannot distinguish a new column
 from a rename, which hangs a non-interactive shell.
 

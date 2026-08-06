@@ -9,22 +9,15 @@ import { profileRoutes } from './routes/profile.js';
 import { statsRoutes } from './routes/stats.js';
 import { createDb } from './db/client.js';
 import { sweepPostings } from './workers/postingChecker.js';
-import { corsOrigins, type AppContext, type Env } from './env.js';
+import { isAllowedOrigin, type AppContext, type Env } from './env.js';
 
 const app = new Hono<AppContext>();
 
 app.use('*', (c, next) =>
   cors({
-    /**
-     * The extension's origin is chrome-extension://<id>, and the id changes
-     * between the unpacked dev build and the published one. Rather than
-     * hardcode it, allow the scheme and pin the rest to CORS_ORIGINS.
-     */
-    origin: (origin) => {
-      if (!origin) return undefined;
-      if (origin.startsWith('chrome-extension://')) return origin;
-      return corsOrigins(c.env).includes(origin) ? origin : undefined;
-    },
+    // Exact origins, the chrome-extension scheme, and Pages preview
+    // deployments. See isAllowedOrigin for why the suffix rule is narrow.
+    origin: (origin) => (isAllowedOrigin(origin, c.env) ? origin : undefined),
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     maxAge: 86_400,
