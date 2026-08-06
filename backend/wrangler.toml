@@ -13,7 +13,10 @@ crons = ["0 */6 * * *"]
 #   npx wrangler secret put DATABASE_URL
 #   npx wrangler secret put JWT_SECRET
 # For local dev they go in backend/.dev.vars instead.
-CORS_ORIGINS = "http://localhost:5173"
+# Exact-match list. Preview deployments get a per-build subdomain
+# (<hash>.jobpilot-3lg.pages.dev) and are deliberately not included — a
+# wildcard here would let any Pages project on the account call this API.
+CORS_ORIGINS = "https://jobpilot-3lg.pages.dev,http://localhost:5173,http://127.0.0.1:5173"
 POSTING_RECHECK_AFTER_HOURS = "24"
 POSTING_CHECK_BATCH_SIZE = "25"
 GHOST_AFTER_DAYS = "30"
