@@ -6,6 +6,7 @@ import { authRoutes } from './routes/auth.js';
 import { applicationRoutes } from './routes/applications.js';
 import { captureRoutes } from './routes/capture.js';
 import { profileRoutes } from './routes/profile.js';
+import { resumeRoutes } from './routes/resumes.js';
 import { statsRoutes } from './routes/stats.js';
 import { createDb } from './db/client.js';
 import { sweepPostings } from './workers/postingChecker.js';
@@ -33,6 +34,7 @@ app.route('/api/auth', authRoutes);
 app.route('/api/applications', applicationRoutes);
 app.route('/api/capture', captureRoutes);
 app.route('/api/profile', profileRoutes);
+app.route('/api/resumes', resumeRoutes);
 app.route('/api/stats', statsRoutes);
 
 app.notFound((c) => {

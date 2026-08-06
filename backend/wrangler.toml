@@ -26,5 +26,11 @@ POSTING_RECHECK_AFTER_HOURS = "24"
 POSTING_CHECK_BATCH_SIZE = "25"
 GHOST_AFTER_DAYS = "30"
 
+# Resume storage. R2 has no egress fee, which matters because every autofill
+# that attaches a resume reads the object back out.
+[[r2_buckets]]
+binding = "RESUMES"
+bucket_name = "jobpilot-resumes"
+
 [observability]
 enabled = true

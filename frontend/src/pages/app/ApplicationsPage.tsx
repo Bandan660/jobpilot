@@ -8,6 +8,7 @@ import {
   type Application,
   type ApplicationStatus,
   type EmploymentType,
+  type Resume,
 } from '@jobpilot/shared';
 import { api } from '../../api.js';
 import { ArchiveIcon, BuildingIcon, PinIcon, SearchIcon } from '../../components/icons.js';
@@ -353,8 +354,21 @@ function AddApplication({
   const [employmentType, setEmploymentType] = useState<EmploymentType | ''>('FULL_TIME');
   const [status, setStatus] = useState<ApplicationStatus>('APPLIED');
   const [appliedAt, setAppliedAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [resumeId, setResumeId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Preselect the default so the common case needs no interaction.
+  useEffect(() => {
+    api
+      .listResumes()
+      .then(({ resumes: list }) => {
+        setResumes(list);
+        setResumeId(list.find((r) => r.isDefault)?.id ?? '');
+      })
+      .catch(() => setResumes([]));
+  }, []);
 
   // Saved jobs have not been applied to, so a date would be a lie.
   const needsDate = status !== 'SAVED';
@@ -369,6 +383,7 @@ function AddApplication({
         location: location.trim() || null,
         jobUrl: jobUrl.trim() || null,
         employmentType: employmentType || null,
+        resumeId: resumeId || null,
         status,
         appliedAt: needsDate && appliedAt ? new Date(appliedAt).toISOString() : null,
       });
@@ -448,6 +463,25 @@ function AddApplication({
               {APPLICATION_STATUS.map((s) => (
                 <option key={s} value={s}>
                   {s.toLowerCase()}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="ob-field" data-disabled={resumes.length === 0}>
+            Resume sent
+            <select
+              value={resumeId}
+              disabled={resumes.length === 0}
+              onChange={(e) => setResumeId(e.target.value)}
+            >
+              <option value="">
+                {resumes.length === 0 ? 'None uploaded' : 'Not recorded'}
+              </option>
+              {resumes.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.fileName}
+                  {r.isDefault ? ' (default)' : ''}
                 </option>
               ))}
             </select>

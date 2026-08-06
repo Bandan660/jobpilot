@@ -10,6 +10,7 @@ import {
 } from '@jobpilot/shared';
 import { api } from '../../api.js';
 import { usePageMeta } from '../../usePageMeta.js';
+import { Resumes } from './Resumes.js';
 
 /**
  * The profile autofill reads from.
@@ -113,6 +114,8 @@ export function ProfilePage() {
           <Text label="Country" value={draft.country} onChange={(v) => patch({ country: v })} />
         </div>
       </Group>
+
+      <Resumes />
 
       <Group title="Links" hint="Asked for constantly, tedious to retype.">
         <div className="form-grid">

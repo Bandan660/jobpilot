@@ -9,6 +9,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import {
@@ -115,6 +116,15 @@ export const applications = pgTable(
      */
     archived: boolean('archived').notNull().default(false),
     starred: boolean('starred').notNull().default(false),
+
+    /**
+     * Which resume went with this application. Set null rather than cascading
+     * on delete: losing the file should not erase the record that an
+     * application was sent.
+     */
+    resumeId: uuid('resume_id').references((): AnyPgColumn => resumes.id, {
+      onDelete: 'set null',
+    }),
 
     appliedAt: timestamp('applied_at', { withTimezone: true }),
     /** Set once, on the first inbound response. Null = still waiting. */
@@ -293,6 +303,33 @@ export const profiles = pgTable(
   },
   (t) => ({
     userIdx: uniqueIndex('profiles_user_idx').on(t.userId),
+  })
+);
+
+/**
+ * Uploaded resumes. The file itself lives in R2; this is the record of it.
+ *
+ * `storageKey` never leaves the server. Objects are served through an endpoint
+ * that looks the row up by id AND user first, so a leaked key grants nothing —
+ * and the key embeds the user id so a bug in that check still cannot cross
+ * accounts by accident.
+ */
+export const resumes = pgTable(
+  'resumes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    fileName: text('file_name').notNull(),
+    storageKey: text('storage_key').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('resumes_user_idx').on(t.userId, t.uploadedAt),
   })
 );
 

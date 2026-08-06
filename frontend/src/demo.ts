@@ -43,6 +43,7 @@ function app(
     source: 'EXTENSION_AUTO',
     archived: false,
     starred: false,
+    resumeId: null,
     appliedAt: appliedDaysAgo === null ? null : daysAgo(appliedDaysAgo),
     firstResponseAt: null,
     postingStatus,

@@ -152,6 +152,7 @@ const createBody = z.object({
   jobUrl: z.string().url().max(2048).nullable().optional(),
   location: z.string().max(200).nullable().optional(),
   employmentType: z.enum(EMPLOYMENT_TYPE).nullable().optional(),
+  resumeId: z.string().uuid().nullable().optional(),
   status: z.enum(APPLICATION_STATUS).default('APPLIED'),
   appliedAt: z.string().max(30).nullable().optional(),
   compRaw: z.string().max(500).nullable().optional(),
@@ -190,6 +191,7 @@ applicationRoutes.post('/', async (c) => {
       titleSlug: normalizeTitle(input.title),
       location: input.location ?? null,
       employmentType: input.employmentType ?? null,
+      resumeId: input.resumeId ?? null,
       jobUrl: input.jobUrl ?? null,
       jobUrlCanonical: canonicalizeJobUrl(input.jobUrl ?? null),
       status: input.status,
@@ -331,6 +333,7 @@ const patchBody = z.object({
   compRaw: z.string().max(500).nullable().optional(),
   archived: z.boolean().optional(),
   starred: z.boolean().optional(),
+  resumeId: z.string().uuid().nullable().optional(),
 });
 
 applicationRoutes.patch('/:id', async (c) => {
@@ -362,6 +365,7 @@ applicationRoutes.patch('/:id', async (c) => {
     .set({
       status: nextStatus,
       archived: input.archived ?? current.archived,
+      resumeId: input.resumeId !== undefined ? input.resumeId : current.resumeId,
       starred: input.starred ?? current.starred,
       title: input.title ?? current.title,
       titleSlug: input.title ? normalizeTitle(input.title) : current.titleSlug,

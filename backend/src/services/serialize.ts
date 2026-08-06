@@ -31,6 +31,7 @@ export function toApplicationDto(row: ApplicationRow, company: CompanyRow): Appl
     source: row.source as Application['source'],
     archived: row.archived,
     starred: row.starred,
+    resumeId: row.resumeId,
     appliedAt: iso(row.appliedAt),
     firstResponseAt: iso(row.firstResponseAt),
     postingStatus: row.postingStatus as Application['postingStatus'],

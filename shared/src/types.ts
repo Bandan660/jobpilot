@@ -178,6 +178,8 @@ export interface Application {
   /** Hidden from the default view, but still counted in stats. */
   archived: boolean;
   starred: boolean;
+  /** Which resume was sent with this application, if one was recorded. */
+  resumeId: string | null;
 
   appliedAt: string | null;
   /** First inbound response of any kind. Null means still waiting. */
@@ -203,6 +205,33 @@ export interface ApplicationEvent {
   payload: Record<string, unknown> | null;
   occurredAt: string;
 }
+
+/**
+ * An uploaded resume.
+ *
+ * The file lives in object storage; this row is the record of it. `key` is
+ * never sent to a client — objects are always served through an endpoint that
+ * checks ownership first, so knowing a key is worth nothing on its own.
+ */
+export interface Resume {
+  id: string;
+  userId: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  /** The one attached to new applications unless another is chosen. */
+  isDefault: boolean;
+  uploadedAt: string;
+}
+
+/** Types worth accepting. Anything else is rejected before it reaches storage. */
+export const RESUME_CONTENT_TYPES: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+};
+
+export const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 
 export interface Note {
   id: string;

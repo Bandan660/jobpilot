@@ -710,3 +710,23 @@
   color: var(--muted);
   font-size: var(--step--2);
 }
+
+.entry-actions {
+  display: flex;
+  gap: var(--gap-sm);
+  flex-shrink: 0;
+}
+
+.btn-link.danger {
+  color: var(--down);
+}
+
+.default-tag {
+  margin-left: var(--gap-xs);
+  vertical-align: middle;
+}
+
+.upload-hint {
+  font-size: var(--step--2);
+  margin-top: var(--gap-xs);
+}

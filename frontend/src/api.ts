@@ -10,6 +10,7 @@ import type {
   Note,
   Profile,
   ProfileInput,
+  Resume,
 } from '@jobpilot/shared';
 import { DEMO_APPLICATIONS, DEMO_DEAD_POSTINGS, DEMO_STATS } from './demo.js';
 
@@ -148,6 +149,7 @@ const liveApi = {
     jobUrl?: string | null;
     location?: string | null;
     employmentType?: EmploymentType | null;
+    resumeId?: string | null;
     status?: ApplicationStatus;
     appliedAt?: string | null;
   }) =>
@@ -163,6 +165,53 @@ const liveApi = {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
+
+  listResumes: () => request<{ resumes: Resume[] }>('/api/resumes'),
+
+  /**
+   * Raw body upload, not multipart — the API takes one file with its name in a
+   * header. Content-Type must be set explicitly, since the browser would
+   * otherwise leave it off for a File body.
+   */
+  uploadResume: async (file: File) => {
+    const token = getToken();
+    const response = await fetch(`${BASE_URL}/api/resumes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type,
+        'X-File-Name': encodeURIComponent(file.name),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: file,
+    });
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new ApiError(body?.message ?? 'Upload failed', response.status);
+    }
+    return (await response.json()) as { resume: Resume };
+  },
+
+  setDefaultResume: (id: string) =>
+    request<{ resume: Resume }>(`/api/resumes/${id}`, { method: 'PATCH' }),
+
+  deleteResume: (id: string) => request<void>(`/api/resumes/${id}`, { method: 'DELETE' }),
+
+  /** Fetched with auth, then handed to the browser as a blob. */
+  downloadResume: async (id: string, fileName: string) => {
+    const token = getToken();
+    const response = await fetch(`${BASE_URL}/api/resumes/${id}/file`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new ApiError('Could not download', response.status);
+
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
 
   funnel: () => request<FunnelStats>('/api/stats/funnel'),
 
@@ -259,6 +308,7 @@ function buildDemoApi(): typeof liveApi {
 
     deadPostings: () => delay({ alerts: DEMO_DEAD_POSTINGS }),
     activity: () => delay({ events: [] as ActivityEvent[] }),
+    listResumes: () => delay({ resumes: [] as Resume[] }),
   };
 }
 
