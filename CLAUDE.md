@@ -140,8 +140,15 @@ dodge this.
 
 ## Known incomplete
 
-- **No profile editor UI.** The API exists; there is no form. Autofill therefore
-  has nothing to read. This is the top blocker.
+- **R2 is not enabled on the Cloudflare account.** Enabling it requires a card
+  on file even for the free tier. The `[[r2_buckets]]` binding is commented out
+  of `backend/wrangler.toml` because its absence failed the *entire* worker
+  deploy, not just the resume routes. Those routes return 503 until then. To
+  finish: enable R2 in the dashboard, `wrangler r2 bucket create
+  jobpilot-resumes`, uncomment the binding, deploy.
+- **Autofill has never been driven by a real profile end to end.** The editor
+  and the API both exist now; nobody has filled one in and watched it fill a
+  live form.
 - `optional_host_permissions` is declared but not wired to `chrome.scripting`.
 - Adapters have never been run against a live posting.
 - `frontend/src/content/site.ts` holds placeholder contact details that render
