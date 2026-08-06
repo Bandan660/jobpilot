@@ -1,0 +1,260 @@
+/**
+ * Signed-in app: shell, dashboard home, and the profile form.
+ *
+ * Same instrument language as the marketing site, denser. This is a surface
+ * people scan and operate rather than read.
+ */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--header-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-nav-inner {
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: 0 20px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-lg);
+}
+
+.app-nav nav {
+  display: flex;
+  gap: var(--gap-md);
+  margin-right: auto;
+  font-size: var(--step--1);
+  overflow-x: auto;
+}
+
+.app-nav nav a {
+  position: relative;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  padding-block: 1.15rem;
+  transition: color 160ms ease;
+}
+
+.app-nav nav a:hover {
+  color: var(--text);
+}
+
+.app-nav nav a.active {
+  color: var(--text);
+}
+
+/* Amber underline on the current section, aligned to the header's bottom rule. */
+.app-nav nav a.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--signal);
+}
+
+.app-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .app-nav-actions .btn {
+    display: none;
+  }
+}
+
+.app-body {
+  flex: 1;
+}
+
+/* Page ---------------------------------------------------------------------- */
+
+.dash {
+  max-width: 1100px;
+  margin-inline: auto;
+  padding: var(--gap-xl) 20px var(--gap-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.dash-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  margin-bottom: var(--gap-xs);
+}
+
+.dash-head h1 {
+  font-size: var(--step-3);
+  letter-spacing: -0.035em;
+}
+
+/* Setup checklist ----------------------------------------------------------- */
+
+.setup-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-raised);
+  overflow: hidden;
+  margin-bottom: var(--gap-md);
+}
+
+.setup-bar span {
+  display: block;
+  height: 100%;
+  background: var(--signal);
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.setup-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.setup-list li {
+  display: flex;
+  gap: var(--gap-sm);
+  align-items: flex-start;
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--line);
+}
+
+.setup-list li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.setup-list li[data-done='true'] {
+  opacity: 0.55;
+}
+
+.setup-tick {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line-bright);
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.setup-list li[data-done='true'] .setup-tick {
+  background: var(--live-wash);
+  border-color: var(--live);
+  color: var(--live);
+}
+
+.setup-list a {
+  font-weight: 650;
+  border-bottom: 1px solid transparent;
+}
+
+.setup-list a:hover {
+  border-bottom-color: var(--signal);
+}
+
+/* Filters ------------------------------------------------------------------- */
+
+.filter-row {
+  display: flex;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+/* Forms --------------------------------------------------------------------- */
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.form-group-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.form-group-head h2 {
+  font-size: var(--step-1);
+}
+
+.form-grid {
+  display: grid;
+  gap: var(--gap-md);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.money-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--gap-sm);
+}
+
+.entry-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.entry-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--line);
+  font-size: var(--step--1);
+}
+
+.entry-list li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+/*
+ * Save bar. Sticky because the profile form is long enough that a button at the
+ * bottom is a button nobody finds, and it stays visible while there is anything
+ * unsaved.
+ */
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  padding: var(--gap-md);
+  margin-top: var(--gap-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--header-bg);
+  backdrop-filter: blur(12px);
+  transition: border-color 200ms ease;
+}
+
+.save-bar[data-active='true'] {
+  border-color: var(--signal-dim);
+}

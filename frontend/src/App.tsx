@@ -22,8 +22,17 @@ import { NotFound } from './pages/NotFound.js';
 const LoginPage = lazy(() =>
   import('./pages/LoginPage.js').then((m) => ({ default: m.LoginPage }))
 );
-const DashboardPage = lazy(() =>
-  import('./pages/DashboardPage.js').then((m) => ({ default: m.DashboardPage }))
+const AppShell = lazy(() =>
+  import('./components/AppShell.js').then((m) => ({ default: m.AppShell }))
+);
+const DashboardHome = lazy(() =>
+  import('./pages/app/DashboardHome.js').then((m) => ({ default: m.DashboardHome }))
+);
+const ApplicationsPage = lazy(() =>
+  import('./pages/app/ApplicationsPage.js').then((m) => ({ default: m.ApplicationsPage }))
+);
+const ProfilePage = lazy(() =>
+  import('./pages/app/ProfilePage.js').then((m) => ({ default: m.ProfilePage }))
 );
 // Lazy above all: this chunk pulls in the PDF parser.
 const Onboarding = lazy(() =>
@@ -159,13 +168,17 @@ export function AppRoutes() {
             element={
               <RequireAuth>
                 <RequireOnboarded>
-                  <Suspense fallback={<p className="centered">Loading your pipeline…</p>}>
-                    <DashboardPage />
+                  <Suspense fallback={<p className="centered">Loading…</p>}>
+                    <AppShell />
                   </Suspense>
                 </RequireOnboarded>
               </RequireAuth>
             }
-          />
+          >
+            <Route index element={<DashboardHome />} />
+            <Route path="applications" element={<ApplicationsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+          </Route>
         </Routes>
       </AuthProvider>
     </ThemeProvider>
