@@ -11,6 +11,19 @@ import {
   type Profile,
 } from '@jobpilot/shared';
 import { api, type ActivityEvent } from '../../api.js';
+import {
+  AlertIcon,
+  CalendarIcon,
+  ChartIcon,
+  ClockIcon,
+  GhostIcon,
+  PulseIcon,
+  PuzzleIcon,
+  ReplyIcon,
+  SendIcon,
+  StackIcon,
+  UserIcon,
+} from '../../components/icons.js';
 import { usePageMeta } from '../../usePageMeta.js';
 
 /**
@@ -89,13 +102,32 @@ export function DashboardHome() {
 
   return (
     <div className="dash">
-      <header className="dash-head">
-        <h1>{profile?.firstName ? `Welcome back, ${profile.firstName}` : 'Welcome back'}</h1>
-        <p className="muted">
-          {applications.length === 0
-            ? 'Nothing tracked yet. Install the extension and apply to a job — it lands here on its own.'
-            : `${plural(applications.length, 'application')} tracked · ${live} still live · ${thisWeek} this week`}
-        </p>
+      <header className="dash-hero">
+        <div className="dash-hero-copy">
+          <h1>{profile?.firstName ? `Welcome back, ${profile.firstName}` : 'Welcome back'}</h1>
+          <p>
+            {applications.length === 0
+              ? 'Nothing tracked yet. Install the extension and apply to a job — it lands here on its own.'
+              : 'Everything you have applied to, kept current without you touching it.'}
+          </p>
+        </div>
+
+        {applications.length > 0 && (
+          <div className="dash-hero-stats">
+            <div>
+              <span>{applications.length}</span>
+              <small>tracked</small>
+            </div>
+            <div>
+              <span>{live}</span>
+              <small>still live</small>
+            </div>
+            <div>
+              <span>{thisWeek}</span>
+              <small>this week</small>
+            </div>
+          </div>
+        )}
       </header>
 
       {error && <p className="banner-error">{error}</p>}
@@ -149,6 +181,7 @@ function Setup({
       done: readiness.missing.length === 0,
       to: '/dashboard/profile',
       cta: 'Fill it in',
+      Icon: UserIcon,
     },
     {
       label: 'Install the extension',
@@ -156,6 +189,7 @@ function Setup({
       done: hasApplications,
       to: '/copilot',
       cta: 'How it works',
+      Icon: PuzzleIcon,
     },
     {
       label: 'Apply to something',
@@ -163,6 +197,7 @@ function Setup({
       done: hasApplications,
       to: '/copilot',
       cta: null,
+      Icon: SendIcon,
     },
   ];
 
@@ -171,12 +206,16 @@ function Setup({
 
   return (
     <section className="panel setup">
-      <div className="panel-head">
-        <h2>Finish setting up</h2>
-        <span className="cell-dim">
-          {done}/{items.length}
-        </span>
-      </div>
+      <Head
+        title="Finish setting up"
+        tone="a"
+        Icon={PuzzleIcon}
+        aside={
+          <span className="cell-dim">
+            {done}/{items.length}
+          </span>
+        }
+      />
 
       <div className="setup-bar">
         <span style={{ width: `${(done / items.length) * 100}%` }} />
@@ -185,8 +224,8 @@ function Setup({
       <ul className="setup-list">
         {items.map((item) => (
           <li key={item.label} data-done={item.done}>
-            <span className="setup-tick" aria-hidden="true">
-              {item.done ? '✓' : ''}
+            <span className="setup-tick" data-done={item.done} aria-hidden="true">
+              {item.done ? '✓' : <item.Icon />}
             </span>
             <div className="setup-body">
               <strong>{item.label}</strong>
@@ -205,25 +244,68 @@ function Setup({
 }
 
 function Readouts({ stats }: { stats: FunnelStats }) {
+  // Tints are for scanning, not meaning — four identical white boxes are hard
+  // to tell apart at a glance. The only one that signals anything is the
+  // ghosted tile, which takes the accent when it is non-zero.
   const tiles = [
-    { label: 'Tracked', value: String(stats.total), emphasis: false },
-    { label: 'Response rate', value: `${Math.round(stats.responseRate * 100)}%`, emphasis: false },
+    { label: 'Tracked', value: String(stats.total), tone: 'a', Icon: StackIcon },
+    {
+      label: 'Response rate',
+      value: `${Math.round(stats.responseRate * 100)}%`,
+      tone: 'b',
+      Icon: ReplyIcon,
+    },
     {
       label: 'Median reply',
       value: stats.medianDaysToResponse != null ? `${stats.medianDaysToResponse}d` : '—',
-      emphasis: false,
+      tone: 'c',
+      Icon: ClockIcon,
     },
-    { label: 'Likely ghosted', value: String(stats.ghostedCount), emphasis: stats.ghostedCount > 0 },
+    {
+      label: 'Likely ghosted',
+      value: String(stats.ghostedCount),
+      tone: 'd',
+      Icon: GhostIcon,
+      emphasis: stats.ghostedCount > 0,
+    },
   ];
 
   return (
     <div className="readouts">
       {tiles.map((tile) => (
         <div className="readout" data-emphasis={tile.emphasis} key={tile.label}>
+          <span className="tile-icon" data-tone={tile.tone}>
+            <tile.Icon />
+          </span>
           <span className="readout-value">{tile.value}</span>
           <span className="readout-label">{tile.label}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Small tinted glyph beside a section heading. */
+function Head({
+  title,
+  tone,
+  Icon,
+  aside,
+}: {
+  title: string;
+  tone: string;
+  Icon: (p: { className?: string }) => JSX.Element;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="panel-head">
+      <h2 className="panel-title">
+        <span className="tile-icon tile-icon-sm" data-tone={tone}>
+          <Icon />
+        </span>
+        {title}
+      </h2>
+      {aside}
     </div>
   );
 }
@@ -243,10 +325,7 @@ function Pipeline({ stats, total }: { stats: FunnelStats; total: number }) {
 
   return (
     <section className="panel">
-      <div className="panel-head">
-        <h2>Pipeline</h2>
-        <span className="cell-dim">{total} total</span>
-      </div>
+      <Head title="Pipeline" tone="c" Icon={ChartIcon} aside={<span className="cell-dim">{total} total</span>} />
 
       {total === 0 ? (
         <p className="muted">Your stages will show here once something is tracked.</p>
@@ -279,10 +358,7 @@ function ThisWeek({ thisWeek, lastWeek }: { thisWeek: number; lastWeek: number }
 
   return (
     <section className="panel">
-      <div className="panel-head">
-        <h2>This week</h2>
-        <span className="cell-dim">last 7 days</span>
-      </div>
+      <Head title="This week" tone="b" Icon={CalendarIcon} aside={<span className="cell-dim">last 7 days</span>} />
 
       <div className="week-row">
         <span className="readout-value">{thisWeek}</span>
@@ -328,9 +404,7 @@ function Activity({ events }: { events: ActivityEvent[] }) {
 
   return (
     <section className="panel activity">
-      <div className="panel-head">
-        <h2>Activity</h2>
-      </div>
+      <Head title="Activity" tone="c" Icon={PulseIcon} />
 
       {events.length === 0 ? (
         <p className="muted">
@@ -368,10 +442,12 @@ function NeedsAttention({
 
   return (
     <section className="panel panel-alert">
-      <div className="panel-head">
-        <h2>Needs attention</h2>
-        <span className="lamp lamp-down">{alerts.length + stale.length}</span>
-      </div>
+      <Head
+        title="Needs attention"
+        tone="d"
+        Icon={AlertIcon}
+        aside={<span className="lamp lamp-down">{alerts.length + stale.length}</span>}
+      />
 
       <ul className="alert-list">
         {alerts.map((alert) => (
@@ -399,12 +475,16 @@ function RecentApplications({ applications }: { applications: Application[] }) {
 
   return (
     <section className="panel">
-      <div className="panel-head">
-        <h2>Recent applications</h2>
-        <Link className="btn-link" to="/dashboard/applications">
-          See all
-        </Link>
-      </div>
+      <Head
+        title="Recent applications"
+        tone="a"
+        Icon={SendIcon}
+        aside={
+          <Link className="btn-link" to="/dashboard/applications">
+            See all
+          </Link>
+        }
+      />
 
       {recent.length === 0 ? (
         <p className="muted">

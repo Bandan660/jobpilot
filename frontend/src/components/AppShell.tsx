@@ -1,4 +1,4 @@
-import { NavLink, Outlet, Link } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth.js';
 import { ThemeToggle } from '../theme.js';
 import { Brand } from './SiteChrome.js';
@@ -24,7 +24,7 @@ export function AppShell() {
     <div className="app">
       <header className="app-nav">
         <div className="app-nav-inner">
-          <Brand />
+          <Brand to="/dashboard" />
 
           <nav aria-label="Application">
             {NAV.map((item) => (
@@ -34,11 +34,13 @@ export function AppShell() {
             ))}
           </nav>
 
+          {/*
+            No link back to the marketing site. Once someone is signed in the
+            marketing pages have nothing to offer them, and a route out of the
+            product is not a feature. Signing out returns them to it.
+          */}
           <div className="app-nav-actions">
             <ThemeToggle />
-            <Link className="btn btn-ghost" to="/">
-              Site
-            </Link>
             <button className="btn btn-ghost" onClick={signOut}>
               Sign out
             </button>

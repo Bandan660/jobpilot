@@ -4,9 +4,14 @@ import { useAuth } from '../auth.js';
 import { ThemeToggle } from '../theme.js';
 import { useHydrated } from '../useHydrated.js';
 
-export function Brand() {
+/**
+ * `to` is configurable because the wordmark should go somewhere useful from
+ * wherever it is: the marketing home from the public site, the dashboard from
+ * inside the app.
+ */
+export function Brand({ to = '/' }: { to?: string }) {
   return (
-    <Link to="/" className="brand" aria-label="jobpilot home">
+    <Link to={to} className="brand" aria-label="jobpilot">
       <span className="brand-mark" aria-hidden="true">
         ◆
       </span>

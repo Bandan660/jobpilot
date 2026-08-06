@@ -117,6 +117,146 @@
   letter-spacing: -0.035em;
 }
 
+/* Hero ---------------------------------------------------------------------- */
+
+/*
+ * A coloured band, so the page does not open on a stack of identical white
+ * cards. The reference uses a flat brand fill; this uses the amber wash and
+ * grid already established elsewhere, so it belongs to the same product.
+ */
+.dash-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--signal-dim);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--signal-wash), transparent 58%), var(--panel);
+  padding: var(--gap-lg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-lg);
+  isolation: isolate;
+}
+
+.dash-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.45;
+  mask-image: radial-gradient(ellipse at 90% 0%, #000, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse at 90% 0%, #000, transparent 72%);
+  z-index: -1;
+}
+
+.dash-hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  min-width: 0;
+}
+
+.dash-hero h1 {
+  font-size: var(--step-3);
+  letter-spacing: -0.035em;
+}
+
+.dash-hero p {
+  color: var(--text-dim);
+  max-width: 48ch;
+}
+
+.dash-hero-stats {
+  display: flex;
+  gap: var(--gap-lg);
+  flex-shrink: 0;
+}
+
+.dash-hero-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.dash-hero-stats span {
+  font-size: var(--step-3);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-hero-stats small {
+  font-size: var(--step--2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+/* Tinted icons -------------------------------------------------------------- */
+
+/*
+ * Colour here is for scanning, not meaning. Four identical tiles are hard to
+ * tell apart at a glance; four differently-tinted glyphs are not. Semantic
+ * state stays with the lamps, and the accent stays amber.
+ */
+.tile-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-bottom: var(--gap-xs);
+}
+
+.tile-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tile-icon-sm {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  margin-bottom: 0;
+}
+
+.tile-icon-sm svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tile-icon[data-tone='a'] {
+  background: var(--signal-wash);
+  color: var(--signal-text);
+}
+
+.tile-icon[data-tone='b'] {
+  background: var(--live-wash);
+  color: var(--live);
+}
+
+.tile-icon[data-tone='c'] {
+  background: var(--info-wash);
+  color: var(--info);
+}
+
+.tile-icon[data-tone='d'] {
+  background: var(--down-wash);
+  color: var(--down);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
 /* Setup checklist ----------------------------------------------------------- */
 
 .setup-bar {
@@ -159,18 +299,24 @@
 }
 
 .setup-tick {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--line-bright);
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel-raised);
+  color: var(--muted);
   display: grid;
   place-items: center;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
-.setup-list li[data-done='true'] .setup-tick {
+.setup-tick svg {
+  width: 16px;
+  height: 16px;
+}
+
+.setup-tick[data-done='true'] {
   background: var(--live-wash);
   border-color: var(--live);
   color: var(--live);
