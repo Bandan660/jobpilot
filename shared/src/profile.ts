@@ -156,8 +156,60 @@ export interface Profile {
   /** Optional groups the user has switched on. Drives what autofill will fill. */
   regions: ProfileRegion[];
 
+  /**
+   * Set when the user finishes onboarding. Null means they have not, and the
+   * app routes them back into it — autofill with an empty profile is worse
+   * than no autofill, because it looks like it worked.
+   */
+  onboardingCompletedAt: string | null;
+  /** Original filename of the resume the profile was parsed from, if any. */
+  resumeFileName: string | null;
+
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Onboarding steps, in order.
+ *
+ * Every step exists to fill fields autofill will later need. Deliberately
+ * absent: anything that only serves job matching or our own analytics — this
+ * product does not match people to jobs, and a question the user answers for
+ * our benefit is a question that should not be asked.
+ */
+export const ONBOARDING_STEPS = [
+  'resume',
+  'about',
+  'links',
+  'eligibility',
+  'availability',
+  'done',
+] as const;
+
+export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
+
+/** True once every field autofill depends on has a usable value. */
+export function profileReadiness(profile: Profile): {
+  complete: number;
+  total: number;
+  missing: string[];
+} {
+  const checks: [string, unknown][] = [
+    ['First name', profile.firstName],
+    ['Last name', profile.lastName],
+    ['Email', profile.email],
+    ['Phone', profile.phone],
+    ['City', profile.city],
+    ['Country', profile.country],
+    ['LinkedIn', profile.linkedinUrl],
+    ['Work authorization', profile.authorizedToWork],
+    ['Sponsorship', profile.requiresSponsorship],
+    ['Notice period', profile.availability.noticePeriodDays],
+    ['Work experience', profile.experience.length > 0 || null],
+  ];
+
+  const missing = checks.filter(([, value]) => value === null || value === '').map(([name]) => name);
+  return { complete: checks.length - missing.length, total: checks.length, missing };
 }
 
 /** Every profile key the autofill matcher can target. */
@@ -249,6 +301,44 @@ export const EMPTY_AVAILABILITY: AvailabilityProfile = {
   servingNotice: null,
   lastWorkingDay: null,
   earliestStartDate: null,
+};
+
+/**
+ * A blank profile, minus the server-assigned identifiers and timestamps.
+ * Used by clients that need something to render before the real one loads.
+ */
+export const EMPTY_PROFILE: Omit<Profile, 'id' | 'userId' | 'createdAt' | 'updatedAt'> = {
+  firstName: null,
+  lastName: null,
+  preferredName: null,
+  email: null,
+  phone: null,
+  addressLine1: null,
+  city: null,
+  state: null,
+  postalCode: null,
+  country: null,
+  linkedinUrl: null,
+  githubUrl: null,
+  portfolioUrl: null,
+  otherUrl: null,
+  currentCompany: null,
+  currentTitle: null,
+  authorizedToWork: null,
+  requiresSponsorship: null,
+  willingToRelocate: null,
+  workAuthCountries: [],
+  preferredLocations: [],
+  referralSource: null,
+  compensation: EMPTY_COMPENSATION,
+  availability: EMPTY_AVAILABILITY,
+  experience: [],
+  education: [],
+  savedAnswers: [],
+  demographics: EMPTY_DEMOGRAPHICS,
+  regions: [],
+  onboardingCompletedAt: null,
+  resumeFileName: null,
 };
 
 /** Normalizes a question so the same prompt matches across employers. */

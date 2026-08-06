@@ -1,5 +1,6 @@
-import { Suspense, lazy, useEffect, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { api } from './api.js';
 import { AuthProvider, useAuth } from './auth.js';
 import { ThemeProvider } from './theme.js';
 import { SiteLayout } from './components/SiteChrome.js';
@@ -23,6 +24,10 @@ const LoginPage = lazy(() =>
 );
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage.js').then((m) => ({ default: m.DashboardPage }))
+);
+// Lazy above all: this chunk pulls in the PDF parser.
+const Onboarding = lazy(() =>
+  import('./pages/Onboarding.js').then((m) => ({ default: m.Onboarding }))
 );
 
 /**
@@ -57,6 +62,36 @@ function RequireAuth({ children }: { children: ReactNode }) {
     // `replace` so the guard does not add a history entry the user can go back to.
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
+  return <>{children}</>;
+}
+
+/**
+ * Keeps signed-in users out of the app until onboarding is done.
+ *
+ * Autofill reading an empty profile is worse than no autofill at all: it
+ * appears to work, fills nothing, and the user only finds out after submitting
+ * a half-empty application.
+ */
+function RequireOnboarded({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<'checking' | 'ready' | 'needs-onboarding'>('checking');
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getProfile()
+      .then(({ profile }) => {
+        if (!cancelled) setState(profile.onboardingCompletedAt ? 'ready' : 'needs-onboarding');
+      })
+      // On a network failure, let them through rather than trapping them in a
+      // redirect loop they cannot escape.
+      .catch(() => !cancelled && setState('ready'));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (state === 'checking') return <p className="centered">Loading…</p>;
+  if (state === 'needs-onboarding') return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 
@@ -109,12 +144,25 @@ export function AppRoutes() {
 
           {/* App: its own shell, no marketing chrome. */}
           <Route
+            path="/onboarding"
+            element={
+              <RequireAuth>
+                <Suspense fallback={<p className="centered">Loading…</p>}>
+                  <Onboarding />
+                </Suspense>
+              </RequireAuth>
+            }
+          />
+
+          <Route
             path="/dashboard"
             element={
               <RequireAuth>
-                <Suspense fallback={<p className="centered">Loading your pipeline…</p>}>
-                  <DashboardPage />
-                </Suspense>
+                <RequireOnboarded>
+                  <Suspense fallback={<p className="centered">Loading your pipeline…</p>}>
+                    <DashboardPage />
+                  </Suspense>
+                </RequireOnboarded>
               </RequireAuth>
             }
           />

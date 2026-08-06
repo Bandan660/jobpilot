@@ -17,6 +17,7 @@ import './styles/layout.css';
 import './styles/motion.css';
 import './styles/blog.css';
 import './styles/auth.css';
+import './styles/onboarding.css';
 import './styles/app.css';
 
 const container = document.getElementById('root')!;

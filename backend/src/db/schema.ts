@@ -267,6 +267,15 @@ export const profiles = pgTable(
       .notNull()
       .default(EMPTY_DEMOGRAPHICS),
 
+    /**
+     * Null until onboarding finishes. The app routes users back into it while
+     * this is unset — autofill against an empty profile is worse than none,
+     * because it looks like it worked.
+     */
+    onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
+    /** Filename only. The file itself is never uploaded; see resume parsing. */
+    resumeFileName: text('resume_file_name'),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

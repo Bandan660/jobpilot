@@ -120,6 +120,15 @@ const profileSchema = z.object({
   education: z.array(educationSchema).max(20).optional(),
   savedAnswers: z.array(savedAnswerSchema).max(200).optional(),
   demographics: demographicsSchema.optional(),
+
+  resumeFileName: nullableText(260),
+  /**
+   * Boolean rather than a timestamp: the client says "onboarding is finished",
+   * the server decides when that was. A client-supplied completion time would
+   * be trivially forgeable and is not worth trusting for something that gates
+   * routing.
+   */
+  onboardingComplete: z.boolean().optional(),
 });
 
 type ProfileRow = typeof profiles.$inferSelect;
@@ -145,6 +154,7 @@ function toDto(row: ProfileRow): Profile {
     education: row.education ?? [],
     savedAnswers: row.savedAnswers ?? [],
     demographics: { ...EMPTY_DEMOGRAPHICS, ...row.demographics },
+    onboardingCompletedAt: row.onboardingCompletedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -191,8 +201,9 @@ profileRoutes.put('/', async (c) => {
 
   // Pulled out of the spread rather than overwritten in place: the parsed
   // shape has `key` optional, and the raw array leaking through would store
-  // answers the matcher can never look up.
-  const { savedAnswers: submitted, ...rest } = input;
+  // answers the matcher can never look up. `onboardingComplete` is a request
+  // flag, not a column, so it comes out here too.
+  const { savedAnswers: submitted, onboardingComplete, ...rest } = input;
 
   // Recompute answer keys server-side. The extension looks answers up by key,
   // so letting a client send its own would let one bad write break matching
@@ -205,6 +216,9 @@ profileRoutes.put('/', async (c) => {
   const values = {
     ...rest,
     ...(savedAnswers ? { savedAnswers } : {}),
+    // Only ever set, never cleared: finishing onboarding is not something a
+    // later profile edit should undo.
+    ...(onboardingComplete ? { onboardingCompletedAt: new Date() } : {}),
     updatedAt: new Date(),
   } satisfies Partial<typeof profiles.$inferInsert>;
 

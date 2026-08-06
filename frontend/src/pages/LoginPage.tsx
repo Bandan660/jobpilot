@@ -48,7 +48,9 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
         ? await api.signup(email, password)
         : await api.login(email, password);
       signIn(result.token, remember);
-      navigate(returnTo, { replace: true });
+      // New accounts always go through setup; the dashboard guard would only
+      // bounce them there anyway, and this avoids the extra redirect.
+      navigate(isSignup ? '/onboarding' : returnTo, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setBusy(false);

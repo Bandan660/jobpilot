@@ -1,3 +1,4 @@
+import { EMPTY_PROFILE } from '@jobpilot/shared';
 import type {
   Application,
   ApplicationEvent,
@@ -5,6 +6,8 @@ import type {
   AuthResponse,
   FunnelStats,
   Note,
+  Profile,
+  ProfileInput,
 } from '@jobpilot/shared';
 import { DEMO_APPLICATIONS, DEMO_DEAD_POSTINGS, DEMO_STATS } from './demo.js';
 
@@ -122,6 +125,14 @@ const liveApi = {
       body: JSON.stringify(input),
     }),
 
+  getProfile: () => request<{ profile: Profile }>('/api/profile'),
+
+  updateProfile: (input: ProfileInput & { onboardingComplete?: boolean }) =>
+    request<{ profile: Profile }>('/api/profile', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+
   funnel: () => request<FunnelStats>('/api/stats/funnel'),
 
   deadPostings: () =>
@@ -145,11 +156,36 @@ function buildDemoApi(): typeof liveApi {
     user: { id: 'demo-user', email, createdAt: new Date().toISOString() },
   });
 
+  // Kept in memory so the onboarding flow can be walked end to end in demo
+  // mode without a database behind it.
+  let demoProfile: Profile = {
+    ...EMPTY_PROFILE,
+    id: 'demo-profile',
+    userId: 'demo-user',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
   return {
     ...liveApi,
 
     login: (email: string) => delay(session(email)),
     signup: (email: string) => delay(session(email)),
+
+    getProfile: () => delay({ profile: demoProfile }),
+
+    updateProfile: (input: ProfileInput & { onboardingComplete?: boolean }) => {
+      const { onboardingComplete, ...fields } = input;
+      demoProfile = {
+        ...demoProfile,
+        ...fields,
+        onboardingCompletedAt: onboardingComplete
+          ? new Date().toISOString()
+          : demoProfile.onboardingCompletedAt,
+        updatedAt: new Date().toISOString(),
+      } as Profile;
+      return delay({ profile: demoProfile });
+    },
 
     listApplications: ({ q }: { status?: string; q?: string } = {}) => {
       const needle = q?.toLowerCase().trim();

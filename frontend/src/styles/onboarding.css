@@ -1,0 +1,308 @@
+/**
+ * Onboarding.
+ *
+ * Its own full-screen shell with a sticky footer, so the primary action is
+ * always reachable without scrolling — the reference flow puts it below a list
+ * long enough to push it off screen, which is how people abandon setup.
+ */
+
+.ob {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ink);
+}
+
+.ob-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gap-md) 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Progress ------------------------------------------------------------------ */
+
+.ob-progress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  width: 100%;
+  max-width: 620px;
+  margin: var(--gap-lg) auto 0;
+  padding-inline: 20px;
+}
+
+.ob-back {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  transition: color 160ms ease;
+}
+
+.ob-back:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.ob-back:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.ob-progress {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-raised);
+  overflow: hidden;
+}
+
+.ob-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--signal);
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ob-step-count {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* Body ---------------------------------------------------------------------- */
+
+.ob-main {
+  flex: 1;
+  width: 100%;
+  max-width: 620px;
+  margin-inline: auto;
+  padding: var(--gap-xl) 20px var(--gap-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.ob-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.ob-step h1 {
+  font-size: var(--step-3);
+  letter-spacing: -0.035em;
+}
+
+.ob-sub {
+  color: var(--text-dim);
+  max-width: 54ch;
+}
+
+/* Fields -------------------------------------------------------------------- */
+
+.ob-grid {
+  display: grid;
+  gap: var(--gap-md);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ob-grid.ob-grid-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 620px) {
+  .ob-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ob-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: var(--step--2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.ob-field input {
+  padding: 0.7rem 0.8rem;
+  font-size: var(--step-0);
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.ob-field small {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Choices ------------------------------------------------------------------- */
+
+.ob-choice {
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.ob-choice legend {
+  font-size: var(--step-0);
+  font-weight: 650;
+  color: var(--text);
+  margin-bottom: var(--gap-xs);
+}
+
+.ob-legend-hint {
+  font-size: var(--step--1);
+  max-width: 56ch;
+  margin-top: calc(var(--gap-xs) * -1);
+}
+
+.ob-choice-row {
+  display: flex;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+/*
+ * Full-width option rows in the reference make a five-item list scroll. Chips
+ * keep the whole question visible, which matters more than matching the look.
+ */
+.ob-option,
+.ob-chip {
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-bright);
+  background: var(--panel);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.ob-chip {
+  border-radius: 999px;
+}
+
+.ob-option:hover,
+.ob-chip:hover {
+  border-color: var(--muted);
+  color: var(--text);
+}
+
+.ob-option[data-selected='true'],
+.ob-chip[data-selected='true'] {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--on-signal);
+}
+
+.ob-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+}
+
+/* Resume drop --------------------------------------------------------------- */
+
+.ob-drop {
+  border: 1px dashed var(--line-bright);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: var(--gap-xl) var(--gap-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-sm);
+  text-align: center;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+
+.ob-drop:hover {
+  border-color: var(--signal-dim);
+}
+
+.ob-drop-hint {
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+
+.ob-found {
+  border: 1px solid var(--live);
+  background: var(--live-wash);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.ob-skip {
+  font-size: var(--step--1);
+}
+
+/* Readiness ----------------------------------------------------------------- */
+
+.ob-readiness {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: var(--gap-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  margin-top: var(--gap-sm);
+}
+
+.ob-readiness-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+}
+
+/* Footer -------------------------------------------------------------------- */
+
+.ob-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--header-bg);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+}
+
+.ob-footer-inner {
+  max-width: 620px;
+  margin-inline: auto;
+  padding: var(--gap-md) 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+}
+
+.ob-hint {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+.ob-footer .btn {
+  min-width: 160px;
+}
