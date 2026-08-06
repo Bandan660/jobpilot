@@ -28,6 +28,8 @@ export function toApplicationDto(row: ApplicationRow, company: CompanyRow): Appl
     compRaw: row.compRaw,
     status: row.status as ApplicationStatus,
     source: row.source as Application['source'],
+    archived: row.archived,
+    starred: row.starred,
     appliedAt: iso(row.appliedAt),
     firstResponseAt: iso(row.firstResponseAt),
     postingStatus: row.postingStatus as Application['postingStatus'],

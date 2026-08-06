@@ -105,6 +105,14 @@ export const applications = pgTable(
     status: applicationStatusEnum('status').notNull().default('SAVED'),
     source: applicationSourceEnum('source').notNull().default('EXTENSION_AUTO'),
 
+    /**
+     * Archived rather than deleted. A closed-out application is still evidence
+     * — it feeds response rates, and in several countries it is proof of job
+     * search activity. Hiding it from the default view is enough.
+     */
+    archived: boolean('archived').notNull().default(false),
+    starred: boolean('starred').notNull().default(false),
+
     appliedAt: timestamp('applied_at', { withTimezone: true }),
     /** Set once, on the first inbound response. Null = still waiting. */
     firstResponseAt: timestamp('first_response_at', { withTimezone: true }),
@@ -137,7 +145,8 @@ export const applications = pgTable(
     /** Backs the EXACT_ROLE duplicate check. */
     userRoleIdx: index('applications_user_role_idx').on(t.userId, t.companyId, t.titleSlug),
 
-    userStatusIdx: index('applications_user_status_idx').on(t.userId, t.status),
+    /** The tracker's default view is "mine, not archived, newest first". */
+    userStatusIdx: index('applications_user_status_idx').on(t.userId, t.archived, t.status),
 
     /**
      * Backs the cron sweep: "oldest live postings not checked recently".

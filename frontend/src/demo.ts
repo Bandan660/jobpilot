@@ -40,6 +40,8 @@ function app(
     compRaw: null,
     status,
     source: 'EXTENSION_AUTO',
+    archived: false,
+    starred: false,
     appliedAt: appliedDaysAgo === null ? null : daysAgo(appliedDaysAgo),
     firstResponseAt: null,
     postingStatus,

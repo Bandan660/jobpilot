@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   APPLICATION_STATUS,
@@ -32,7 +32,14 @@ applicationRoutes.use('*', requireAuth);
 const listQuery = z.object({
   status: z.string().optional(),
   q: z.string().max(200).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  /** "false" (default), "true", or "all". */
+  archived: z.enum(['true', 'false', 'all']).default('false'),
+  starred: z.enum(['true', 'false']).optional(),
+  /** Inclusive ISO dates filtering on appliedAt. */
+  from: z.string().max(10).optional(),
+  to: z.string().max(10).optional(),
+  sort: z.enum(['recent', 'applied', 'company', 'stage']).default('recent'),
+  limit: z.coerce.number().int().min(1).max(500).default(200),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
@@ -40,7 +47,7 @@ applicationRoutes.get('/', async (c) => {
   const parsed = listQuery.safeParse(c.req.query());
   if (!parsed.success) throw new HTTPException(400, { message: 'Invalid query parameters' });
 
-  const { status, q, limit, offset } = parsed.data;
+  const { status, q, archived, starred, from, to, sort, limit, offset } = parsed.data;
   const db = createDb(c.env);
   const userId = c.get('userId');
 
@@ -53,6 +60,15 @@ applicationRoutes.get('/', async (c) => {
         )
     : [];
 
+  const order = {
+    recent: desc(applications.updatedAt),
+    applied: desc(applications.appliedAt),
+    company: asc(companies.name),
+    // Furthest through the pipeline first. The enum is declared in stage order,
+    // so its ordinal is the sort key.
+    stage: desc(applications.status),
+  }[sort];
+
   const rows = await db
     .select({ application: applications, company: companies })
     .from(applications)
@@ -60,11 +76,16 @@ applicationRoutes.get('/', async (c) => {
     .where(
       and(
         eq(applications.userId, userId),
+        archived === 'all' ? undefined : eq(applications.archived, archived === 'true'),
+        starred ? eq(applications.starred, starred === 'true') : undefined,
         statuses.length > 0 ? inArray(applications.status, statuses) : undefined,
+        from ? gte(applications.appliedAt, new Date(from)) : undefined,
+        // Inclusive: a "to" of 2026-08-07 must include that whole day.
+        to ? lte(applications.appliedAt, new Date(`${to}T23:59:59.999Z`)) : undefined,
         q ? or(ilike(applications.title, `%${q}%`), ilike(companies.name, `%${q}%`)) : undefined
       )
     )
-    .orderBy(desc(applications.updatedAt))
+    .orderBy(order)
     .limit(limit)
     .offset(offset);
 
@@ -188,6 +209,114 @@ applicationRoutes.post('/', async (c) => {
   return c.json({ application: toApplicationDto(created, company) }, 201);
 });
 
+/* ------------------------------ import ---------------------------------- */
+
+const importBody = z.object({
+  rows: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(300),
+        company: z.string().min(1).max(200),
+        status: z.enum(APPLICATION_STATUS).optional(),
+        appliedAt: z.string().max(30).nullable().optional(),
+        jobUrl: z.string().max(2048).nullable().optional(),
+        location: z.string().max(200).nullable().optional(),
+      })
+    )
+    .min(1)
+    .max(500),
+});
+
+/**
+ * Bulk import, for applications made before signing up.
+ *
+ * Rows are inserted one at a time rather than in a single statement so one bad
+ * row cannot fail the whole file — the response reports what landed and what
+ * did not, which is the difference between a usable importer and a frustrating
+ * one. Duplicate URLs are skipped rather than erroring, since re-importing the
+ * same export is a normal thing to do.
+ */
+applicationRoutes.post('/import', async (c) => {
+  const parsed = importBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    throw new HTTPException(400, { message: 'Invalid import payload' });
+  }
+
+  const db = createDb(c.env);
+  const userId = c.get('userId');
+
+  let imported = 0;
+  let skipped = 0;
+  const failures: { row: number; reason: string }[] = [];
+
+  for (const [index, row] of parsed.data.rows.entries()) {
+    try {
+      const slug = normalizeCompany(row.company) || 'unknown';
+      await db
+        .insert(companies)
+        .values({ name: row.company, slug })
+        .onConflictDoNothing({ target: companies.slug });
+      const [company] = await db.select().from(companies).where(eq(companies.slug, slug)).limit(1);
+
+      const canonical = canonicalizeJobUrl(row.jobUrl ?? null);
+      if (canonical) {
+        const [existing] = await db
+          .select({ id: applications.id })
+          .from(applications)
+          .where(
+            and(eq(applications.userId, userId), eq(applications.jobUrlCanonical, canonical))
+          )
+          .limit(1);
+        if (existing) {
+          skipped += 1;
+          continue;
+        }
+      }
+
+      const status = row.status ?? 'APPLIED';
+      const appliedAt = row.appliedAt ? new Date(row.appliedAt) : null;
+
+      const [created] = await db
+        .insert(applications)
+        .values({
+          userId,
+          companyId: company.id,
+          title: row.title,
+          titleSlug: normalizeTitle(row.title),
+          location: row.location ?? null,
+          jobUrl: row.jobUrl ?? null,
+          jobUrlCanonical: canonical,
+          status,
+          source: 'IMPORT',
+          appliedAt:
+            appliedAt && !Number.isNaN(appliedAt.getTime())
+              ? appliedAt
+              : status === 'SAVED'
+                ? null
+                : new Date(),
+        })
+        .returning();
+
+      await db.insert(applicationEvents).values({
+        applicationId: created.id,
+        type: 'CREATED',
+        actor: 'USER',
+        toStatus: status,
+        payload: { imported: true },
+      });
+
+      imported += 1;
+    } catch (error) {
+      failures.push({
+        row: index + 1,
+        reason: error instanceof Error ? error.message : 'Could not import',
+      });
+    }
+  }
+
+  return c.json({ imported, skipped, failures });
+});
+
 /* ------------------------------ update ---------------------------------- */
 
 const patchBody = z.object({
@@ -195,6 +324,8 @@ const patchBody = z.object({
   title: z.string().min(1).max(300).optional(),
   location: z.string().max(200).nullable().optional(),
   compRaw: z.string().max(500).nullable().optional(),
+  archived: z.boolean().optional(),
+  starred: z.boolean().optional(),
 });
 
 applicationRoutes.patch('/:id', async (c) => {
@@ -225,6 +356,8 @@ applicationRoutes.patch('/:id', async (c) => {
     .update(applications)
     .set({
       status: nextStatus,
+      archived: input.archived ?? current.archived,
+      starred: input.starred ?? current.starred,
       title: input.title ?? current.title,
       titleSlug: input.title ? normalizeTitle(input.title) : current.titleSlug,
       location: input.location !== undefined ? input.location : current.location,

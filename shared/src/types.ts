@@ -129,6 +129,10 @@ export interface Application {
   status: ApplicationStatus;
   source: ApplicationSource;
 
+  /** Hidden from the default view, but still counted in stats. */
+  archived: boolean;
+  starred: boolean;
+
   appliedAt: string | null;
   /** First inbound response of any kind. Null means still waiting. */
   firstResponseAt: string | null;

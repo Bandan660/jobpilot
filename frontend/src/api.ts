@@ -1,4 +1,5 @@
 import { EMPTY_PROFILE } from '@jobpilot/shared';
+import type { ImportRow } from './csv.js';
 import type {
   Application,
   ApplicationEvent,
@@ -92,13 +93,39 @@ const liveApi = {
       body: JSON.stringify({ email, password }),
     }),
 
-  listApplications: (params: { status?: string; q?: string } = {}) => {
+  listApplications: (
+    params: {
+      status?: string;
+      q?: string;
+      archived?: 'true' | 'false' | 'all';
+      starred?: 'true';
+      from?: string;
+      to?: string;
+      sort?: string;
+    } = {}
+  ) => {
     const search = new URLSearchParams();
-    if (params.status) search.set('status', params.status);
-    if (params.q) search.set('q', params.q);
+    for (const [key, value] of Object.entries(params)) {
+      if (value) search.set(key, value);
+    }
     const suffix = search.toString() ? `?${search}` : '';
     return request<{ applications: Application[] }>(`/api/applications${suffix}`);
   },
+
+  updateApplication: (
+    id: string,
+    patch: { status?: ApplicationStatus; archived?: boolean; starred?: boolean; title?: string }
+  ) =>
+    request<{ application: Application }>(`/api/applications/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+
+  importApplications: (rows: ImportRow[]) =>
+    request<{ imported: number; skipped: number; failures: { row: number; reason: string }[] }>(
+      '/api/applications/import',
+      { method: 'POST', body: JSON.stringify({ rows }) }
+    ),
 
   getApplication: (id: string) =>
     request<{ application: Application; events: ApplicationEvent[]; notes: Note[] }>(

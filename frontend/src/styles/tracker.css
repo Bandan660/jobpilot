@@ -1,0 +1,367 @@
+/**
+ * The tracker.
+ *
+ * Rows rather than a table: each one carries a stage track, which a table cell
+ * cannot hold without the columns fighting each other. On narrow screens the
+ * row collapses to a stack and the track scrolls on its own.
+ */
+
+.tracker-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  flex-wrap: wrap;
+}
+
+.tracker-head h1 {
+  font-size: var(--step-3);
+  letter-spacing: -0.035em;
+}
+
+.tracker-toolbar {
+  display: flex;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+/* Tabs ---------------------------------------------------------------------- */
+
+.tracker-tabs {
+  display: flex;
+  gap: var(--gap-md);
+  border-bottom: 1px solid var(--line);
+}
+
+.tracker-tab {
+  background: none;
+  border: none;
+  padding: 0.6rem 0;
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 650;
+  color: var(--muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 160ms ease;
+}
+
+.tracker-tab:hover {
+  color: var(--text);
+}
+
+.tracker-tab[data-selected='true'] {
+  color: var(--text);
+}
+
+.tracker-tab[data-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--signal);
+}
+
+/* Filters ------------------------------------------------------------------- */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.filters input[type='search'] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.date-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-direction: row;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 500;
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+.banner-note {
+  background: var(--signal-wash);
+  border: 1px solid var(--signal-dim);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-sm) var(--gap-md);
+  font-size: var(--step--1);
+  color: var(--text);
+}
+
+/* Rows ---------------------------------------------------------------------- */
+
+.tracker-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.tracker-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap-sm) var(--gap-md);
+  padding: var(--gap-md);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.tracker-row:hover {
+  border-color: var(--line-bright);
+}
+
+.tracker-row[data-archived='true'] {
+  opacity: 0.62;
+}
+
+@media (min-width: 1000px) {
+  .tracker-row {
+    grid-template-columns: auto auto minmax(0, 1.15fr) minmax(0, 1.5fr) auto;
+  }
+}
+
+.star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--line-bright);
+  padding: 0;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.star:hover {
+  color: var(--signal);
+  transform: scale(1.12);
+}
+
+.star[data-on='true'] {
+  color: var(--signal);
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: var(--step--2);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+/* Five tints, picked from the company name. No logos are available, and a row
+   of identical grey squares is harder to scan than coloured initials. */
+.avatar[data-tone='0'] {
+  background: var(--signal-wash);
+  color: var(--signal-text);
+}
+.avatar[data-tone='1'] {
+  background: var(--live-wash);
+  color: var(--live);
+}
+.avatar[data-tone='2'] {
+  background: var(--info-wash);
+  color: var(--info);
+}
+.avatar[data-tone='3'] {
+  background: var(--down-wash);
+  color: var(--down);
+}
+.avatar[data-tone='4'] {
+  background: var(--wait-wash);
+  color: var(--wait);
+}
+
+.tracker-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tracker-title,
+.tracker-main .role-link {
+  font-weight: 650;
+  font-size: var(--step-0);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tracker-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+/* Stage track ---------------------------------------------------------------- */
+
+.stage-track {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-column: 1 / -1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.stage-track::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 1000px) {
+  .stage-track {
+    grid-column: auto;
+  }
+}
+
+.stage-track li {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  position: relative;
+  min-width: 58px;
+}
+
+/* The connector, drawn from each dot to the next rather than as one bar, so a
+   partially-complete track shows exactly where progress stopped. */
+.stage-track li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 7px);
+  right: calc(-50% + 7px);
+  height: 2px;
+  background: var(--line);
+  transform: translateY(-50%);
+}
+
+.stage-track li[data-reached='true']:not(:last-child)::after {
+  background: var(--signal);
+}
+
+.stage-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.stage-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--line-bright);
+  background: var(--panel);
+  position: relative;
+  z-index: 1;
+}
+
+.stage-track li[data-reached='true'] .stage-dot {
+  background: var(--signal);
+  border-color: var(--signal);
+}
+
+.stage-track li[data-reached='true'] .stage-label {
+  color: var(--text-dim);
+}
+
+/* A ring on the current stage, so "where am I" is answerable at a glance. */
+.stage-track li[data-current='true'] .stage-dot {
+  box-shadow: 0 0 0 4px var(--signal-wash);
+}
+
+.stage-date {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--muted);
+  white-space: nowrap;
+  min-height: 1em;
+}
+
+.stage-terminal {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+}
+
+@media (min-width: 1000px) {
+  .stage-terminal {
+    grid-column: auto;
+  }
+}
+
+.tracker-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  justify-content: flex-end;
+}
+
+@media (min-width: 1000px) {
+  .tracker-actions {
+    grid-column: auto;
+  }
+}
+
+/* Modal ---------------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.modal {
+  width: 100%;
+  max-width: 420px;
+  background: var(--panel);
+  border: 1px solid var(--line-bright);
+  border-radius: var(--radius);
+  padding: var(--gap-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  box-shadow: 0 30px 70px -28px var(--shadow);
+}
+
+.modal h2 {
+  font-size: var(--step-2);
+}
+
+.modal > .muted {
+  margin-top: calc(var(--gap-md) * -0.7);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gap-sm);
+}
