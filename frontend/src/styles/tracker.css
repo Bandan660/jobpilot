@@ -6,12 +6,23 @@
  * row collapses to a stack and the track scrolls on its own.
  */
 
+/*
+ * Tighter vertical rhythm than the rest of the app. A tracker is a working
+ * surface — the gaps that make a marketing page breathe make a list of fifty
+ * applications feel empty and require more scrolling to read less.
+ */
+.dash:has(.tracker-list),
+.dash:has(.tracker-head) {
+  gap: var(--gap-sm);
+}
+
 .tracker-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--gap-md);
   flex-wrap: wrap;
+  margin-bottom: var(--gap-xs);
 }
 
 .tracker-head h1 {
@@ -25,12 +36,34 @@
   flex-wrap: wrap;
 }
 
-/* Tabs ---------------------------------------------------------------------- */
+/* Count + tabs, on one rule ------------------------------------------------- */
+
+.tracker-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-lg);
+  border-bottom: 1px solid var(--line);
+}
+
+.tracker-count {
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 650;
+  padding-bottom: 0.6rem;
+}
+
+.tracker-count strong {
+  color: var(--text);
+  font-size: var(--step-0);
+  letter-spacing: -0.01em;
+  margin-right: 0.35rem;
+}
 
 .tracker-tabs {
   display: flex;
   gap: var(--gap-md);
-  border-bottom: 1px solid var(--line);
 }
 
 .tracker-tab {
@@ -66,16 +99,43 @@
 
 /* Filters ------------------------------------------------------------------- */
 
+/*
+ * A control strip, not a card. Wrapping the filters in a padded panel put a
+ * box around six small controls and pushed the list further down the page.
+ */
 .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--gap-sm);
+  padding-block: var(--gap-sm) var(--gap-md);
 }
 
-.filters input[type='search'] {
+.filters select,
+.filters input {
+  padding-block: 0.45rem;
+}
+
+.search-field {
+  position: relative;
   flex: 1;
-  min-width: 200px;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+}
+
+.search-field svg {
+  position: absolute;
+  left: 0.6rem;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.search-field input {
+  width: 100%;
+  padding-left: 2rem;
 }
 
 .date-field {
@@ -88,6 +148,16 @@
   font-weight: 500;
   font-size: var(--step--2);
   color: var(--muted);
+}
+
+/* Native date inputs reserve room for a full dd-mm-yyyy placeholder, which is
+   wider than the value ever needs. */
+.date-field input {
+  width: 9.5rem;
+}
+
+.filters .ob-chip {
+  padding: 0.45rem 0.9rem;
 }
 
 .banner-note {
@@ -113,24 +183,32 @@
   grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: var(--gap-sm) var(--gap-md);
-  padding: var(--gap-md);
+  padding: 0.9rem var(--gap-md);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  transition: border-color 180ms ease, transform 180ms ease;
+  transition: border-color 180ms ease, background 180ms ease;
 }
 
 .tracker-row:hover {
   border-color: var(--line-bright);
+  background: linear-gradient(var(--hover-wash), var(--hover-wash)), var(--panel);
 }
 
 .tracker-row[data-archived='true'] {
   opacity: 0.62;
 }
 
+/*
+ * Proportions matter more than the columns existing. The title block needs
+ * enough room not to truncate, and the stage track needs enough that five
+ * labels do not collide — 1fr each leaves both cramped and the row looking
+ * half-empty.
+ */
 @media (min-width: 1000px) {
   .tracker-row {
-    grid-template-columns: auto auto minmax(0, 1.15fr) minmax(0, 1.5fr) auto;
+    grid-template-columns: auto auto minmax(0, 1.25fr) minmax(320px, 1.35fr) auto;
+    gap: var(--gap-lg);
   }
 }
 
@@ -138,7 +216,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.05rem;
+  font-size: 1.25rem;
   line-height: 1;
   color: var(--line-bright);
   padding: 0;
@@ -155,12 +233,12 @@
 }
 
 .avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
   display: grid;
   place-items: center;
-  font-size: var(--step--2);
+  font-size: var(--step-0);
   font-weight: 700;
   letter-spacing: -0.02em;
   flex-shrink: 0;
@@ -209,10 +287,47 @@
 .tracker-meta {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--gap-sm);
   flex-wrap: wrap;
   font-size: var(--step--2);
   color: var(--muted);
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.meta-item svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.icon-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.35rem;
+  display: grid;
+  place-items: center;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  border-color: var(--line-bright);
+  background: var(--hover-wash);
 }
 
 /* Stage track ---------------------------------------------------------------- */

@@ -108,6 +108,43 @@ export function ChartIcon(p: IconProps) {
   );
 }
 
+export function BuildingIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M4 21V5a1 1 0 011-1h9a1 1 0 011 1v16" />
+      <path d="M15 9h4a1 1 0 011 1v11" />
+      <path d="M2 21h20M8 8h3M8 12h3M8 16h3" />
+    </svg>
+  );
+}
+
+export function PinIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
+export function ArchiveIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" />
+    </svg>
+  );
+}
+
+export function SearchIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
+  );
+}
+
 export function CalendarIcon(p: IconProps) {
   return (
     <svg {...base} {...p}>

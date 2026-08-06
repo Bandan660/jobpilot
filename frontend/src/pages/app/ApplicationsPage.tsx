@@ -7,6 +7,7 @@ import {
   type ApplicationStatus,
 } from '@jobpilot/shared';
 import { api } from '../../api.js';
+import { ArchiveIcon, BuildingIcon, PinIcon, SearchIcon } from '../../components/icons.js';
 import { downloadCsv, parseCsv, toCsv } from '../../csv.js';
 import { usePageMeta } from '../../usePageMeta.js';
 
@@ -101,42 +102,47 @@ export function ApplicationsPage() {
   return (
     <div className="dash">
       <header className="tracker-head">
-        <div>
-          <h1>Your job tracker</h1>
-          <p className="muted">
-            {applications.length} {tab === 'archived' ? 'archived' : 'active'}
-            {filtersActive ? ' matching your filters' : ''}
-          </p>
-        </div>
-
+        <h1>Your job tracker</h1>
         <Toolbar applications={applications} onImported={(msg) => { setNotice(msg); void load(); }} />
       </header>
 
-      <div className="tracker-tabs" role="tablist">
-        {(['active', 'archived'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            role="tab"
-            aria-selected={tab === t}
-            className="tracker-tab"
-            data-selected={tab === t}
-            onClick={() => setTab(t)}
-          >
-            {t === 'active' ? 'Active' : 'Archived'}
-          </button>
-        ))}
+      {/* Count, tabs and filters read as one control strip rather than three
+          stacked blocks with gaps between them. */}
+      <div className="tracker-bar">
+        <span className="tracker-count">
+          <strong>{applications.length}</strong>
+          {filtersActive ? ' matching' : tab === 'archived' ? ' archived' : ' active'}
+        </span>
+
+        <div className="tracker-tabs" role="tablist">
+          {(['active', 'archived'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              className="tracker-tab"
+              data-selected={tab === t}
+              onClick={() => setTab(t)}
+            >
+              {t === 'active' ? 'Active' : 'Archived'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && <p className="banner-error">{error}</p>}
       {notice && <p className="banner-note">{notice}</p>}
 
-      <section className="panel filters">
-        <input
-          type="search"
-          placeholder="Search roles or companies…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+      <section className="filters">
+        <div className="search-field">
+          <SearchIcon />
+          <input
+            type="search"
+            placeholder="Search roles or companies…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
 
         <select value={status} onChange={(e) => setStatus(e.target.value as ApplicationStatus | 'ALL')}>
           <option value="ALL">All statuses</option>
@@ -425,8 +431,16 @@ function TrackerRow({
           <span className="tracker-title">{app.title}</span>
         )}
         <div className="tracker-meta">
-          <span>{app.company.name}</span>
-          {app.location && <span>· {app.location}</span>}
+          <span className="meta-item">
+            <BuildingIcon />
+            {app.company.name}
+          </span>
+          {app.location && (
+            <span className="meta-item">
+              <PinIcon />
+              {app.location}
+            </span>
+          )}
           {app.postingStatus !== 'LIVE' && app.postingStatus !== 'UNKNOWN' && (
             <span className="lamp lamp-down">{app.postingStatus.toLowerCase()}</span>
           )}
@@ -473,10 +487,12 @@ function TrackerRow({
           ))}
         </select>
         <button
-          className="btn-link"
+          className="icon-btn"
+          title={app.archived ? 'Restore' : 'Archive'}
+          aria-label={app.archived ? 'Restore' : 'Archive'}
           onClick={() => onUpdate(app.id, { archived: !app.archived })}
         >
-          {app.archived ? 'Restore' : 'Archive'}
+          <ArchiveIcon />
         </button>
       </div>
     </li>
