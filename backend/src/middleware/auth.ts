@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { HTTPException } from 'hono/http-exception';
 import { verifyToken } from '../auth/jwt.js';
+import { cleanSecret } from '../db/client.js';
 import type { AppContext } from '../env.js';
 
 /**
@@ -15,7 +16,9 @@ export const requireAuth = createMiddleware<AppContext>(async (c, next) => {
     throw new HTTPException(401, { message: 'Missing bearer token' });
   }
 
-  const userId = await verifyToken(token, c.env.JWT_SECRET);
+  // Same BOM/whitespace defence as the database URL — a signing key that
+  // differs by one invisible character fails in a way nothing explains.
+  const userId = await verifyToken(token, cleanSecret(c.env.JWT_SECRET));
   if (!userId) {
     throw new HTTPException(401, { message: 'Invalid or expired token' });
   }

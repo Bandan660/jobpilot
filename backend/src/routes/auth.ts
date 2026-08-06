@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthResponse } from '@jobpilot/shared';
-import { createDb } from '../db/client.js';
+import { cleanSecret, createDb } from '../db/client.js';
 import { users } from '../db/schema.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { signToken } from '../auth/jwt.js';
@@ -38,7 +38,7 @@ authRoutes.post('/signup', async (c) => {
   const passwordHash = await hashPassword(password);
   const [user] = await db.insert(users).values({ email, passwordHash }).returning();
 
-  const token = await signToken(user.id, c.env.JWT_SECRET);
+  const token = await signToken(user.id, cleanSecret(c.env.JWT_SECRET));
   const body: AuthResponse = {
     token,
     user: { id: user.id, email: user.email, createdAt: user.createdAt.toISOString() },
@@ -68,7 +68,7 @@ authRoutes.post('/login', async (c) => {
     throw new HTTPException(401, { message: 'Invalid email or password' });
   }
 
-  const token = await signToken(user.id, c.env.JWT_SECRET);
+  const token = await signToken(user.id, cleanSecret(c.env.JWT_SECRET));
   const body: AuthResponse = {
     token,
     user: { id: user.id, email: user.email, createdAt: user.createdAt.toISOString() },
