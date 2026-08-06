@@ -14,6 +14,13 @@ const TOKEN_KEY = 'jobpilot.token';
 /** Set VITE_DEMO=1 to render the UI against fixtures with no API or database. */
 export const DEMO = import.meta.env.VITE_DEMO === '1';
 
+/**
+ * Token storage.
+ *
+ * localStorage persists across browser restarts; sessionStorage is wiped when
+ * the tab closes. That difference is what "remember this device" actually
+ * means — without it the checkbox would be decoration.
+ */
 export function getToken(): string | null {
   // Demo mode does NOT auto-authenticate: the marketing site and the sign-in
   // flow are part of what needs reviewing, so the gate stays in place and
@@ -21,15 +28,20 @@ export function getToken(): string | null {
   //
   // Guarded for the prerender pass, which runs in Node with no localStorage.
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
 }
 
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+export function setToken(token: string, remember = true): void {
+  // Always clear both first: switching the preference between sign-ins must
+  // not leave a stale copy in the other store.
+  clearToken();
+  if (remember) localStorage.setItem(TOKEN_KEY, token);
+  else sessionStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
 }
 
 export class ApiError extends Error {

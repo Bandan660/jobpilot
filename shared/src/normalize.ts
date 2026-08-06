@@ -315,31 +315,61 @@ export function parseCompensation(raw: string | null | undefined): ParsedCompens
   // Digits with any thousands grouping (so Indian 15,00,000 parses) followed by
   // an optional scale word.
   const numberPattern = /(\d[\d,\s]*(?:\.\d+)?)\s*([a-z]{1,6})?/gi;
-  const values: number[] = [];
   const floor = MIN_PLAUSIBLE[period ?? 'YEAR'];
+
+  const candidates: { value: number; scale: number | null }[] = [];
 
   for (const match of text.matchAll(numberPattern)) {
     const digits = match[1].replace(/[,\s]/g, '');
     if (!digits) continue;
 
-    let value = Number.parseFloat(digits);
+    const value = Number.parseFloat(digits);
     if (!Number.isFinite(value)) continue;
 
     const word = match[2] ?? '';
-    let scaled = false;
+    let scale: number | null = null;
     for (const [pattern, factor] of SCALES) {
       if (pattern.test(word)) {
-        value *= factor;
-        scaled = true;
+        scale = factor;
         break;
       }
     }
 
-    // A bare four-digit number in the 1900–2100 range is a year, not money.
-    if (!scaled && value >= 1900 && value <= 2100 && Number.isInteger(value)) continue;
-    if (value < floor || value > 1e11) continue;
+    candidates.push({ value, scale });
+  }
 
-    values.push(Math.round(value));
+  /*
+   * In a range, the scale word usually sits only on the last number:
+   * "18 - 24 LPA" means both are lakhs, and "$120 - 160k" means both are
+   * thousands. Taken literally the first figure is a bare 18, which then falls
+   * below the plausibility floor and disappears — turning a range into a
+   * single number.
+   *
+   * So a scale found anywhere is applied to unscaled figures that would
+   * otherwise be implausible. Figures that already stand on their own —
+   * "$120,000 - $160,000" — are left alone, because the scale is not theirs.
+   */
+  const trailingScale = candidates.reduce<number | null>(
+    (found, candidate) => candidate.scale ?? found,
+    null
+  );
+
+  const values: number[] = [];
+
+  for (const { value, scale } of candidates) {
+    let amount = value * (scale ?? 1);
+
+    if (scale === null && trailingScale !== null && amount < floor) {
+      amount = value * trailingScale;
+    }
+
+    const wasScaled = amount !== value;
+
+    // A bare four-digit number in the 1900–2100 range is a year, not money.
+    if (!wasScaled && value >= 1900 && value <= 2100 && Number.isInteger(value)) continue;
+    if (amount < floor || amount > 1e11) continue;
+
+    values.push(Math.round(amount));
   }
 
   if (values.length === 0) return { ...empty, currency, period };

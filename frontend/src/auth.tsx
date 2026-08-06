@@ -3,7 +3,8 @@ import { clearToken, getToken, setToken } from './api.js';
 
 interface AuthValue {
   isAuthenticated: boolean;
-  signIn: (token: string) => void;
+  /** `remember` false keeps the session only until the tab closes. */
+  signIn: (token: string, remember?: boolean) => void;
   signOut: () => void;
 }
 
@@ -17,8 +18,8 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(() => getToken());
 
-  const signIn = useCallback((next: string) => {
-    setToken(next);
+  const signIn = useCallback((next: string, remember = true) => {
+    setToken(next, remember);
     setTokenState(next);
   }, []);
 

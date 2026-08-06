@@ -1,0 +1,207 @@
+/**
+ * Sign-in and sign-up.
+ *
+ * Full-bleed split: the left panel says what the account is for, the right
+ * holds the form. Rendered outside the site layout — a marketing header on an
+ * auth page is another way to leave, and the only navigation that helps here is
+ * back to the home page.
+ */
+
+.auth-split {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 940px) {
+  .auth-split {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  }
+}
+
+/* Left ---------------------------------------------------------------------- */
+
+.auth-aside {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  padding: var(--gap-xl) var(--gap-lg);
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  flex-direction: column;
+  gap: var(--gap-lg);
+}
+
+/* Below this the panel would push the form off-screen, which is the one thing
+   an auth page must never do. */
+@media (min-width: 940px) {
+  .auth-aside {
+    display: flex;
+  }
+}
+
+.auth-aside::before {
+  content: '';
+  position: absolute;
+  inset: -30% -20% auto -20%;
+  height: 480px;
+  background: radial-gradient(ellipse at 40% 50%, var(--hero-glow), transparent 65%);
+  pointer-events: none;
+}
+
+.auth-aside > * {
+  position: relative;
+}
+
+.auth-pitch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  margin-top: auto;
+}
+
+.auth-pitch h2 {
+  font-size: clamp(1.75rem, 2.6vw, 2.5rem);
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  max-width: 16ch;
+}
+
+.auth-pitch h2 em {
+  font-style: normal;
+  color: var(--signal-text);
+}
+
+.auth-pitch p {
+  color: var(--text-dim);
+  max-width: 44ch;
+}
+
+.auth-visual {
+  margin-bottom: auto;
+  /* The demo is decorative here; keep it from dominating the panel. */
+  max-width: 460px;
+}
+
+/* Right --------------------------------------------------------------------- */
+
+.auth-main {
+  display: grid;
+  place-items: center;
+  padding: var(--gap-lg) 20px var(--gap-2xl);
+  background: var(--ink);
+}
+
+.auth-panel {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.auth-mobile-brand {
+  align-self: flex-start;
+  margin-bottom: var(--gap-md);
+}
+
+@media (min-width: 940px) {
+  .auth-mobile-brand {
+    display: none;
+  }
+}
+
+.auth-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.auth-header h1 {
+  font-size: var(--step-2);
+  letter-spacing: -0.03em;
+}
+
+.auth-header p {
+  color: var(--muted);
+  font-size: var(--step--1);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.auth-form input[type='email'],
+.auth-form input[type='password'] {
+  padding: 0.7rem 0.8rem;
+}
+
+/* Checkbox and its explanation on one line, overriding the stacked label. */
+.checkbox-row {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--gap-sm);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--signal);
+  cursor: pointer;
+}
+
+.checkbox-row small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--step--2);
+  margin-top: 2px;
+}
+
+.auth-submit {
+  width: 100%;
+  padding-block: 0.75rem;
+}
+
+.auth-alt {
+  text-align: center;
+  font-size: var(--step--1);
+  color: var(--muted);
+}
+
+.auth-alt a {
+  color: var(--signal-text);
+  font-weight: 650;
+}
+
+.auth-alt a:hover {
+  text-decoration: underline;
+}
+
+.auth-legal {
+  text-align: center;
+  font-size: var(--step--2);
+  color: var(--muted);
+  line-height: 1.5;
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--line);
+}
+
+.auth-legal a {
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-legal a:hover {
+  color: var(--text);
+}

@@ -212,40 +212,8 @@ label {
 
 /* Auth --------------------------------------------------------------------- */
 
-.auth-shell {
-  min-height: calc(100vh - 60px);
-  display: grid;
-  place-items: center;
-  padding: var(--gap-lg) 20px;
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 360px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--gap-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-md);
-}
-
-.auth-card h1 {
-  font-size: var(--step-2);
-}
-
-.auth-card > p {
-  color: var(--muted);
-  font-size: var(--step--1);
-  margin-top: calc(var(--gap-md) * -0.6);
-}
-
-.auth-footer {
-  text-align: center;
-  font-size: var(--step--1);
-  color: var(--muted);
-}
+/* The sign-in layout itself lives in auth.css. Only the demo banner is here,
+   because the dashboard uses it too. */
 
 .demo-hint {
   background: var(--signal-wash);

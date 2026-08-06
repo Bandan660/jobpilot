@@ -81,25 +81,31 @@ export function AppRoutes() {
             <Route path="blog/:slug" element={<BlogPost />} />
             <Route path="privacy" element={<Privacy />} />
             <Route path="terms" element={<Terms />} />
-            <Route
-              path="login"
-              element={
-                <Suspense fallback={<p className="centered">Loading…</p>}>
-                  <LoginPage mode="login" />
-                </Suspense>
-              }
-            />
-            <Route
-              path="signup"
-              element={
-                <Suspense fallback={<p className="centered">Loading…</p>}>
-                  <LoginPage mode="signup" />
-                </Suspense>
-              }
-            />
             {/* Inside the layout so a wrong URL keeps the header and footer. */}
             <Route path="*" element={<NotFound />} />
           </Route>
+
+          {/*
+            Auth sits outside the site layout. A marketing header on a sign-in
+            page is just another way to leave it, and the split needs the full
+            viewport.
+          */}
+          <Route
+            path="/login"
+            element={
+              <Suspense fallback={<p className="centered">Loading…</p>}>
+                <LoginPage mode="login" />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/signup"
+            element={
+              <Suspense fallback={<p className="centered">Loading…</p>}>
+                <LoginPage mode="signup" />
+              </Suspense>
+            }
+          />
 
           {/* App: its own shell, no marketing chrome. */}
           <Route
