@@ -139,7 +139,21 @@ const liveApi = {
     request<{
       alerts: { id: string; title: string; postingStatus: string; appliedAt: string | null }[];
     }>('/api/stats/dead-postings'),
+
+  activity: () => request<{ events: ActivityEvent[] }>('/api/stats/activity'),
 };
+
+export interface ActivityEvent {
+  id: string;
+  type: string;
+  actor: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  occurredAt: string;
+  applicationId: string;
+  title: string;
+  companyName: string;
+}
 
 /* -------------------------------------------------------------------------- */
 /* Demo mode                                                                  */
@@ -213,6 +227,7 @@ function buildDemoApi(): typeof liveApi {
     },
 
     deadPostings: () => delay({ alerts: DEMO_DEAD_POSTINGS }),
+    activity: () => delay({ events: [] as ActivityEvent[] }),
   };
 }
 

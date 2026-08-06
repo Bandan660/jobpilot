@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { createDb } from '../db/client.js';
-import { getDeadPostingAlerts, getFunnelStats } from '../services/stats.js';
+import { getDeadPostingAlerts, getFunnelStats, getRecentActivity } from '../services/stats.js';
 import { requireAuth } from '../middleware/auth.js';
 import { numberVar, type AppContext } from '../env.js';
 
@@ -13,6 +13,14 @@ statsRoutes.get('/funnel', async (c) => {
   const ghostAfterDays = numberVar(c.env.GHOST_AFTER_DAYS, 30);
   const stats = await getFunnelStats(db, c.get('userId'), ghostAfterDays);
   return c.json(stats);
+});
+
+statsRoutes.get('/activity', async (c) => {
+  const db = createDb(c.env);
+  const events = await getRecentActivity(db, c.get('userId'));
+  return c.json({
+    events: events.map((e) => ({ ...e, occurredAt: e.occurredAt.toISOString() })),
+  });
 });
 
 /** Applications still marked APPLIED where the posting has since come down. */

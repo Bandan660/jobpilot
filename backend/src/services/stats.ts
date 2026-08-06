@@ -1,7 +1,7 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { APPLICATION_STATUS, type ApplicationStatus, type FunnelStats } from '@jobpilot/shared';
 import type { Database } from '../db/client.js';
-import { applications } from '../db/schema.js';
+import { applicationEvents, applications, companies } from '../db/schema.js';
 
 /**
  * Ghosting is DERIVED, never stored.
@@ -67,6 +67,41 @@ export async function getFunnelStats(
       aggregates?.medianDays != null ? Math.round(Number(aggregates.medianDays) * 10) / 10 : null,
     ghostedCount: aggregates?.ghosted ?? 0,
   };
+}
+
+/**
+ * Recent activity across every application.
+ *
+ * Reads straight from the append-only event log, which is why it can show
+ * things the user never typed — a posting going down, a duplicate flagged at
+ * capture time. That is the whole reason the log exists.
+ */
+export async function getRecentActivity(db: Database, userId: string, limit = 12) {
+  return db
+    .select({
+      id: applicationEvents.id,
+      type: applicationEvents.type,
+      actor: applicationEvents.actor,
+      fromStatus: applicationEvents.fromStatus,
+      toStatus: applicationEvents.toStatus,
+      occurredAt: applicationEvents.occurredAt,
+      applicationId: applications.id,
+      title: applications.title,
+      companyName: companies.name,
+    })
+    .from(applicationEvents)
+    .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
+    .innerJoin(companies, eq(applications.companyId, companies.id))
+    .where(
+      and(
+        eq(applications.userId, userId),
+        // Liveness checks that found nothing changed are noise, not activity.
+        sql`${applicationEvents.type} <> 'POSTING_CHECKED'
+            or ${applicationEvents.payload}->>'postingStatus' in ('REMOVED','CLOSED')`
+      )
+    )
+    .orderBy(desc(applicationEvents.occurredAt))
+    .limit(limit);
 }
 
 /** Applications the user is still waiting on, where the posting has gone down. */

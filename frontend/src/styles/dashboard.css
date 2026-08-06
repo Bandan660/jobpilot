@@ -35,7 +35,18 @@
   gap: var(--gap-md);
   margin-right: auto;
   font-size: var(--step--1);
+  /*
+   * Scrollable on narrow screens, but the scrollbar itself must never render:
+   * `overflow-x: auto` alone drew a visible bar through the middle of the
+   * header on Windows.
+   */
   overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.app-nav nav::-webkit-scrollbar {
+  display: none;
 }
 
 .app-nav nav a {
@@ -165,13 +176,104 @@
   color: var(--live);
 }
 
-.setup-list a {
-  font-weight: 650;
-  border-bottom: 1px solid transparent;
+.setup-body {
+  flex: 1;
+  min-width: 0;
 }
 
-.setup-list a:hover {
-  border-bottom-color: var(--signal);
+.setup-cta {
+  flex-shrink: 0;
+  padding: 0.4rem 0.8rem;
+}
+
+/* Layout ------------------------------------------------------------------- */
+
+.dash-split {
+  display: grid;
+  gap: var(--gap-md);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .dash-split {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+}
+
+.dash-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  min-width: 0;
+}
+
+.week-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-md);
+}
+
+.week-row .readout-value {
+  font-size: var(--step-4);
+  line-height: 1;
+}
+
+/* Activity ----------------------------------------------------------------- */
+
+.activity-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Continuous rail behind the dots, so the entries read as one stream. */
+.activity-list::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--line);
+}
+
+.activity-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-sm);
+  padding-block: var(--gap-sm);
+  font-size: var(--step--1);
+  position: relative;
+}
+
+.activity-list li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-list strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--line-bright);
+  flex-shrink: 0;
+  margin-top: 5px;
+  z-index: 1;
+}
+
+.activity-list li:first-child .activity-dot {
+  background: var(--signal);
+  border-color: var(--signal);
 }
 
 /* Filters ------------------------------------------------------------------- */

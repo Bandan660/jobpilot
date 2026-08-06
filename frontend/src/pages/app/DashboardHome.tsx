@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  ACTIVE_STATUSES,
   daysBetween,
+  formatDate,
   profileReadiness,
   type Application,
+  type ApplicationStatus,
   type FunnelStats,
   type Profile,
 } from '@jobpilot/shared';
-import { api } from '../../api.js';
+import { api, type ActivityEvent } from '../../api.js';
 import { usePageMeta } from '../../usePageMeta.js';
 
 /**
@@ -18,8 +21,14 @@ import { usePageMeta } from '../../usePageMeta.js';
  * from the reference layout: job matches, resume and cover-letter generation,
  * premium upsells, referral credit, and a streak counter. This product makes
  * applying faster and keeps the record straight; a dashboard selling other
- * things is a dashboard that has stopped doing that.
+ * things has stopped doing that.
  */
+
+/** "1 field", "2 fields" — the plural bug is small and reads as carelessness. */
+function plural(count: number, singular: string, plural_ = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural_}`;
+}
+
 export function DashboardHome() {
   usePageMeta('Dashboard', undefined, '/dashboard');
 
@@ -27,18 +36,26 @@ export function DashboardHome() {
   const [stats, setStats] = useState<FunnelStats | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [alerts, setAlerts] = useState<{ id: string; title: string; postingStatus: string }[]>([]);
+  const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.getProfile(), api.funnel(), api.listApplications(), api.deadPostings()])
-      .then(([p, f, list, dead]) => {
+    Promise.all([
+      api.getProfile(),
+      api.funnel(),
+      api.listApplications(),
+      api.deadPostings(),
+      api.activity(),
+    ])
+      .then(([p, f, list, dead, act]) => {
         if (cancelled) return;
         setProfile(p.profile);
         setStats(f);
         setApplications(list.applications);
         setAlerts(dead.alerts);
+        setActivity(act.events);
       })
       .catch((err) => !cancelled && setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => !cancelled && setLoading(false));
@@ -50,13 +67,17 @@ export function DashboardHome() {
   if (loading) return <p className="centered">Loading…</p>;
 
   const readiness = profile ? profileReadiness(profile) : null;
-  const firstName = profile?.firstName;
+  const thisWeek = applications.filter((a) => a.appliedAt && daysBetween(a.appliedAt) < 7).length;
+  const lastWeek = applications.filter((a) => {
+    if (!a.appliedAt) return false;
+    const d = daysBetween(a.appliedAt);
+    return d >= 7 && d < 14;
+  }).length;
 
-  const thisWeek = applications.filter(
-    (a) => a.appliedAt && daysBetween(a.appliedAt) < 7
+  const live = applications.filter((a) =>
+    ACTIVE_STATUSES.includes(a.status as ApplicationStatus)
   ).length;
 
-  // Applied, no reply, and quiet long enough to be worth a nudge.
   const stale = applications.filter(
     (a) =>
       a.status === 'APPLIED' &&
@@ -69,11 +90,11 @@ export function DashboardHome() {
   return (
     <div className="dash">
       <header className="dash-head">
-        <h1>{firstName ? `Welcome back, ${firstName}` : 'Welcome back'}</h1>
+        <h1>{profile?.firstName ? `Welcome back, ${profile.firstName}` : 'Welcome back'}</h1>
         <p className="muted">
           {applications.length === 0
             ? 'Nothing tracked yet. Install the extension and apply to a job — it lands here on its own.'
-            : `${applications.length} applications tracked · ${thisWeek} this week`}
+            : `${plural(applications.length, 'application')} tracked · ${live} still live · ${thisWeek} this week`}
         </p>
       </header>
 
@@ -85,6 +106,20 @@ export function DashboardHome() {
 
       <NeedsAttention alerts={alerts} stale={stale} />
 
+      {/* Two columns on wide screens: the pipeline reads as a whole, the
+          activity log reads as a stream. They are different shapes of
+          information and cramming them into one column wastes the width. */}
+      <div className="dash-split">
+        <div className="dash-col">
+          {stats && <Pipeline stats={stats} total={applications.length} />}
+          <ThisWeek thisWeek={thisWeek} lastWeek={lastWeek} />
+        </div>
+
+        <div className="dash-col">
+          <Activity events={activity} />
+        </div>
+      </div>
+
       <RecentApplications applications={applications} />
     </div>
   );
@@ -92,10 +127,7 @@ export function DashboardHome() {
 
 /* -------------------------------------------------------------------------- */
 
-/**
- * Setup checklist. Hidden once everything is done rather than lingering at
- * 100% — a permanent checklist is decoration.
- */
+/** Hidden once complete rather than lingering at 100% — a permanent checklist is decoration. */
 function Setup({
   profile,
   readiness,
@@ -112,22 +144,25 @@ function Setup({
       label: 'Complete your profile',
       detail:
         readiness.missing.length > 0
-          ? `${readiness.missing.length} fields autofill still can't answer`
+          ? `${plural(readiness.missing.length, 'field')} autofill still can't answer`
           : 'Everything autofill needs is set',
       done: readiness.missing.length === 0,
       to: '/dashboard/profile',
+      cta: 'Fill it in',
     },
     {
       label: 'Install the extension',
       detail: 'Capture and autofill only work with it installed',
       done: hasApplications,
       to: '/copilot',
+      cta: 'How it works',
     },
     {
       label: 'Apply to something',
       detail: 'Your first application will appear here by itself',
       done: hasApplications,
       to: '/copilot',
+      cta: null,
     },
   ];
 
@@ -153,10 +188,15 @@ function Setup({
             <span className="setup-tick" aria-hidden="true">
               {item.done ? '✓' : ''}
             </span>
-            <div>
-              <Link to={item.to}>{item.label}</Link>
+            <div className="setup-body">
+              <strong>{item.label}</strong>
               <p className="muted">{item.detail}</p>
             </div>
+            {!item.done && item.cta && (
+              <Link className="btn btn-ghost setup-cta" to={item.to}>
+                {item.cta}
+              </Link>
+            )}
           </li>
         ))}
       </ul>
@@ -188,7 +228,135 @@ function Readouts({ stats }: { stats: FunnelStats }) {
   );
 }
 
-/** The one section that says "do something", so it sits above the pipeline. */
+/** Status breakdown. The data was already being fetched and never shown. */
+function Pipeline({ stats, total }: { stats: FunnelStats; total: number }) {
+  const rows: [ApplicationStatus, string][] = [
+    ['SAVED', 'Saved'],
+    ['APPLIED', 'Applied'],
+    ['SCREEN', 'Screen'],
+    ['INTERVIEW', 'Interview'],
+    ['OFFER', 'Offer'],
+    ['REJECTED', 'Rejected'],
+  ];
+
+  const max = Math.max(1, ...rows.map(([status]) => stats.byStatus[status]));
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Pipeline</h2>
+        <span className="cell-dim">{total} total</span>
+      </div>
+
+      {total === 0 ? (
+        <p className="muted">Your stages will show here once something is tracked.</p>
+      ) : (
+        <div className="funnel">
+          {rows.map(([status, label]) => {
+            const count = stats.byStatus[status];
+            return (
+              <div className="funnel-row" key={status}>
+                <span className="funnel-label">{label}</span>
+                <div className="funnel-bar">
+                  <div
+                    className="funnel-fill"
+                    data-tone={status === 'REJECTED' ? 'dim' : undefined}
+                    style={{ width: `${(count / max) * 100}%`, transform: 'scaleX(1)' }}
+                  />
+                </div>
+                <span className="funnel-count">{count}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ThisWeek({ thisWeek, lastWeek }: { thisWeek: number; lastWeek: number }) {
+  const delta = thisWeek - lastWeek;
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>This week</h2>
+        <span className="cell-dim">last 7 days</span>
+      </div>
+
+      <div className="week-row">
+        <span className="readout-value">{thisWeek}</span>
+        <div>
+          <p className="muted">
+            {thisWeek === 0
+              ? 'Nothing submitted in the last seven days.'
+              : `${plural(thisWeek, 'application')} submitted.`}
+          </p>
+          {lastWeek > 0 && (
+            <p className="cell-dim">
+              {delta === 0
+                ? 'Same as the week before.'
+                : delta > 0
+                  ? `${delta} more than the week before.`
+                  : `${Math.abs(delta)} fewer than the week before.`}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Reads from the append-only event log, so it shows things nobody typed. */
+function Activity({ events }: { events: ActivityEvent[] }) {
+  const describe = (e: ActivityEvent): string => {
+    switch (e.type) {
+      case 'CREATED':
+        return e.actor === 'EXTENSION' ? 'Captured on submit' : 'Added by hand';
+      case 'STATUS_CHANGED':
+        return `${e.fromStatus?.toLowerCase() ?? 'new'} → ${e.toStatus?.toLowerCase() ?? ''}`;
+      case 'POSTING_CHECKED':
+        return 'Posting came down';
+      case 'DUPLICATE_FLAGGED':
+        return 'Flagged as a possible duplicate';
+      case 'NOTE_ADDED':
+        return 'Note added';
+      default:
+        return e.type.toLowerCase().replace(/_/g, ' ');
+    }
+  };
+
+  return (
+    <section className="panel activity">
+      <div className="panel-head">
+        <h2>Activity</h2>
+      </div>
+
+      {events.length === 0 ? (
+        <p className="muted">
+          Everything that happens to an application shows up here — including the parts you did not
+          do, like a posting being taken down.
+        </p>
+      ) : (
+        <ol className="activity-list">
+          {events.map((event) => (
+            <li key={event.id}>
+              <span className="activity-dot" aria-hidden="true" />
+              <div>
+                <strong>{event.title}</strong>
+                <p className="muted">
+                  {describe(event)} · {event.companyName}
+                </p>
+              </div>
+              <span className="cell-dim">{formatDate(event.occurredAt)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
 function NeedsAttention({
   alerts,
   stale,
@@ -217,7 +385,7 @@ function NeedsAttention({
           <li key={app.id}>
             <strong>{app.title}</strong>
             <span className="cell-dim">
-              {app.company.name} · silent {daysBetween(app.appliedAt!)}d
+              {app.company.name} · silent {daysBetween(app.appliedAt!)}d, posting still up
             </span>
           </li>
         ))}
@@ -251,6 +419,7 @@ function RecentApplications({ applications }: { applications: Application[] }) {
                 <th>Role</th>
                 <th>Company</th>
                 <th>Applied</th>
+                <th>Posting</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -265,12 +434,17 @@ function RecentApplications({ applications }: { applications: Application[] }) {
                   <td>
                     <span
                       className={`lamp lamp-${
-                        app.postingStatus === 'LIVE' ? 'live' : app.postingStatus === 'UNKNOWN' ? 'wait' : 'down'
+                        app.postingStatus === 'LIVE'
+                          ? 'live'
+                          : app.postingStatus === 'UNKNOWN'
+                            ? 'wait'
+                            : 'down'
                       }`}
                     >
-                      {app.status.toLowerCase()}
+                      {app.postingStatus.toLowerCase()}
                     </span>
                   </td>
+                  <td>{app.status.toLowerCase()}</td>
                 </tr>
               ))}
             </tbody>
