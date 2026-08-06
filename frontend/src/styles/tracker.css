@@ -441,6 +441,192 @@
   }
 }
 
+/* View toggle ---------------------------------------------------------------- */
+
+.view-toggle {
+  display: flex;
+  margin-left: auto;
+  margin-bottom: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.view-toggle button {
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: var(--step--2);
+  font-weight: 650;
+  color: var(--muted);
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.view-toggle button:hover {
+  color: var(--text);
+}
+
+.view-toggle button[data-selected='true'] {
+  background: var(--signal);
+  color: var(--on-signal);
+}
+
+/* Board ---------------------------------------------------------------------- */
+
+/*
+ * Columns scroll horizontally rather than shrinking. A kanban column narrower
+ * than its cards stops being readable, and six of them will not fit on a laptop
+ * at a usable width.
+ */
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(260px, 1fr);
+  gap: var(--gap-sm);
+  overflow-x: auto;
+  padding-bottom: var(--gap-md);
+  align-items: start;
+}
+
+.board-col {
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--gap-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  min-height: 180px;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+/* The drop target has to be unmistakable while a card is in the air. */
+.board-col[data-over='true'] {
+  border-color: var(--signal);
+  background: linear-gradient(var(--signal-wash), var(--signal-wash)), var(--panel-raised);
+}
+
+.board-col-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+  padding-inline: 0.2rem;
+}
+
+.board-col-head h3 {
+  font-size: var(--step--2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-right: auto;
+}
+
+.board-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.board-dot[data-tone='wait'] {
+  background: var(--wait);
+}
+.board-dot[data-tone='live'] {
+  background: var(--live);
+}
+.board-dot[data-tone='signal'] {
+  background: var(--signal);
+}
+.board-dot[data-tone='down'] {
+  background: var(--down);
+}
+
+.board-count {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+.board-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  min-height: 60px;
+}
+
+.board-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  cursor: grab;
+  transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.board-card:hover {
+  border-color: var(--line-bright);
+  box-shadow: 0 6px 18px -12px var(--shadow);
+}
+
+.board-card:active {
+  cursor: grabbing;
+}
+
+/* Left behind, faded, while the pointer carries the card. */
+.board-card[data-dragging='true'] {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.board-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-xs);
+  font-size: var(--step--1);
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.board-card-head a:hover {
+  color: var(--signal-text);
+}
+
+.board-star {
+  color: var(--signal);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.board-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: var(--step--2);
+  color: var(--muted);
+}
+
+.board-card-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding-top: 0.2rem;
+}
+
+.board-empty {
+  font-size: var(--step--2);
+  color: var(--muted);
+  text-align: center;
+  padding: var(--gap-md) 0;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+}
+
 /* Modal ---------------------------------------------------------------------- */
 
 .modal-backdrop {

@@ -10,6 +10,7 @@ import { api } from '../../api.js';
 import { ArchiveIcon, BuildingIcon, PinIcon, SearchIcon } from '../../components/icons.js';
 import { downloadCsv, parseCsv, toCsv } from '../../csv.js';
 import { usePageMeta } from '../../usePageMeta.js';
+import { BoardView } from './BoardView.js';
 
 /**
  * The tracker.
@@ -32,11 +33,19 @@ const TERMINAL: ApplicationStatus[] = ['REJECTED', 'GHOSTED', 'WITHDRAWN', 'ACCE
 
 type Tab = 'active' | 'archived';
 type Sort = 'recent' | 'applied' | 'company' | 'stage';
+type View = 'list' | 'board';
+
+const VIEW_KEY = 'jobpilot.trackerView';
 
 export function ApplicationsPage() {
   usePageMeta('Job tracker', undefined, '/dashboard/applications');
 
   const [tab, setTab] = useState<Tab>('active');
+  const [view, setView] = useState<View>(() =>
+    (typeof localStorage !== 'undefined' && localStorage.getItem(VIEW_KEY)) === 'board'
+      ? 'board'
+      : 'list'
+  );
   const [applications, setApplications] = useState<Application[]>([]);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<ApplicationStatus | 'ALL'>('ALL');
@@ -53,7 +62,7 @@ export function ApplicationsPage() {
     try {
       const list = await api.listApplications({
         q: query || undefined,
-        status: status === 'ALL' ? undefined : status,
+        status: view === 'board' || status === 'ALL' ? undefined : status,
         archived: tab === 'archived' ? 'true' : 'false',
         starred: starredOnly ? 'true' : undefined,
         from: from || undefined,
@@ -66,7 +75,7 @@ export function ApplicationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [query, status, tab, starredOnly, from, to, sort]);
+  }, [query, status, view, tab, starredOnly, from, to, sort]);
 
   useEffect(() => {
     const handle = setTimeout(() => void load(), query ? 300 : 0);
@@ -128,6 +137,21 @@ export function ApplicationsPage() {
             </button>
           ))}
         </div>
+
+        <div className="view-toggle" role="group" aria-label="View">
+          {(['list', 'board'] as View[]).map((v) => (
+            <button
+              key={v}
+              data-selected={view === v}
+              onClick={() => {
+                setView(v);
+                localStorage.setItem(VIEW_KEY, v);
+              }}
+            >
+              {v === 'list' ? 'List' : 'Board'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && <p className="banner-error">{error}</p>}
@@ -144,14 +168,19 @@ export function ApplicationsPage() {
           />
         </div>
 
-        <select value={status} onChange={(e) => setStatus(e.target.value as ApplicationStatus | 'ALL')}>
-          <option value="ALL">All statuses</option>
-          {APPLICATION_STATUS.map((s) => (
-            <option key={s} value={s}>
-              {s.toLowerCase()}
-            </option>
-          ))}
-        </select>
+        {view === 'list' && (
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ApplicationStatus | 'ALL')}
+          >
+            <option value="ALL">All statuses</option>
+            {APPLICATION_STATUS.map((s) => (
+              <option key={s} value={s}>
+                {s.toLowerCase()}
+              </option>
+            ))}
+          </select>
+        )}
 
         <label className="date-field">
           <span>Applied from</span>
@@ -162,12 +191,14 @@ export function ApplicationsPage() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
 
+        {view === 'list' && (
         <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
           <option value="recent">Recently updated</option>
           <option value="applied">Date applied</option>
           <option value="company">Company</option>
           <option value="stage">Furthest stage</option>
         </select>
+        )}
 
         <button
           className="ob-chip"
@@ -196,6 +227,11 @@ export function ApplicationsPage() {
                 : 'Nothing tracked yet. Apply with the extension installed and it lands here, or import a spreadsheet you already keep.'}
           </p>
         </section>
+      ) : view === 'board' ? (
+        <BoardView
+          applications={applications}
+          onMove={(id, next) => update(id, { status: next })}
+        />
       ) : (
         <ul className="tracker-list">
           {applications.map((app) => (
