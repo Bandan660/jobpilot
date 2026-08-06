@@ -18,7 +18,10 @@ app.use('*', (c, next) =>
     // Exact origins, the chrome-extension scheme, and Pages preview
     // deployments. See isAllowedOrigin for why the suffix rule is narrow.
     origin: (origin) => (isAllowedOrigin(origin, c.env) ? origin : undefined),
-    allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    // Must list every method any route uses. PUT was missing, which broke
+    // saving the profile from a browser — and curl never caught it, because
+    // curl does not enforce CORS. Only browsers do.
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     maxAge: 86_400,
   })(c, next)
