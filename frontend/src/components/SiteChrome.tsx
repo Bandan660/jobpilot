@@ -3,6 +3,7 @@ import { NavLink, Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth.js';
 import { ThemeToggle } from '../theme.js';
 import { useHydrated } from '../useHydrated.js';
+import { ResumeBuilderLink } from './ResumeBuilderLink.js';
 
 /**
  * `to` is configurable because the wordmark should go somewhere useful from
@@ -56,6 +57,9 @@ function SiteHeader() {
               {link.label}
             </NavLink>
           ))}
+          <ResumeBuilderLink path="/" medium="nav">
+            Resume Builder
+          </ResumeBuilderLink>
         </nav>
 
         <div className="header-actions">
@@ -97,6 +101,9 @@ function SiteHeader() {
             {link.label}
           </NavLink>
         ))}
+        <ResumeBuilderLink path="/" medium="nav_mobile">
+          Resume Builder
+        </ResumeBuilderLink>
         {!signedIn && <NavLink to="/login">Log in</NavLink>}
       </nav>
     </header>
@@ -132,6 +139,9 @@ function SiteFooter() {
             {/* Full label here — the footer has room, and it is the phrase people search for. */}
             <Link to="/job-application-tracker">Job Application Tracker</Link>
             <Link to="/copilot">Copilot extension</Link>
+          <ResumeBuilderLink path="/" medium="footer">
+            Free ATS resume builder
+          </ResumeBuilderLink>
           </nav>
 
           <nav aria-label="Resources">

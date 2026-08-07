@@ -239,3 +239,79 @@ label {
   font-size: var(--step--1);
 }
 
+
+/* Cross-site links ----------------------------------------------------------- */
+
+/*
+ * Visually hidden but still read aloud. `display: none` would remove it from
+ * the accessibility tree too, which defeats the point.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Sits on the text baseline rather than the line box, so it does not ride high
+   next to lowercase letters. */
+.external-icon {
+  width: 0.75em;
+  height: 0.75em;
+  margin-left: 0.28em;
+  vertical-align: -0.04em;
+  opacity: 0.65;
+}
+
+a:hover > .external-icon {
+  opacity: 1;
+}
+
+/*
+ * Set apart from the copy above it: this is an aside pointing at a different
+ * site, and it should not read as part of the interface it sits in.
+ */
+.cross-promo {
+  margin-top: var(--gap-sm);
+  padding-top: var(--gap-sm);
+  border-top: 1px dashed var(--line);
+  font-size: var(--step--1);
+}
+
+.cross-promo a,
+.upload-hint a {
+  color: var(--signal-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--signal-dim);
+}
+
+.cross-promo a:hover,
+.upload-hint a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Nav links out to another site read as nav, not as a call to action. */
+.site-nav > a[target='_blank'],
+.app-nav nav > a[target='_blank'] {
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 160ms ease;
+}
+
+.site-nav > a[target='_blank']:hover,
+.app-nav nav > a[target='_blank']:hover {
+  color: var(--text);
+}
+
+.app-nav nav > a[target='_blank'] {
+  padding-block: 1.15rem;
+}

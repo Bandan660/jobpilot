@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth.js';
 import { ThemeToggle } from '../theme.js';
 import { Brand } from './SiteChrome.js';
+import { ResumeBuilderLink } from './ResumeBuilderLink.js';
 
 /**
  * Shell for the signed-in app.

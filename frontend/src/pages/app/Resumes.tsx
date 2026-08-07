@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MAX_RESUME_BYTES, formatDate, type Resume } from '@jobpilot/shared';
 import { api } from '../../api.js';
+import { ResumeBuilderLink } from '../../components/ResumeBuilderLink.js';
 
 /**
  * Resume manager.
@@ -72,7 +73,18 @@ export function Resumes() {
       {loading ? (
         <p className="muted">Loading…</p>
       ) : resumes.length === 0 ? (
-        <p className="muted">Nothing uploaded yet.</p>
+        <>
+          <p className="muted">Nothing uploaded yet.</p>
+          {/* Names the audience, so someone it does not fit can skip it rather
+              than bouncing off a page that was never meant for them. */}
+          <p className="muted cross-promo">
+            Need one?{' '}
+            <ResumeBuilderLink path="/resume/new" medium="profile_resumes">
+              Build a free ATS-friendly resume on HireFresher
+            </ResumeBuilderLink>
+            , our separate builder aimed at freshers in India.
+          </p>
+        </>
       ) : (
         <ul className="entry-list">
           {resumes.map((resume) => (
@@ -128,7 +140,12 @@ export function Resumes() {
         <button className="btn btn-ghost" onClick={() => input.current?.click()} disabled={busy}>
           {busy ? 'Uploading…' : 'Upload a resume'}
         </button>
-        <p className="muted upload-hint">PDF or Word, up to 10MB.</p>
+        <p className="muted upload-hint">
+          PDF or Word, up to 10MB.{' '}
+          <ResumeBuilderLink path="/ats-checker" medium="profile_ats">
+            Check how it scores against an ATS
+          </ResumeBuilderLink>
+        </p>
       </div>
     </section>
   );

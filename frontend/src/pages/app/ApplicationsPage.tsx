@@ -15,6 +15,7 @@ import { ArchiveIcon, BuildingIcon, PinIcon, SearchIcon } from '../../components
 import { downloadCsv, parseCsv, toCsv } from '../../csv.js';
 import { usePageMeta } from '../../usePageMeta.js';
 import { BoardView } from './BoardView.js';
+import { ResumeBuilderLink } from '../../components/ResumeBuilderLink.js';
 
 /**
  * The tracker.
@@ -236,6 +237,17 @@ export function ApplicationsPage() {
                 ? 'Nothing archived yet.'
                 : 'Nothing tracked yet. Apply with the extension installed and it lands here, or import a spreadsheet you already keep.'}
           </p>
+          {/* Only on the genuinely-empty state. Someone whose filters matched
+              nothing already has applications and does not need a resume. */}
+          {!filtersActive && tab !== 'archived' && (
+            <p className="muted cross-promo">
+              Still writing the resume?{' '}
+              <ResumeBuilderLink path="/resume/new" medium="tracker_empty">
+                Build a free ATS-friendly one on HireFresher
+              </ResumeBuilderLink>
+              .
+            </p>
+          )}
         </section>
       ) : view === 'board' ? (
         <BoardView
