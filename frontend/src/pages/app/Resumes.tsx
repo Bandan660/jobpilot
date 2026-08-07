@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MAX_RESUME_BYTES, formatDate, type Resume } from '@jobpilot/shared';
 import { api } from '../../api.js';
 import { ResumeBuilderLink } from '../../components/ResumeBuilderLink.js';
+import { FileTextIcon } from '../../components/icons.js';
 
 /**
  * Resume manager.
@@ -63,7 +64,12 @@ export function Resumes() {
   return (
     <section className="panel form-group">
       <div className="form-group-head">
-        <h2>Resumes</h2>
+        <div className="group-title">
+          <span className="tile-icon tile-icon-sm" data-tone="c">
+            <FileTextIcon />
+          </span>
+          <h2>Resumes</h2>
+        </div>
         <p className="muted">
           Attached to applications so you can tell later which version you sent. Stored privately —
           only you can download them.

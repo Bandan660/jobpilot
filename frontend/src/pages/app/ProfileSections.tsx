@@ -35,12 +35,16 @@ export function ChipList({
   label,
   hint,
   placeholder,
+  icon,
+  tone,
   values,
   onChange,
 }: {
   label: string;
   hint?: string;
   placeholder?: string;
+  icon?: React.ReactNode;
+  tone?: string;
   values: string[];
   onChange: (next: string[]) => void;
 }) {
@@ -64,7 +68,14 @@ export function ChipList({
   return (
     <section className="panel form-group">
       <div className="form-group-head">
-        <h2>{label}</h2>
+        <div className="group-title">
+          {icon && (
+            <span className="tile-icon tile-icon-sm" data-tone={tone}>
+              {icon}
+            </span>
+          )}
+          <h2>{label}</h2>
+        </div>
         {hint && <p className="muted">{hint}</p>}
       </div>
 
@@ -110,9 +121,13 @@ export function ChipList({
 export function ExperienceSection({
   entries,
   onChange,
+  icon,
+  tone,
 }: {
   entries: WorkExperience[];
   onChange: (next: WorkExperience[]) => void;
+  icon?: React.ReactNode;
+  tone?: string;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -138,8 +153,15 @@ export function ExperienceSection({
   return (
     <section className="panel form-group">
       <div className="form-group-head section-head-row">
-        <div>
-          <h2>Work experience</h2>
+        <div className="group-title-block">
+          <div className="group-title">
+            {icon && (
+              <span className="tile-icon tile-icon-sm" data-tone={tone}>
+                {icon}
+              </span>
+            )}
+            <h2>Work experience</h2>
+          </div>
           <p className="muted">Parsed from your resume where possible. Correct anything wrong.</p>
         </div>
         <button className="btn btn-ghost" onClick={add}>
@@ -271,9 +293,13 @@ export function ExperienceSection({
 export function EducationSection({
   entries,
   onChange,
+  icon,
+  tone,
 }: {
   entries: Education[];
   onChange: (next: Education[]) => void;
+  icon?: React.ReactNode;
+  tone?: string;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -300,8 +326,15 @@ export function EducationSection({
   return (
     <section className="panel form-group">
       <div className="form-group-head section-head-row">
-        <div>
-          <h2>Education</h2>
+        <div className="group-title-block">
+          <div className="group-title">
+            {icon && (
+              <span className="tile-icon tile-icon-sm" data-tone={tone}>
+                {icon}
+              </span>
+            )}
+            <h2>Education</h2>
+          </div>
           <p className="muted">
             Add school results too — some markets ask for them on every application.
           </p>

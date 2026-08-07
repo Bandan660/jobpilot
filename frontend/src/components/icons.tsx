@@ -164,3 +164,57 @@ export function ExternalIcon(p: IconProps) {
     </svg>
   );
 }
+
+export function FileTextIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </svg>
+  );
+}
+
+export function LinkIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.5 1.5" />
+      <path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7L12 19" />
+    </svg>
+  );
+}
+
+export function CapIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M12 4L2 9l10 5 10-5-10-5z" />
+      <path d="M6 11.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5" />
+    </svg>
+  );
+}
+
+export function SparkIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+      <path d="M18 16l.8 2.2L21 19l-2.2.8L18 22l-.8-2.2L15 19l2.2-.8L18 16z" />
+    </svg>
+  );
+}
+
+export function GlobeIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a15 15 0 010 18a15 15 0 010-18z" />
+    </svg>
+  );
+}
+
+export function CoinIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M14.5 9.5A2.5 2.5 0 0012 8.5c-1.4 0-2.5.7-2.5 1.8s1.1 1.6 2.5 1.9 2.5.8 2.5 1.9-1.1 1.8-2.5 1.8a2.5 2.5 0 01-2.5-1M12 7v10" />
+    </svg>
+  );
+}

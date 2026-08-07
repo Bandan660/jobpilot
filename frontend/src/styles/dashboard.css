@@ -251,6 +251,16 @@
   color: var(--down);
 }
 
+.tile-icon[data-tone='e'] {
+  background: var(--accent-violet-wash);
+  color: var(--accent-violet);
+}
+
+.tile-icon[data-tone='f'] {
+  background: var(--accent-teal-wash);
+  color: var(--accent-teal);
+}
+
 .panel-title {
   display: flex;
   align-items: center;
@@ -541,18 +551,72 @@
   min-width: 0;
 }
 
+/*
+ * The identity card is the one coloured surface on the page. Everything below
+ * it is a form, and a form is a stack of white panels no matter what you do to
+ * it — so the contrast has to come from one deliberate band at the top rather
+ * than from tinting nine panels and making the page noisy.
+ */
 .identity {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--gap-xs);
   text-align: center;
+  border-color: var(--signal-dim);
+  background: linear-gradient(160deg, var(--signal-wash), transparent 62%), var(--panel);
+  isolation: isolate;
+}
+
+.identity::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 34px 34px;
+  opacity: 0.5;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000, transparent 70%);
+  z-index: -1;
+}
+
+/* Ring and avatar are one object: the ring is positioned, the avatar centred
+   inside it, so the progress reads as belonging to the person. */
+.identity-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+}
+
+.ring-track {
+  stroke: var(--line-bright);
+}
+
+.ring-value {
+  stroke: var(--signal);
+  transition: stroke-dashoffset 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring-value {
+    transition: none;
+  }
 }
 
 .identity-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   background: var(--signal-wash);
@@ -589,21 +653,10 @@
   font-size: var(--step-0);
   letter-spacing: -0.01em;
   text-transform: none;
+  font-variant-numeric: tabular-nums;
 }
 
-.strength-bar {
-  height: 5px;
-  border-radius: 3px;
-  background: var(--panel-raised);
-  overflow: hidden;
-}
-
-.strength-bar span {
-  display: block;
-  height: 100%;
-  background: var(--signal);
-  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
-}
+/* Section nav ---------------------------------------------------------------- */
 
 .profile-nav {
   display: flex;
@@ -615,6 +668,10 @@
 }
 
 .profile-nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   padding: 0.45rem 0.7rem;
   border-radius: var(--radius-sm);
   font-size: var(--step--1);
@@ -625,6 +682,68 @@
 .profile-nav a:hover {
   background: var(--hover-wash);
   color: var(--text);
+}
+
+/* Set by the scroll spy, so the sidebar tracks where you actually are. */
+.profile-nav a[data-active='true'] {
+  background: var(--signal-wash);
+  color: var(--signal-text);
+  font-weight: 650;
+}
+
+.profile-nav a[data-active='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--signal);
+}
+
+/* Hollow until the section has something in it. Answers "what is left" without
+   scrolling the whole form. */
+.nav-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1.5px solid var(--line-bright);
+  transition: background 200ms ease, border-color 200ms ease;
+}
+
+.nav-dot[data-filled='true'] {
+  background: var(--live);
+  border-color: var(--live);
+}
+
+/* Section headers ------------------------------------------------------------ */
+
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.group-title-block {
+  min-width: 0;
+}
+
+/* Lifts on hover so a long form reads as a set of objects rather than one
+   undifferentiated sheet. */
+.form-group {
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+
+.form-group:hover {
+  border-color: var(--line-bright);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .form-group:focus-within {
+    border-color: var(--signal-dim);
+  }
 }
 
 /* Clears the sticky app header when jumping to a section. */
@@ -725,4 +844,26 @@ textarea {
 
 .chip button:hover {
   color: var(--down);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chip {
+    animation: chip-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+.chip {
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.chip:hover {
+  border-color: var(--signal-dim);
+  color: var(--text);
 }

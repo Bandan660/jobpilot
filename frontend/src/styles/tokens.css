@@ -85,6 +85,20 @@
   --info-wash: rgba(74, 168, 216, 0.12);
   --info-wash: light-dark(rgba(29, 109, 148, 0.1), rgba(74, 168, 216, 0.12));
 
+  /*
+   * Two more tints, used only to tell repeated sections apart at a glance.
+   * They carry no state meaning — that stays with the lamps — and the accent
+   * stays amber. Six tones is enough that no two adjacent sections repeat.
+   */
+  --accent-violet: #a78bfa;
+  --accent-violet: light-dark(#6d43c8, #a78bfa);
+  --accent-violet-wash: rgba(167, 139, 250, 0.13);
+  --accent-violet-wash: light-dark(rgba(109, 67, 200, 0.1), rgba(167, 139, 250, 0.13));
+  --accent-teal: #2dd4bf;
+  --accent-teal: light-dark(#0f766e, #2dd4bf);
+  --accent-teal-wash: rgba(45, 212, 191, 0.12);
+  --accent-teal-wash: light-dark(rgba(15, 118, 110, 0.1), rgba(45, 212, 191, 0.12));
+
   /* Effects */
   --hover-wash: rgba(255, 255, 255, 0.03);
   --hover-wash: light-dark(rgba(11, 20, 32, 0.035), rgba(255, 255, 255, 0.03));

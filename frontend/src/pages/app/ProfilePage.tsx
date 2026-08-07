@@ -12,6 +12,18 @@ import { api } from '../../api.js';
 import { usePageMeta } from '../../usePageMeta.js';
 import { Resumes } from './Resumes.js';
 import { ChipList, EducationSection, ExperienceSection } from './ProfileSections.js';
+import { ReadinessRing, useScrollSpy } from './ProfileChrome.js';
+import {
+  BuildingIcon,
+  CalendarIcon,
+  CapIcon,
+  CoinIcon,
+  FileTextIcon,
+  GlobeIcon,
+  LinkIcon,
+  SparkIcon,
+  UserIcon,
+} from '../../components/icons.js';
 
 /**
  * The profile autofill reads from.
@@ -32,6 +44,35 @@ const REGION_LABELS: Record<ProfileRegion, string> = {
 
 const PERIODS: PayPeriod[] = ['YEAR', 'MONTH', 'WEEK', 'DAY', 'HOUR'];
 
+type SectionId =
+  | 'contact'
+  | 'resumes'
+  | 'links'
+  | 'experience'
+  | 'education'
+  | 'skills'
+  | 'eligibility'
+  | 'availability'
+  | 'compensation';
+
+/**
+ * Tones repeat after six, but never on adjacent sections — the colour is only
+ * there to tell one panel from the next while scrolling.
+ */
+const SECTIONS: { id: SectionId; label: string; tone: string }[] = [
+  { id: 'contact', label: 'Contact', tone: 'a' },
+  { id: 'resumes', label: 'Resumes', tone: 'c' },
+  { id: 'links', label: 'Links', tone: 'e' },
+  { id: 'experience', label: 'Work experience', tone: 'b' },
+  { id: 'education', label: 'Education', tone: 'f' },
+  { id: 'skills', label: 'Skills', tone: 'a' },
+  { id: 'eligibility', label: 'Work eligibility', tone: 'c' },
+  { id: 'availability', label: 'Availability', tone: 'e' },
+  { id: 'compensation', label: 'Compensation', tone: 'b' },
+];
+
+const SECTION_IDS = SECTIONS.map((s) => s.id);
+
 export function ProfilePage() {
   usePageMeta('Profile', undefined, '/dashboard/profile');
 
@@ -41,6 +82,9 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Above the loading early-return: hooks cannot be called conditionally.
+  const activeSection = useScrollSpy(SECTION_IDS);
 
   useEffect(() => {
     api
@@ -75,6 +119,30 @@ export function ProfilePage() {
   if (loading) return <p className="centered">Loading…</p>;
 
   const readiness = profileReadiness({ ...profile, ...draft } as Profile);
+  const percent = Math.round((readiness.complete / readiness.total) * 100);
+  const initials =
+    [draft.firstName, draft.lastName]
+      .filter(Boolean)
+      .map((n) => n![0])
+      .join('')
+      .toUpperCase() || '?';
+
+  /**
+   * Whether each section has anything in it. Drives the ticks in the nav, so
+   * the sidebar answers "what have I not done yet" without scrolling.
+   */
+  const filled: Record<SectionId, boolean> = {
+    contact: Boolean(draft.firstName && draft.lastName && draft.email),
+    resumes: true,
+    links: Boolean(draft.linkedinUrl || draft.githubUrl || draft.portfolioUrl),
+    experience: (draft.experience?.length ?? 0) > 0,
+    education: (draft.education?.length ?? 0) > 0,
+    skills: (draft.skills?.length ?? 0) > 0,
+    eligibility: draft.authorizedToWork != null || (draft.workAuthCountries?.length ?? 0) > 0,
+    availability: draft.availability?.noticePeriodDays != null,
+    compensation: draft.compensation?.expected?.amountCents != null,
+  };
+
   const dirty = profile ? JSON.stringify(draft) !== JSON.stringify(profile) : false;
 
   return (
@@ -90,13 +158,11 @@ export function ProfilePage() {
       <div className="profile-layout">
         <aside className="profile-aside">
           <div className="panel identity">
-            <span className="identity-avatar">
-              {[draft.firstName, draft.lastName]
-                .filter(Boolean)
-                .map((n) => n![0])
-                .join('')
-                .toUpperCase() || '?'}
-            </span>
+            <div className="identity-ring">
+              <ReadinessRing percent={percent} />
+              <span className="identity-avatar">{initials}</span>
+            </div>
+
             <strong>
               {[draft.firstName, draft.lastName].filter(Boolean).join(' ') || 'Your name'}
             </strong>
@@ -110,10 +176,7 @@ export function ProfilePage() {
             <div className="strength">
               <div className="strength-head">
                 <span>Autofill readiness</span>
-                <strong>{Math.round((readiness.complete / readiness.total) * 100)}%</strong>
-              </div>
-              <div className="strength-bar">
-                <span style={{ width: `${(readiness.complete / readiness.total) * 100}%` }} />
+                <strong>{percent}%</strong>
               </div>
               {readiness.missing.length > 0 ? (
                 <p className="muted">Still blank: {readiness.missing.join(', ')}.</p>
@@ -124,19 +187,15 @@ export function ProfilePage() {
           </div>
 
           <nav className="profile-nav" aria-label="Profile sections">
-            {[
-              ['contact', 'Contact'],
-              ['resumes', 'Resumes'],
-              ['links', 'Links'],
-              ['experience', 'Work experience'],
-              ['education', 'Education'],
-              ['skills', 'Skills'],
-              ['eligibility', 'Work eligibility'],
-              ['availability', 'Availability'],
-              ['compensation', 'Compensation'],
-            ].map(([id, label]) => (
-              <a key={id} href={`#${id}`}>
-                {label}
+            {SECTIONS.map((section) => (
+              <a
+                key={section.id}
+                href={`#${section.id}`}
+                data-active={activeSection === section.id}
+                aria-current={activeSection === section.id ? 'true' : undefined}
+              >
+                <span className="nav-dot" data-filled={filled[section.id]} aria-hidden="true" />
+                {section.label}
               </a>
             ))}
           </nav>
@@ -144,7 +203,7 @@ export function ProfilePage() {
 
         <div className="profile-main">
 
-      <Group id="contact" title="Contact" hint="Goes into the contact fields on every application.">
+      <Group id="contact" title="Contact" icon={<UserIcon />} tone="a" hint="Goes into the contact fields on every application.">
         <div className="form-grid">
           <Text label="First name" value={draft.firstName} onChange={(v) => patch({ firstName: v })} />
           <Text label="Last name" value={draft.lastName} onChange={(v) => patch({ lastName: v })} />
@@ -163,7 +222,7 @@ export function ProfilePage() {
         <Resumes />
       </div>
 
-      <Group id="links" title="Links" hint="Asked for constantly, tedious to retype.">
+      <Group id="links" title="Links" icon={<LinkIcon />} tone="e" hint="Asked for constantly, tedious to retype.">
         <div className="form-grid">
           <Text label="LinkedIn" type="url" value={draft.linkedinUrl} onChange={(v) => patch({ linkedinUrl: v })} />
           <Text label="GitHub" type="url" value={draft.githubUrl} onChange={(v) => patch({ githubUrl: v })} />
@@ -180,7 +239,7 @@ export function ProfilePage() {
       </Group>
 
       <Group
-        id="eligibility"
+        id="eligibility" icon={<GlobeIcon />} tone="c"
         title="Work eligibility"
         hint="The questions that filter applications automatically, so worth getting right."
       >
@@ -231,7 +290,7 @@ export function ProfilePage() {
         </fieldset>
       </Group>
 
-      <Group id="availability" title="Availability">
+      <Group id="availability" title="Availability" icon={<CalendarIcon />} tone="e">
         <div className="form-grid">
           <NumberField
             label="Notice period (days)"
@@ -256,7 +315,7 @@ export function ProfilePage() {
       </Group>
 
       <Group
-        id="compensation"
+        id="compensation" icon={<CoinIcon />} tone="b"
         title="Compensation"
         hint="Stored in whole units of the currency. Forms asking in lakhs get the converted figure."
       >
@@ -288,6 +347,8 @@ export function ProfilePage() {
 
       <div id="experience">
         <ExperienceSection
+          icon={<BuildingIcon />}
+          tone="b"
           entries={draft.experience ?? []}
           onChange={(next) => patch({ experience: next })}
         />
@@ -295,6 +356,8 @@ export function ProfilePage() {
 
       <div id="education">
         <EducationSection
+          icon={<CapIcon />}
+          tone="f"
           entries={draft.education ?? []}
           onChange={(next) => patch({ education: next })}
         />
@@ -303,6 +366,8 @@ export function ProfilePage() {
       <div id="skills">
         <ChipList
           label="Skills"
+          icon={<SparkIcon />}
+          tone="a"
           hint="Asked for directly on many forms, and searched by recruiters."
           placeholder="Type a skill and press Enter"
           values={draft.skills ?? []}
@@ -310,6 +375,8 @@ export function ProfilePage() {
         />
         <ChipList
           label="Languages"
+          icon={<GlobeIcon />}
+          tone="f"
           placeholder="Type a language and press Enter"
           values={draft.languages ?? []}
           onChange={(next) => patch({ languages: next })}
@@ -376,17 +443,28 @@ function Group({
   id,
   title,
   hint,
+  icon,
+  tone,
   children,
 }: {
   id?: string;
   title: string;
   hint?: string;
+  icon?: React.ReactNode;
+  tone?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="panel form-group" id={id}>
       <div className="form-group-head">
-        <h2>{title}</h2>
+        <div className="group-title">
+          {icon && (
+            <span className="tile-icon tile-icon-sm" data-tone={tone}>
+              {icon}
+            </span>
+          )}
+          <h2>{title}</h2>
+        </div>
         {hint && <p className="muted">{hint}</p>}
       </div>
       {children}
