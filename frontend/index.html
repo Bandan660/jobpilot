@@ -2,8 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="jobpilot" />
+    <!-- iOS has no maskable icon support and no manifest theme_color; it reads
+         these instead. black-translucent lets the header sit under the status
+         bar, which the safe-area rules then pad for. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f8fc" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080d16" />
 

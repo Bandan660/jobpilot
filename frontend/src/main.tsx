@@ -39,3 +39,19 @@ if (container.hasChildNodes()) {
 } else {
   createRoot(container).render(app);
 }
+
+/*
+ * Service worker registration.
+ *
+ * After `load` and in production only: registering during startup competes
+ * with hydration for the main thread, and in dev it would serve stale modules
+ * straight past Vite's HMR.
+ */
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Registration fails on unsupported browsers and in some private modes.
+      // The site works without it; there is nothing to recover.
+    });
+  });
+}

@@ -170,6 +170,20 @@ scored 4.458:1 against the `#f6f8fc` page surface, just under the 4.5:1 AA
 floor, and failed the nav, every footer link, and the status strip at once.
 `#5f6d84` is 4.93:1. Do not lighten it.
 
+**Adding a header nav item means moving the mobile breakpoint.** The bar is
+brand + nav + theme toggle + two buttons on one 60px row. It was set to 900px
+for three nav items and looked wrong across the whole tablet range once a
+fourth was added; it is 1040px now. `.site-nav` carries `min-width: 0` so it
+is the element that gives way, and `.header-actions` is `flex-shrink: 0` so
+the sign-up button never compresses.
+
+**The service worker must never cache `/api/`.** Those responses are per-user
+and auth'd; a cached one served after sign-out is a real leak. Navigations are
+network-first for the same reason stale deploys keep looking like bugs here —
+cache-first would serve an old app shell after every deploy. Only
+`/assets/` is cache-first, and only because Vite fingerprints those names.
+Bump `VERSION` in `public/sw.js` when changing any of this.
+
 **drizzle-kit prompts interactively** when it cannot distinguish a new column
 from a rename, which hangs a non-interactive shell.
 

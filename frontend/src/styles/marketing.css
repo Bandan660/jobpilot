@@ -15,6 +15,14 @@
   align-items: center;
   gap: var(--gap-lg);
   height: 60px;
+  /* The bar is a fixed-height row of three items that must never wrap onto a
+     second line or push past the viewport. */
+  flex-wrap: nowrap;
+}
+
+/* The brand is the one thing that may not shrink or wrap. */
+.site-header .brand {
+  flex-shrink: 0;
 }
 
 .brand {
@@ -44,6 +52,14 @@
   gap: var(--gap-md);
   margin-right: auto;
   font-size: var(--step--1);
+  /* min-width:0 lets this be the element that gives way when the row is tight;
+     without it a flex item refuses to shrink below its content and the whole
+     bar overflows instead. */
+  min-width: 0;
+}
+
+.site-nav a {
+  white-space: nowrap;
 }
 
 .site-nav a {
@@ -60,6 +76,8 @@
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
+  /* Sign-up is the point of the header; it does not compress. */
+  flex-shrink: 0;
 }
 
 /* Mobile disclosure nav ---------------------------------------------------- */
@@ -105,9 +123,13 @@
   display: none;
 }
 
-/* Raised from 780px when the fifth nav item was added — five labels plus the
-   brand and the action buttons stop fitting on one line before this width. */
-@media (max-width: 900px) {
+/*
+ * Raised again to 1040px when the Resume Builder link was added. Four labels
+ * (one of them long, with an external-link icon) plus the brand, the theme
+ * toggle and two buttons stop fitting well before 900px — which is why the bar
+ * looked wrong through the whole tablet range.
+ */
+@media (max-width: 1040px) {
   .site-nav,
   .hide-mobile {
     display: none;
@@ -851,3 +873,54 @@
   color: var(--text);
 }
 
+
+/* Small phones -------------------------------------------------------------- */
+
+/*
+ * At 360-390px the bar is brand + theme toggle + "Join free" + menu button.
+ * That fits, but only just, and the default rhythm leaves it touching both
+ * edges. Everything here buys horizontal room without dropping any control.
+ */
+@media (max-width: 440px) {
+  .site-header .shell {
+    gap: var(--gap-sm);
+    padding-inline: 14px;
+  }
+
+  .header-actions {
+    gap: 0.5rem;
+  }
+
+  /* The CTA keeps its height — and therefore its touch target — while giving
+     back the horizontal padding. */
+  .site-header .btn {
+    padding-inline: 0.75rem;
+  }
+
+  .mobile-nav a {
+    padding-inline: 14px;
+  }
+}
+
+/* Installed / standalone ----------------------------------------------------- */
+
+/*
+ * In standalone mode there is no browser chrome, so the sticky header sits
+ * directly under the status bar and the notch overlaps it. viewport-fit=cover
+ * in the viewport meta is what makes these insets non-zero.
+ */
+@media (display-mode: standalone) {
+  .site-header {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .site-header .shell,
+  .mobile-nav a {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+
+  .site-footer {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
