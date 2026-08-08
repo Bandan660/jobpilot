@@ -3,7 +3,6 @@ import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import {
   MAX_RESUME_BYTES,
-  MAX_RESUMES_PER_USER,
   MAX_TOTAL_STORAGE_BYTES,
   RESUME_CONTENT_TYPES,
   type Resume,
@@ -96,30 +95,21 @@ resumeRoutes.post('/', async (c) => {
   const declared = Number(c.req.header('Content-Length') ?? '0');
   if (declared > MAX_RESUME_BYTES) {
     throw new HTTPException(413, {
-      message: `That file is larger than ${Math.round(MAX_RESUME_BYTES / 1024 / 1024)}MB`,
+      message: `That file is over ${Math.round(MAX_RESUME_BYTES / 1024)}KB. Re-export it as PDF, or use a "reduce file size" option — most resumes shrink well below this without looking any different.`,
     });
   }
 
   const db = createDb(c.env);
 
   /*
-   * A ceiling per account, so free-tier storage stays bounded however many
-   * drafts someone keeps.
-   *
-   * Checked here, before the body is read and long before anything is written
-   * to R2. Rejecting after the put would leave an object with no row pointing
-   * at it, and nothing in this system ever collects those.
+   * Whatever this account already has. There is only ever one, and uploading
+   * replaces it — these rows are collected at the end, once the new file is
+   * safely stored.
    */
   const owned = await db
-    .select({ id: resumes.id })
+    .select({ id: resumes.id, storageKey: resumes.storageKey })
     .from(resumes)
     .where(eq(resumes.userId, userId));
-
-  if (owned.length >= MAX_RESUMES_PER_USER) {
-    throw new HTTPException(409, {
-      message: `You can keep ${MAX_RESUMES_PER_USER} resumes. Delete one to upload another.`,
-    });
-  }
 
   /*
    * The bucket-wide ceiling.
@@ -162,7 +152,7 @@ resumeRoutes.post('/', async (c) => {
   // Re-checked against the real body: Content-Length is client-supplied.
   if (bytes.byteLength > MAX_RESUME_BYTES) {
     throw new HTTPException(413, {
-      message: `That file is larger than ${Math.round(MAX_RESUME_BYTES / 1024 / 1024)}MB`,
+      message: `That file is over ${Math.round(MAX_RESUME_BYTES / 1024)}KB. Re-export it as PDF, or use a "reduce file size" option — most resumes shrink well below this without looking any different.`,
     });
   }
 
@@ -199,12 +189,6 @@ resumeRoutes.post('/', async (c) => {
     customMetadata: { userId, fileName },
   });
 
-  const existing = await db
-    .select({ id: resumes.id })
-    .from(resumes)
-    .where(eq(resumes.userId, userId))
-    .limit(1);
-
   const [row] = await db
     .insert(resumes)
     .values({
@@ -214,11 +198,32 @@ resumeRoutes.post('/', async (c) => {
       storageKey: key,
       contentType,
       sizeBytes: file.size,
-      // The first upload becomes the default, because a lone resume that is
-      // not the default is a confusing state to be in.
-      isDefault: existing.length === 0,
+      // Always: there is only ever one.
+      isDefault: true,
     })
     .returning();
+
+  /*
+   * Replace, rather than refuse.
+   *
+   * The order is load-bearing. The new object is written and its row inserted
+   * *before* anything old is removed, so a failure part-way through leaves the
+   * user with two resumes — which the next upload tidies — instead of none.
+   * Deleting first would mean a failed upload destroys the only copy they had.
+   *
+   * Object before row, matching the delete route: a row with no object is a
+   * download that 404s, while an object with no row is invisible but harmless.
+   */
+  for (const previous of owned) {
+    try {
+      await bucket(c).delete(previous.storageKey);
+      await db.delete(resumes).where(eq(resumes.id, previous.id));
+    } catch (error) {
+      // Never fail the upload over cleanup: the new resume is already saved
+      // and usable, and a leftover costs 200KB until the next replace.
+      console.warn('could not remove replaced resume', previous.id, error);
+    }
+  }
 
   return c.json({ resume: toDto(row) }, 201);
 });

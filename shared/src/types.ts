@@ -238,18 +238,26 @@ export const RESUME_CONTENT_TYPES: Record<string, string> = {
 };
 
 /*
- * 3MB, down from 10MB.
+ * 200KB.
  *
- * A text-based resume PDF is 80-400KB. Anything past a megabyte is a scan or
- * an unflattened export, and neither reads better to an ATS — most parse them
- * worse. The cap is generous against real documents while keeping the free
- * 10GB of R2 meaningful: at this ceiling and five per account, storage is
- * bounded at 15MB per user, and in practice closer to 1MB.
+ * Tight on purpose. A resume exported straight from a word processor is
+ * usually 150-400KB because it embeds full font files; the same document
+ * printed to PDF with subsetted fonts is nearer 60KB and identical to read.
+ *
+ * The trade is deliberate: some legitimate PDFs will be refused, so the error
+ * has to say how to fix it rather than just stating the limit.
  */
-export const MAX_RESUME_BYTES = 3 * 1024 * 1024;
+export const MAX_RESUME_BYTES = 200 * 1024;
 
-/** Kept per account. Older ones must be deleted before another is added. */
-export const MAX_RESUMES_PER_USER = 5;
+/*
+ * One per account. Uploading again replaces what is there.
+ *
+ * A resume is not a document people want versions of inside a tracker — they
+ * keep those where they wrote it. Storing one means autofill never has to
+ * guess which to attach, and the storage question stops being interesting:
+ * one user is 200KB, ten thousand are 2GB.
+ */
+export const MAX_RESUMES_PER_USER = 1;
 
 /*
  * Hard ceiling across every account, well under R2's free 10GB.

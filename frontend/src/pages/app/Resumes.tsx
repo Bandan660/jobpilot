@@ -32,7 +32,9 @@ export function Resumes() {
     // Checked here as well as on the server so an oversized file is refused
     // before it is uploaded, not after.
     if (file.size > MAX_RESUME_BYTES) {
-      setError(`That file is larger than ${Math.round(MAX_RESUME_BYTES / 1024 / 1024)}MB.`);
+      setError(
+        `That file is over ${Math.round(MAX_RESUME_BYTES / 1024)}KB. Re-export it as PDF, or use a "reduce file size" option — most resumes shrink well below this without looking different.`
+      );
       return;
     }
 
@@ -98,7 +100,7 @@ export function Resumes() {
               <div>
                 <strong>
                   {resume.fileName}
-                  {resume.isDefault && <span className="lamp lamp-live default-tag">default</span>}
+
                 </strong>
                 <p className="muted">
                   {(resume.sizeBytes / 1024).toFixed(0)} KB · uploaded{' '}
@@ -113,11 +115,7 @@ export function Resumes() {
                 >
                   Download
                 </button>
-                {!resume.isDefault && (
-                  <button className="btn-link" onClick={() => void act(() => api.setDefaultResume(resume.id))}>
-                    Make default
-                  </button>
-                )}
+
                 <button
                   className="btn-link danger"
                   onClick={() => void act(() => api.deleteResume(resume.id))}
@@ -144,10 +142,10 @@ export function Resumes() {
           }}
         />
         <button className="btn btn-ghost" onClick={() => input.current?.click()} disabled={busy}>
-          {busy ? 'Uploading…' : 'Upload a resume'}
+          {busy ? 'Uploading…' : resumes.length > 0 ? 'Replace resume' : 'Upload a resume'}
         </button>
         <p className="muted upload-hint">
-          PDF or Word, up to 10MB.{' '}
+          PDF or Word, up to 200KB. Uploading again replaces the one you have.{' '}
           <ResumeBuilderLink path="/ats-checker" medium="profile_ats">
             Check how it scores against an ATS
           </ResumeBuilderLink>
