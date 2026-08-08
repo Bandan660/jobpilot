@@ -40,6 +40,8 @@ export interface PanelJob {
    * back to the page to act, was the confusing part.
    */
   authenticated: boolean;
+  /** Easy Apply is available here, so the auto-apply action is worth showing. */
+  canAutoApply: boolean;
 }
 
 export interface PanelHandlers {
@@ -48,6 +50,9 @@ export interface PanelHandlers {
   onSignOut: () => void;
   /** Resolves to an error message, or null on success. */
   onAuth: (mode: 'login' | 'signup', email: string, password: string) => Promise<string | null>;
+  /** Runs the Easy Apply sequence, reporting progress as it goes. */
+  onAutoApply: (report: (line: string, tone: 'busy' | 'blocked' | 'ready') => void) => Promise<void>;
+  onCancelAutoApply: () => void;
 }
 
 let mounted: { destroy: () => void } | null = null;
@@ -217,6 +222,48 @@ const CSS = `
   .toggle input { accent-color: var(--signal); width: 14px; height: 14px; cursor: pointer; }
 
   .note { font-size: 11.5px; color: var(--dim); }
+
+  /* Run status ----------------------------------------------------------- */
+
+  .status {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    border-radius: 8px;
+    padding: 10px 11px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .status[data-tone='busy']    { background: rgba(74,168,216,0.12); color: #a9d6ee; }
+  .status[data-tone='blocked'] { background: rgba(255,176,32,0.12); color: #ffd08a; }
+  .status[data-tone='ready']   { background: rgba(63,207,142,0.12); color: #9fe6c4; }
+
+  /* Spins only while the run is active, and never under reduced motion. */
+  .spin {
+    width: 12px; height: 12px; flex-shrink: 0; margin-top: 2px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .status[data-tone='busy'] .spin { animation: rot 700ms linear infinite; }
+  }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  .apply {
+    width: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: transparent;
+    color: var(--signal);
+    border: 1px solid var(--signal);
+    border-radius: 8px;
+    padding: 11px 16px;
+    font: inherit; font-size: 13.5px; font-weight: 700;
+    cursor: pointer;
+    margin-top: 9px;
+  }
+  .apply:hover:not(:disabled) { background: rgba(255,176,32,0.1); }
+  .apply:disabled { opacity: 0.5; cursor: default; }
 
   /* Auth form ------------------------------------------------------------ */
 
@@ -676,6 +723,46 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     });
 
     action.append(fill, toggle);
+
+    if (state.canAutoApply) {
+      const status = document.createElement('div');
+      status.className = 'status';
+      status.hidden = true;
+
+      const apply = document.createElement('button');
+      apply.className = 'apply';
+      apply.textContent = 'Apply with jobpilot';
+
+      let running = false;
+
+      const report = (line: string, tone: 'busy' | 'blocked' | 'ready') => {
+        status.hidden = false;
+        status.dataset.tone = tone;
+        status.innerHTML = tone === 'busy' ? '<span class="spin"></span>' : '';
+        status.append(document.createTextNode(line));
+      };
+
+      apply.addEventListener('click', () => {
+        if (running) {
+          handlers.onCancelAutoApply();
+          return;
+        }
+
+        running = true;
+        apply.textContent = 'Stop';
+        void handlers.onAutoApply(report).finally(() => {
+          running = false;
+          apply.textContent = 'Apply with jobpilot';
+        });
+      });
+
+      /* Says where it stops before it starts, so nobody expects a submit. */
+      const caveat = document.createElement('p');
+      caveat.className = 'note';
+      caveat.textContent = 'Fills every step and stops at review. You press submit.';
+
+      action.append(apply, caveat, status);
+    }
 
     /* Footer */
     const foot = document.createElement('div');

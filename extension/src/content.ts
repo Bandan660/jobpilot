@@ -7,6 +7,7 @@ import type {
 } from '@jobpilot/shared';
 import { findAdapter, type JobAdapter } from './adapters/index.js';
 import { easyApplyModal } from './adapters/linkedin.js';
+import { runAutoApply } from './autofill/autoApply.js';
 import { extractFromJsonLd } from './adapters/jsonld.js';
 import { autofill, previewCoverage } from './autofill/index.js';
 import { SPA_POLL_INTERVAL_MS, SPA_RENDER_TIMEOUT_MS } from './config.js';
@@ -194,12 +195,18 @@ async function checkDuplicates(job: CapturedJob): Promise<DuplicateMatch | null>
 
 /* ------------------------------- side panel ------------------------------ */
 
+/** Set once per page by init, so the panel knows which flow it is on. */
+let adapterAts: string | null = null;
+
+/** Lets the user stop a run between steps. */
+let autoApplyCancelled = false;
+
 /**
  * Mount the launcher once there is something worth acting on.
  *
- * This shows the button, not the panel — the panel opens on click. The bar is
- * still deliberately high: a real job page, a signed-in user, and an actual
- * form on screen. Below that, even a button is clutter on someone else's site.
+ * Shows the button, not the panel — the panel opens on click. Signed out it
+ * still mounts, carrying the sign-in form, because sending someone to the
+ * toolbar popup and back is worse than showing it where they already are.
  */
 async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null): Promise<void> {
   const session = await send<{ authenticated: boolean; email: string | null }>({
@@ -234,6 +241,9 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
       email: session.ok ? session.data.email : null,
       duplicate,
       authenticated,
+      // Only where the flow exists: elsewhere applying means leaving for the
+      // company's own site, which the adapters already handle.
+      canAutoApply: adapterAts === 'LINKEDIN',
     },
     {
       onFill: async (overwrite) => {
@@ -255,6 +265,47 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
           void maybeShowPanel(job, null);
         });
       },
+      onCancelAutoApply: () => {
+        autoApplyCancelled = true;
+      },
+
+      onAutoApply: async (report) => {
+        autoApplyCancelled = false;
+
+        const current = await loadProfile();
+        if (!current) {
+          report('Could not load your profile.', 'blocked');
+          return;
+        }
+
+        const outcome = await runAutoApply({
+          profile: current,
+          isCancelled: () => autoApplyCancelled,
+          onProgress: (progress) => {
+            const tone =
+              progress.status === 'ready'
+                ? 'ready'
+                : progress.status === 'blocked' || progress.status === 'error'
+                  ? 'blocked'
+                  : 'busy';
+            report(progress.message, tone);
+          },
+        });
+
+        if (outcome.blockers?.length) {
+          report(`${outcome.message} ${outcome.blockers.join('; ')}`, 'blocked');
+        }
+
+        /*
+         * Recorded as saved, not applied. The application has not been sent —
+         * the user still has to press submit — and application_events is
+         * append-only, so a premature "applied" row cannot be taken back.
+         */
+        if (outcome.status === 'ready') {
+          await doCapture(job, false);
+        }
+      },
+
       onAuth: async (mode, email, password) => {
         const result = await send({
           type: mode === 'login' ? 'LOGIN' : 'SIGNUP',
@@ -382,6 +433,7 @@ async function init(): Promise<void> {
   const adapter = findAdapter(url);
   if (!adapter) return debug('no adapter for', url.hostname);
 
+  adapterAts = adapter.ats;
   debug('adapter:', adapter.version);
 
   // Landing straight on a confirmation means the ATS redirected after a submit

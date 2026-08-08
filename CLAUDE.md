@@ -135,6 +135,14 @@ were copied once at startup — editing the manifest mid-session left `dist`
 holding the old one, and the extension loaded without a permission the source
 plainly had. `build.mjs` now watches those three explicitly.
 
+**Auto-apply must never click submit.** `autoApply.ts` locates the submit
+button only to detect that it has reached the review step, and returns. If a
+change there ever makes that button reachable by `.click()`, this stops being
+an assistant and becomes a tool for spraying applications — which is also the
+line the Chrome Web Store review looks for. It stops rather than guessing at
+required questions too: LinkedIn refuses to advance past them, so pressing on
+just stalls silently.
+
 **LinkedIn's selectors will rot.** It ships hashed class names that change
 without notice, so `adapters/linkedin.ts` carries several fallbacks per field
 ending in something structural. When capture starts returning nulls there,
