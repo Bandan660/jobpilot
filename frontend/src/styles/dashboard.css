@@ -1423,13 +1423,13 @@ textarea {
  * airier treatment it was designed with.
  */
 .edit-modal {
-  width: min(1040px, 100%);
+  width: min(680px, 100%);
   /*
-   * A floor as well as a ceiling. Without it a two-field section produced a
-   * dialog a third the size of a ten-field one, and the surface appeared to
-   * change identity between sections rather than just showing less.
+   * Height comes from the content. A min-height was tried so short sections
+   * would not shrink, and it was worse: a two-field section became a mostly
+   * empty box with its buttons stranded halfway up. A dialog that fits its
+   * contents is not a dialog that looks broken.
    */
-  min-height: min(460px, 82vh);
   max-height: min(88vh, 900px);
 }
 
@@ -1455,21 +1455,43 @@ textarea {
   }
 }
 
-.edit-modal .ob-field {
-  gap: 0.25rem;
-  font-size: 0.6875rem;
-  /* Still a micro-label, matching the rest of the app, but 0.1em of tracking
-     on a 22-character label like "State / region" is a whole extra word of
-     width. */
-  letter-spacing: 0.05em;
+/*
+ * Sentence case, not the uppercase micro-label used elsewhere in the app.
+ *
+ * That treatment suits a status readout, where the label is chrome around a
+ * number. Here the label is the question being asked, and questions are read,
+ * not scanned — uppercase with tracking is measurably slower to read and was
+ * making a simple form look like a control panel.
+ */
+.edit-modal .ob-field,
+.edit-modal .ob-choice legend {
+  gap: 0.3rem;
+  font-size: var(--step--1);
+  font-weight: 650;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
 }
 
 .edit-modal .ob-field input,
 .edit-modal .ob-field select,
 .edit-modal .ob-field textarea {
-  padding: 0.5rem 0.65rem;
+  padding: 0.6rem 0.75rem;
   font-size: var(--step--1);
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
+  border: 1px solid var(--line-bright);
+  background: var(--ink);
+  width: 100%;
+}
+
+.edit-modal .ob-field input::placeholder {
+  color: var(--muted);
+}
+
+/* Row rhythm: enough between fields to group label with input, not so much
+   that a six-field section needs scrolling. */
+.edit-modal .form-grid {
+  gap: var(--gap-md) var(--gap-md);
 }
 
 /* Yes/no groups and money rows read as one field each, not three. */
@@ -1478,9 +1500,7 @@ textarea {
 }
 
 .edit-modal .ob-choice legend {
-  font-size: 0.6875rem;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.4rem;
 }
 
 .edit-modal .ob-choice-row button {
@@ -1499,4 +1519,25 @@ textarea {
 .edit-modal .modal-head,
 .edit-modal .modal-foot {
   padding-inline: var(--gap-lg);
+}
+
+.edit-modal .modal-head {
+  padding-block: var(--gap-md);
+  border-bottom: none;
+}
+
+.edit-modal .modal-head strong {
+  font-size: var(--step-1);
+  letter-spacing: -0.02em;
+}
+
+/* No top rule either: the buttons are clearly a footer by position, and two
+   horizontal lines in a short dialog cut it into three thin bands. */
+.edit-modal .modal-foot {
+  padding-block: var(--gap-md);
+  border-top: none;
+}
+
+.edit-modal .modal-body {
+  padding-block: 0;
 }
