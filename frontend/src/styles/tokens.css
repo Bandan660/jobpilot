@@ -366,3 +366,44 @@ a {
   border-color: var(--muted);
   background: var(--hover-wash);
 }
+
+/* Touch targets -------------------------------------------------------------- */
+
+/*
+ * The 44x44 guidance is about fingers, so it is scoped to coarse pointers
+ * rather than applied everywhere. Applied globally it would force 44px of
+ * height onto inline text buttons sitting in dense rows on the desktop
+ * dashboard, which needs the density and is being used with a mouse.
+ *
+ * The hit area is grown with a pseudo-element instead of by resizing the
+ * control. A 34px toggle that is 44px to touch stays visually a 34px toggle —
+ * padding the control itself would have pushed the header taller on exactly
+ * the screens with the least room.
+ */
+@media (pointer: coarse) {
+  .theme-toggle,
+  .menu-toggle,
+  .btn-link {
+    position: relative;
+  }
+
+  .theme-toggle::after,
+  .menu-toggle::after,
+  .btn-link::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+
+  /* Adjacent targets need real space between them once they overlap this
+     much — without it the grown areas of neighbouring controls collide and
+     the wrong one takes the tap. */
+  .app-nav-actions,
+  .header-actions {
+    gap: var(--gap-sm);
+  }
+}

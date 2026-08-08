@@ -10,6 +10,39 @@ import { ResumeBuilderLink } from './ResumeBuilderLink.js';
  * wherever it is: the marketing home from the public site, the dashboard from
  * inside the app.
  */
+/*
+ * SVG rather than the ☰ and ✕ characters that were here before. Those are
+ * font glyphs: they land at different weights and sizes on every platform, and
+ * several render them as colour emoji. These inherit currentColor and are
+ * exactly the size they are told to be.
+ */
+const glyph = {
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round' as const,
+  'aria-hidden': true,
+  width: 18,
+  height: 18,
+};
+
+function MenuGlyph() {
+  return (
+    <svg {...glyph}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+function CloseGlyph() {
+  return (
+    <svg {...glyph}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 export function Brand({ to = '/' }: { to?: string }) {
   return (
     <Link to={to} className="brand" aria-label="jobpilot">
@@ -88,7 +121,7 @@ function SiteHeader() {
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <span aria-hidden="true">{menuOpen ? '✕' : '☰'}</span>
+            {menuOpen ? <CloseGlyph /> : <MenuGlyph />}
           </button>
         </div>
       </div>
