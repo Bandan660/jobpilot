@@ -213,6 +213,35 @@ const liveApi = {
     URL.revokeObjectURL(url);
   },
 
+  /**
+   * Opens the file in a new tab.
+   *
+   * The same blob dance as download, because the object is behind auth and a
+   * plain link cannot carry a bearer token — there is deliberately no public
+   * URL for a resume.
+   *
+   * The blob URL is not revoked immediately: doing so races the new tab, which
+   * has not necessarily loaded it yet, and produces a blank viewer. A minute is
+   * far longer than any load and the memory returns when the tab closes.
+   */
+  previewResume: async (id: string) => {
+    const token = getToken();
+    const response = await fetch(`${BASE_URL}/api/resumes/${id}/file`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new ApiError('Could not open that file', response.status);
+
+    const url = URL.createObjectURL(await response.blob());
+    const opened = window.open(url, '_blank', 'noopener');
+
+    if (!opened) {
+      URL.revokeObjectURL(url);
+      throw new ApiError('Your browser blocked the preview window.', 0);
+    }
+
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
+
   funnel: () => request<FunnelStats>('/api/stats/funnel'),
 
   deadPostings: () =>

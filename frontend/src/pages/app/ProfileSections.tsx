@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BuildingIcon, CapIcon, PencilIcon, TrashIcon } from '../../components/icons.js';
 import {
   EDUCATION_LEVELS,
   type Education,
@@ -12,6 +13,39 @@ import {
  * Kept out of ProfilePage so that file stays a layout rather than a thousand
  * lines of form.
  */
+
+/**
+ * Edit and remove, as icons.
+ *
+ * Icon-only, so they stay quiet next to the entry itself — but each carries a
+ * real label and a title, because an unlabelled glyph is unusable with a
+ * screen reader and ambiguous with a mouse. Remove is tinted only on hover:
+ * permanently red draws the eye to the one action nobody wants to take by
+ * accident.
+ */
+function EntryActions({ onEdit, onRemove, what }: { onEdit: () => void; onRemove: () => void; what: string }) {
+  return (
+    <div className="entry-actions">
+      <button className="icon-action" onClick={onEdit} aria-label={`Edit ${what}`} title="Edit">
+        <PencilIcon />
+      </button>
+      <button
+        className="icon-action danger"
+        onClick={onRemove}
+        aria-label={`Remove ${what}`}
+        title="Remove"
+      >
+        <TrashIcon />
+      </button>
+    </div>
+  );
+}
+
+/** Company or school initial, so a long list is scannable down the left edge. */
+function EntryMark({ label, fallback }: { label: string; fallback: React.ReactNode }) {
+  const initial = label.trim()[0]?.toUpperCase();
+  return <span className="entry-mark">{initial || fallback}</span>;
+}
 
 const LEVEL_LABELS: Record<EducationLevel, string> = {
   SECONDARY: 'Secondary / 10th',
@@ -251,7 +285,8 @@ export function ExperienceSection({
                 </div>
               ) : (
                 <>
-                  <div>
+                  <EntryMark label={entry.company} fallback={<BuildingIcon />} />
+                  <div className="entry-body">
                     <strong>{entry.title || 'Untitled role'}</strong>
                     <p className="muted">{entry.company || 'No company'}</p>
                     <div className="entry-chips">
@@ -265,17 +300,11 @@ export function ExperienceSection({
                     {entry.description && <p className="entry-desc">{entry.description}</p>}
                   </div>
 
-                  <div className="entry-actions">
-                    <button className="btn-link" onClick={() => setEditing(entry.id)}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn-link danger"
-                      onClick={() => onChange(entries.filter((e) => e.id !== entry.id))}
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  <EntryActions
+                    what={entry.title || 'this role'}
+                    onEdit={() => setEditing(entry.id)}
+                    onRemove={() => onChange(entries.filter((e) => e.id !== entry.id))}
+                  />
                 </>
               )}
             </li>
@@ -432,7 +461,8 @@ export function EducationSection({
                 </div>
               ) : (
                 <>
-                  <div>
+                  <EntryMark label={entry.school} fallback={<CapIcon />} />
+                  <div className="entry-body">
                     <strong>{entry.school || 'Unnamed school'}</strong>
                     <div className="entry-chips">
                       {entry.level && <span className="chip chip-static">{LEVEL_LABELS[entry.level]}</span>}
@@ -447,17 +477,11 @@ export function EducationSection({
                     </div>
                   </div>
 
-                  <div className="entry-actions">
-                    <button className="btn-link" onClick={() => setEditing(entry.id)}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn-link danger"
-                      onClick={() => onChange(entries.filter((e) => e.id !== entry.id))}
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  <EntryActions
+                    what={entry.school || 'this entry'}
+                    onEdit={() => setEditing(entry.id)}
+                    onRemove={() => onChange(entries.filter((e) => e.id !== entry.id))}
+                  />
                 </>
               )}
             </li>

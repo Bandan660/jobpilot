@@ -867,3 +867,117 @@ textarea {
   border-color: var(--signal-dim);
   color: var(--text);
 }
+
+/* Profile: entries and actions ------------------------------------------------ */
+
+/*
+ * Icon-only controls.
+ *
+ * 30px so they clear the 24x24 AA target on a mouse, and the coarse-pointer
+ * rule elsewhere grows them further for touch. Neutral until hovered — a row
+ * of permanently-red delete buttons pulls the eye to the one action nobody
+ * wants to take by accident.
+ */
+.icon-action {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.icon-action svg {
+  width: 15px;
+  height: 15px;
+}
+
+.icon-action:hover {
+  color: var(--text);
+  background: var(--panel-raised);
+  border-color: var(--line);
+}
+
+.icon-action.danger:hover {
+  color: var(--down);
+  background: var(--down-wash);
+  border-color: transparent;
+}
+
+/* The initial, or a glyph when there is nothing to take one from. */
+.entry-mark {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--signal-wash);
+  color: var(--signal-text);
+  font-weight: 700;
+  font-size: var(--step-0);
+  letter-spacing: -0.01em;
+}
+
+.entry-mark svg {
+  width: 17px;
+  height: 17px;
+}
+
+.entry-mark[data-file='true'] {
+  background: var(--info-wash);
+  color: var(--info);
+}
+
+.entry-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Rows are mark + body + actions. The actions hold their column so titles of
+   different lengths do not shuffle them left and right down the list. */
+.entry-list > li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-sm);
+}
+
+.entry-list .entry-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Inputs with a leading mark ------------------------------------------------- */
+
+.input-icon {
+  position: relative;
+  display: block;
+}
+
+.input-icon svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.input-icon input {
+  width: 100%;
+  padding-left: 33px;
+}
+
+/* Focus moves the mark to the accent, so the active field is obvious even
+   when several sit in a row. */
+.input-icon:focus-within svg {
+  color: var(--signal-text);
+}

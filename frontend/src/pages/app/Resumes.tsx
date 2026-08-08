@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MAX_RESUME_BYTES, formatDate, type Resume } from '@jobpilot/shared';
 import { api } from '../../api.js';
 import { ResumeBuilderLink } from '../../components/ResumeBuilderLink.js';
-import { FileTextIcon } from '../../components/icons.js';
+import { DownloadIcon, EyeIcon, FileTextIcon, TrashIcon } from '../../components/icons.js';
 
 /**
  * Resume manager.
@@ -97,7 +97,10 @@ export function Resumes() {
         <ul className="entry-list">
           {resumes.map((resume) => (
             <li key={resume.id}>
-              <div>
+              <span className="entry-mark" data-file="true">
+                <FileTextIcon />
+              </span>
+              <div className="entry-body">
                 <strong>
                   {resume.fileName}
 
@@ -110,17 +113,29 @@ export function Resumes() {
 
               <div className="entry-actions">
                 <button
-                  className="btn-link"
-                  onClick={() => void api.downloadResume(resume.id, resume.fileName)}
+                  className="icon-action"
+                  onClick={() => void act(() => api.previewResume(resume.id))}
+                  aria-label="Preview resume"
+                  title="Preview"
                 >
-                  Download
+                  <EyeIcon />
+                </button>
+                <button
+                  className="icon-action"
+                  onClick={() => void api.downloadResume(resume.id, resume.fileName)}
+                  aria-label="Download resume"
+                  title="Download"
+                >
+                  <DownloadIcon />
                 </button>
 
                 <button
-                  className="btn-link danger"
+                  className="icon-action danger"
                   onClick={() => void act(() => api.deleteResume(resume.id))}
+                  aria-label="Delete resume"
+                  title="Delete"
                 >
-                  Delete
+                  <TrashIcon />
                 </button>
               </div>
             </li>

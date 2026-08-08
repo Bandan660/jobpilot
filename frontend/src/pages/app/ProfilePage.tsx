@@ -20,7 +20,9 @@ import {
   CoinIcon,
   FileTextIcon,
   GlobeIcon,
+  GithubIcon,
   LinkIcon,
+  LinkedInIcon,
   SparkIcon,
   UserIcon,
 } from '../../components/icons.js';
@@ -224,10 +226,37 @@ export function ProfilePage() {
 
       <Group id="links" title="Links" icon={<LinkIcon />} tone="e" hint="Asked for constantly, tedious to retype.">
         <div className="form-grid">
-          <Text label="LinkedIn" type="url" value={draft.linkedinUrl} onChange={(v) => patch({ linkedinUrl: v })} />
-          <Text label="GitHub" type="url" value={draft.githubUrl} onChange={(v) => patch({ githubUrl: v })} />
-          <Text label="Portfolio" type="url" value={draft.portfolioUrl} onChange={(v) => patch({ portfolioUrl: v })} />
-          <Text label="Other" type="url" value={draft.otherUrl} onChange={(v) => patch({ otherUrl: v })} />
+          <Text
+            label="LinkedIn"
+            type="url"
+            icon={<LinkedInIcon />}
+            placeholder="linkedin.com/in/you"
+            value={draft.linkedinUrl}
+            onChange={(v) => patch({ linkedinUrl: v })}
+          />
+          <Text
+            label="GitHub"
+            type="url"
+            icon={<GithubIcon />}
+            placeholder="github.com/you"
+            value={draft.githubUrl}
+            onChange={(v) => patch({ githubUrl: v })}
+          />
+          <Text
+            label="Portfolio"
+            type="url"
+            icon={<GlobeIcon />}
+            placeholder="yoursite.com"
+            value={draft.portfolioUrl}
+            onChange={(v) => patch({ portfolioUrl: v })}
+          />
+          <Text
+            label="Other"
+            type="url"
+            icon={<LinkIcon />}
+            value={draft.otherUrl}
+            onChange={(v) => patch({ otherUrl: v })}
+          />
         </div>
       </Group>
 
@@ -477,16 +506,39 @@ function Text({
   value,
   onChange,
   type = 'text',
+  icon,
+  placeholder,
 }: {
   label: string;
   value: string | null | undefined;
   onChange: (v: string | null) => void;
   type?: string;
+  /** Sits inside the input. Used for the link fields, where the mark
+      identifies the field faster than its label does. */
+  icon?: React.ReactNode;
+  placeholder?: string;
 }) {
   return (
     <label className="ob-field">
       {label}
-      <input type={type} value={value ?? ''} onChange={(e) => onChange(e.target.value || null)} />
+      {icon ? (
+        <span className="input-icon">
+          {icon}
+          <input
+            type={type}
+            value={value ?? ''}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value || null)}
+          />
+        </span>
+      ) : (
+        <input
+          type={type}
+          value={value ?? ''}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value || null)}
+        />
+      )}
     </label>
   );
 }
