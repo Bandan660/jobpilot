@@ -144,7 +144,7 @@ function watchForSubmit(adapter: JobAdapter, getJob: () => CapturedJob | null): 
     if (!looksLikeApplicationForm(form)) return;
 
     const job = getJob();
-    if (job) void doCapture(job, true);
+    if (job) doCapture(job, true).catch((e) => console.warn('[jobpilot] capture failed:', e));
   };
 
   // Capture phase: some ATSs call preventDefault and submit over XHR, which
@@ -245,7 +245,9 @@ async function init(): Promise<void> {
   } else {
     // Panel first, then the duplicate result folds into it — two overlapping
     // floating surfaces on one page is worse than either alone.
-    void checkDuplicates(job).then((duplicate) => maybeShowPanel(job, duplicate));
+    checkDuplicates(job)
+      .then((duplicate) => maybeShowPanel(job, duplicate))
+      .catch((error) => console.warn('[jobpilot] panel setup failed:', error));
   }
 
   teardown = watchForSubmit(adapter, () => currentJob);
@@ -354,4 +356,12 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
 });
 
 watchNavigation();
-void init();
+
+/*
+ * Failures here must not become unhandled rejections. This script runs on
+ * someone else's page, where an uncaught error is both useless to them and
+ * reported against content.js:1 with no frame worth reading.
+ */
+init().catch((error) => {
+  console.warn('[jobpilot] init failed:', error);
+});
