@@ -55,7 +55,18 @@ export interface PanelHandlers {
   onCancelAutoApply: () => void;
 }
 
-let mounted: { destroy: () => void } | null = null;
+/**
+ * The live mount, kept so updates repaint in place.
+ *
+ * Tearing the host down and rebuilding it made the panel flash twice on every
+ * job switch: once when the title arrived and again when the rest of the pane
+ * settled. Reusing the element means those land as a content change nobody
+ * sees rather than two full remounts.
+ */
+let mounted: {
+  destroy: () => void;
+  repaint: (state: PanelJob, handlers: PanelHandlers) => void;
+} | null = null;
 
 /*
  * Module-level, so it survives a re-render.
@@ -355,14 +366,14 @@ const CSS = `
   /* One slow sweep so it registers as new without becoming a blinking
      ornament on every page. */
   @media (prefers-reduced-motion: no-preference) {
-    .handle { animation: pop 260ms cubic-bezier(0.22, 1, 0.36, 1); }
+    [data-first] .handle { animation: pop 260ms cubic-bezier(0.22, 1, 0.36, 1); }
     @keyframes pop {
       from { opacity: 0; transform: translateY(-50%) translateX(14px); }
     }
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    .panel { animation: slide 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+    [data-first] .panel { animation: slide 220ms cubic-bezier(0.22, 1, 0.36, 1); }
     @keyframes slide { from { transform: translateX(100%); } }
   }
 `;
@@ -508,6 +519,12 @@ function buildAuth(
 }
 
 export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Promise<void> {
+  // Already on the page: swap the contents and leave the element alone.
+  if (mounted && document.getElementById(HOST_ID)) {
+    mounted.repaint(state, handlers);
+    return;
+  }
+
   removePanel();
 
   const host = document.createElement('div');
@@ -530,6 +547,12 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
   const root = document.createElement('div');
   root.style.cssText = 'pointer-events: auto; height: 100%;';
+  // Cleared after the first paint, so later updates appear without motion.
+  root.setAttribute('data-first', '');
+
+  // Mutable, so repaint() can swap them without recreating the closure.
+  let current = state;
+  let acts = handlers;
 
   const paint = () => {
     root.innerHTML = '';
@@ -543,9 +566,9 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
        * there is no form until Easy Apply is clicked, so promising "Autofill"
        * there would be a button that cannot do what it says.
        */
-      const hasFields = state.coverage.fillable > 0;
+      const hasFields = current.coverage.fillable > 0;
       const label = hasFields
-        ? `Autofill ${state.coverage.fillable} fields with jobpilot`
+        ? `Autofill ${current.coverage.fillable} fields with jobpilot`
         : 'Open jobpilot — save this job or check for duplicates';
 
       handle.setAttribute('aria-label', label);
@@ -556,7 +579,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       if (hasFields) {
         const count = document.createElement('span');
         count.className = 'count';
-        count.textContent = String(state.coverage.fillable);
+        count.textContent = String(current.coverage.fillable);
         handle.append(count);
       }
 
@@ -574,7 +597,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
     host.style.width = '372px';
 
-    if (!state.authenticated) {
+    if (!current.authenticated) {
       root.append(buildAuth(state, handlers, () => {
         collapsed = true;
         paint();
@@ -597,7 +620,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     word.textContent = 'jobpilot';
     const who = document.createElement('span');
     who.className = 'who';
-    who.textContent = state.email ?? '';
+    who.textContent = current.email ?? '';
 
     const collapse = document.createElement('button');
     collapse.className = 'icon-btn';
@@ -633,10 +656,10 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     jobCard.className = 'card';
     const role = document.createElement('div');
     role.className = 'role';
-    role.textContent = state.job.title ?? 'This posting';
+    role.textContent = current.job.title ?? 'This posting';
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = [state.job.company, state.job.location].filter(Boolean).join(' · ');
+    meta.textContent = [current.job.company, current.job.location].filter(Boolean).join(' · ');
     jobCard.append(role, meta);
 
     const lampRow = document.createElement('div');
@@ -644,13 +667,13 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     lampRow.innerHTML = '<span class="lamp"></span>';
     lampRow.append(
       document.createTextNode(
-        `${state.coverage.fillable} of ${state.coverage.total} fields can be filled`
+        `${current.coverage.fillable} of ${current.coverage.total} fields can be filled`
       )
     );
     jobCard.append(lampRow);
     body.append(jobCard);
 
-    if (state.duplicate) {
+    if (current.duplicate) {
       const dup = document.createElement('div');
       dup.className = 'card warn';
       const t = document.createElement('div');
@@ -658,9 +681,9 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       t.textContent = 'You already applied to this role';
       const m = document.createElement('div');
       m.className = 'meta';
-      m.textContent = `${state.duplicate.title} at ${state.duplicate.companyName} · ${
-        state.duplicate.daysAgo ?? '?'
-      } days ago · ${state.duplicate.status.toLowerCase()}`;
+      m.textContent = `${current.duplicate.title} at ${current.duplicate.companyName} · ${
+        current.duplicate.daysAgo ?? '?'
+      } days ago · ${current.duplicate.status.toLowerCase()}`;
       dup.append(t, m);
       body.append(dup);
     }
@@ -671,7 +694,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     save.addEventListener('click', () => {
       save.disabled = true;
       save.textContent = 'Saving…';
-      void handlers.onSave().then((ok) => {
+      void acts.onSave().then((ok) => {
         save.textContent = ok ? 'Saved to your tracker' : 'Could not save';
         if (!ok) save.disabled = false;
       });
@@ -693,12 +716,12 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     fill.innerHTML = BOLT;
     fill.append(
       document.createTextNode(
-        state.coverage.fillable > 0
-          ? `Fill ${state.coverage.fillable} field${state.coverage.fillable === 1 ? '' : 's'}`
+        current.coverage.fillable > 0
+          ? `Fill ${current.coverage.fillable} field${current.coverage.fillable === 1 ? '' : 's'}`
           : 'Nothing to fill here'
       )
     );
-    fill.disabled = state.coverage.fillable === 0;
+    fill.disabled = current.coverage.fillable === 0;
 
     const toggle = document.createElement('label');
     toggle.className = 'toggle';
@@ -709,7 +732,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     fill.addEventListener('click', () => {
       fill.disabled = true;
       fill.textContent = 'Filling…';
-      void handlers.onFill(overwrite.checked).then((r) => {
+      void acts.onFill(overwrite.checked).then((r) => {
         fill.textContent =
           r.filled > 0
             ? `Filled ${r.filled}${r.unanswered > 0 ? ` · ${r.unanswered} left for you` : ''}`
@@ -724,7 +747,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
     action.append(fill, toggle);
 
-    if (state.canAutoApply) {
+    if (current.canAutoApply) {
       const status = document.createElement('div');
       status.className = 'status';
       status.hidden = true;
@@ -744,13 +767,13 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
       apply.addEventListener('click', () => {
         if (running) {
-          handlers.onCancelAutoApply();
+          acts.onCancelAutoApply();
           return;
         }
 
         running = true;
         apply.textContent = 'Stop';
-        void handlers.onAutoApply(report).finally(() => {
+        void acts.onAutoApply(report).finally(() => {
           running = false;
           apply.textContent = 'Apply with jobpilot';
         });
@@ -770,7 +793,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     const out = document.createElement('button');
     out.className = 'link';
     out.textContent = 'Sign out';
-    out.addEventListener('click', handlers.onSignOut);
+    out.addEventListener('click', acts.onSignOut);
     foot.append(out);
 
     panel.append(header, body, action, foot);
@@ -779,6 +802,8 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
   paint();
   shadow.append(style, root);
+  // Next frame: the entrance has started, and every later paint is an update.
+  requestAnimationFrame(() => root.removeAttribute('data-first'));
   document.documentElement.append(host);
 
   const onKey = (e: KeyboardEvent) => {
@@ -791,5 +816,10 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
   mounted = {
     destroy: () => window.removeEventListener('keydown', onKey),
+    repaint: (next, nextHandlers) => {
+      current = next;
+      acts = nextHandlers;
+      paint();
+    },
   };
 }
