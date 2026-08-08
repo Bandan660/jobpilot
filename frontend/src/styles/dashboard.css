@@ -99,7 +99,12 @@
 .dash {
   max-width: 1100px;
   margin-inline: auto;
-  padding: var(--gap-xl) 20px var(--gap-2xl);
+  /*
+   * Tight at the top, generous at the bottom. This is a working surface
+   * reached from a sticky header — the marketing pages want air above the
+   * fold, an app page wants its content to start.
+   */
+  padding: var(--gap-md) 20px var(--gap-2xl);
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
@@ -1230,4 +1235,106 @@ textarea {
 
 .link-card input::placeholder {
   color: var(--muted);
+}
+
+/* Extension prompt ------------------------------------------------------------ */
+
+/*
+ * Sits above the page content in its own .dash wrapper, so it lines up with
+ * the columns below without every route having to render it.
+ *
+ * The slot collapses entirely when the banner is absent — an empty .dash would
+ * otherwise contribute its own padding and reintroduce the gap this was
+ * partly meant to close.
+ */
+.ext-banner-slot {
+  padding-bottom: 0;
+}
+
+.ext-banner-slot:empty {
+  display: none;
+  padding: 0;
+}
+
+.ext-banner {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  padding: var(--gap-md) var(--gap-lg);
+  border: 1px solid var(--signal-dim);
+  border-radius: var(--radius);
+  background: linear-gradient(110deg, var(--signal-wash), transparent 65%), var(--panel);
+  isolation: isolate;
+}
+
+/* The same instrument grid as the dashboard hero, so this reads as part of
+   the product rather than an advertisement dropped into it. */
+.ext-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 34px 34px;
+  opacity: 0.4;
+  mask-image: radial-gradient(ellipse at 88% 50%, #000, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 88% 50%, #000, transparent 70%);
+  z-index: -1;
+}
+
+.ext-glyph {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--signal);
+  color: var(--on-signal);
+}
+
+.ext-glyph svg {
+  width: 20px;
+  height: 20px;
+}
+
+.ext-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.ext-copy strong {
+  display: block;
+  font-size: var(--step-0);
+  letter-spacing: -0.01em;
+}
+
+.ext-copy p {
+  font-size: var(--step--1);
+  margin-top: 2px;
+  max-width: 62ch;
+}
+
+.ext-banner .btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 700px) {
+  .ext-banner {
+    flex-wrap: wrap;
+    padding: var(--gap-md);
+  }
+
+  /* The dismiss control keeps its corner while everything else stacks. */
+  .ext-banner .icon-action {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+  }
+
+  .ext-banner .btn {
+    width: 100%;
+  }
 }

@@ -48,7 +48,9 @@
         "https://www.instahyre.com/*",
         "https://cutshort.io/*",
         "https://www.hirist.tech/*",
-        "https://www.seek.com.au/*"
+        "https://www.seek.com.au/*",
+        "https://jobpilot-3lg.pages.dev/*",
+        "https://*.jobpilot-3lg.pages.dev/*"
       ],
       "js": [
         "content.js"

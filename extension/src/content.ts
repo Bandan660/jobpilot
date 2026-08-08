@@ -563,6 +563,24 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
   return false;
 });
 
+/*
+ * Announce ourselves on jobpilot's own pages.
+ *
+ * The site shows an "install the extension" banner, and showing it to someone
+ * who already installed it is exactly the annoyance that gets banners ignored.
+ * A data attribute is the simplest channel that needs no extension id, no
+ * externally_connectable entry, and no message round-trip — the page just
+ * looks for it after mount.
+ *
+ * Set before anything else so it lands even if adapter matching bails.
+ */
+function announce(): void {
+  if (!/(^|.)jobpilot-3lg.pages.dev$/.test(window.location.hostname)) return;
+  document.documentElement.dataset.jobpilotExtension =
+    chrome.runtime.getManifest().version;
+}
+
+announce();
 watchNavigation();
 
 /*
