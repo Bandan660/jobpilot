@@ -1,4 +1,5 @@
 import type { PayPeriod } from './normalize.js';
+import type { EmploymentType } from './types.js';
 
 /**
  * The one profile that autofill reads from.
@@ -24,6 +25,13 @@ export interface WorkExperience {
   current: boolean;
   location: string | null;
   description: string | null;
+  /**
+   * Reuses the JobPosting enum rather than free text, so one vocabulary
+   * describes both a role held and a role applied for. Nullable because every
+   * entry written before this field existed has no answer, and inventing one
+   * is worse than showing nothing.
+   */
+  employmentType: EmploymentType | null;
 }
 
 /**

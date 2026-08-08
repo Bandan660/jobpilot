@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   EDUCATION_LEVELS,
+  EMPLOYMENT_TYPE,
   EMPTY_AVAILABILITY,
   EMPTY_COMPENSATION,
   EMPTY_DEMOGRAPHICS,
@@ -49,6 +50,9 @@ const experienceSchema = z.object({
   current: z.boolean(),
   location: z.string().max(200).nullable(),
   description: z.string().max(4000).nullable(),
+  // Optional, not just nullable: rows written before this field existed do not
+  // carry the key at all, and requiring it would reject every one of them.
+  employmentType: z.enum(EMPLOYMENT_TYPE).nullable().optional(),
 });
 
 const educationSchema = z.object({
@@ -208,7 +212,7 @@ profileRoutes.put('/', async (c) => {
   // shape has `key` optional, and the raw array leaking through would store
   // answers the matcher can never look up. `onboardingComplete` is a request
   // flag, not a column, so it comes out here too.
-  const { savedAnswers: submitted, onboardingComplete, ...rest } = input;
+  const { savedAnswers: submitted, experience: roles, onboardingComplete, ...rest } = input;
 
   // Recompute answer keys server-side. The extension looks answers up by key,
   // so letting a client send its own would let one bad write break matching
@@ -218,8 +222,20 @@ profileRoutes.put('/', async (c) => {
     key: answerKey(answer.label),
   }));
 
+  /*
+   * employmentType is optional in the request so older clients and rows
+   * without it still validate, but the stored shape requires an explicit
+   * null. Spreading the parsed array straight in would leave the key absent,
+   * which is a different state from "not answered" and does not typecheck.
+   */
+  const experience = roles?.map((role) => ({
+    ...role,
+    employmentType: role.employmentType ?? null,
+  }));
+
   const values = {
     ...rest,
+    ...(experience ? { experience } : {}),
     ...(savedAnswers ? { savedAnswers } : {}),
     // Only ever set, never cleared: finishing onboarding is not something a
     // later profile edit should undo.

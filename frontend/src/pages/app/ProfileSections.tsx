@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { BuildingIcon, CapIcon, PencilIcon, PlusIcon, TrashIcon } from '../../components/icons.js';
 import {
   EDUCATION_LEVELS,
+  EMPLOYMENT_TYPE,
   type Education,
   type EducationLevel,
+  type EmploymentType,
   type WorkExperience,
 } from '@jobpilot/shared';
 
@@ -46,6 +48,18 @@ function EntryMark({ label, fallback }: { label: string; fallback: React.ReactNo
   const initial = label.trim()[0]?.toUpperCase();
   return <span className="entry-mark">{initial || fallback}</span>;
 }
+
+/** The enum is schema.org's; these are what a person would write. */
+const EMPLOYMENT_LABELS: Record<EmploymentType, string> = {
+  FULL_TIME: 'Full-time',
+  PART_TIME: 'Part-time',
+  CONTRACTOR: 'Contract',
+  TEMPORARY: 'Temporary',
+  INTERN: 'Internship',
+  VOLUNTEER: 'Volunteer',
+  PER_DIEM: 'Per diem',
+  OTHER: 'Other',
+};
 
 const LEVEL_LABELS: Record<EducationLevel, string> = {
   SECONDARY: 'Secondary / 10th',
@@ -179,6 +193,7 @@ export function ExperienceSection({
       current: false,
       location: null,
       description: null,
+      employmentType: null,
     };
     onChange([entry, ...entries]);
     setEditing(entry.id);
@@ -242,6 +257,25 @@ export function ExperienceSection({
                         onChange={(e) => update(entry.id, { startDate: e.target.value || null })}
                       />
                     </label>
+                    <label className="ob-field">
+                      Employment type
+                      <select
+                        value={entry.employmentType ?? ''}
+                        onChange={(e) =>
+                          update(entry.id, {
+                            employmentType: (e.target.value || null) as EmploymentType | null,
+                          })
+                        }
+                      >
+                        <option value="">Not specified</option>
+                        {EMPLOYMENT_TYPE.map((type) => (
+                          <option key={type} value={type}>
+                            {EMPLOYMENT_LABELS[type]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
                     <label className="ob-field" data-disabled={entry.current}>
                       End
                       <input
@@ -293,6 +327,11 @@ export function ExperienceSection({
                       {entry.startDate && (
                         <span className="chip chip-static">
                           {entry.startDate} – {entry.current ? 'present' : (entry.endDate ?? '?')}
+                        </span>
+                      )}
+                      {entry.employmentType && (
+                        <span className="chip chip-static">
+                          {EMPLOYMENT_LABELS[entry.employmentType]}
                         </span>
                       )}
                     </div>

@@ -163,6 +163,9 @@ function extractExperience(text: string): WorkExperience[] {
       current,
       location: null,
       description: null,
+      // Not inferable from a date range and a job title, and a wrong guess
+      // here ends up on real applications.
+      employmentType: null,
     });
 
     if (entries.length >= 12) break;

@@ -3,7 +3,6 @@ import { useAuth } from '../auth.js';
 import { ThemeToggle } from '../theme.js';
 import { Brand } from './SiteChrome.js';
 import { ResumeBuilderLink } from './ResumeBuilderLink.js';
-import { ExtensionBanner } from './ExtensionBanner.js';
 
 /**
  * Shell for the signed-in app.
@@ -51,11 +50,6 @@ export function AppShell() {
       </header>
 
       <main className="app-body">
-      {/* Above the page rather than inside it, so every signed-in route gets
-          it and no page has to remember to include it. */}
-      <div className="dash ext-banner-slot">
-        <ExtensionBanner />
-      </div>
         <Outlet />
       </main>
     </div>

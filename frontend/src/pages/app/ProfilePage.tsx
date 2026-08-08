@@ -13,6 +13,7 @@ import { usePageMeta } from '../../usePageMeta.js';
 import { Resumes } from './Resumes.js';
 import { ChipList, EducationSection, ExperienceSection } from './ProfileSections.js';
 import { ReadinessRing, useScrollSpy } from './ProfileChrome.js';
+import { ExtensionBanner } from '../../components/ExtensionBanner.js';
 import {
   BuildingIcon,
   CalendarIcon,
@@ -149,6 +150,11 @@ export function ProfilePage() {
 
   return (
     <div className="dash">
+      {/* Only here: this page is where the profile the extension reads gets
+          filled in, so the prompt to install it belongs next to that work
+          rather than following the user around the app. */}
+      <ExtensionBanner />
+
       <header className="dash-head">
         <h1>Your profile</h1>
         <p className="muted">
