@@ -10,6 +10,22 @@ how it got here and why.
 
 ---
 
+## Skills
+
+`.claude/skills/ui-ux-pro-max/` is a third-party design database (MIT,
+github.com/nextlevelbuilder/ui-ux-pro-max-skill) — 84 styles, 192 palettes, 74
+font pairings, per-stack rules. Query it with
+`python .claude/skills/ui-ux-pro-max/scripts/search.py "<query>" --stack react`.
+
+Treat it as reference, not authority. This project already has a settled visual
+language (the instrument panel: amber signal on deep blue-black, status lamps,
+monospace telemetry) and a token system in `frontend/src/styles/tokens.css`.
+Where the database disagrees with what is already here, what is already here
+wins — the design decisions in this file were made for reasons the database
+does not know about.
+
+---
+
 ## Layout
 
 ```
