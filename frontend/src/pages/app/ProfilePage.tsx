@@ -150,18 +150,13 @@ export function ProfilePage() {
 
   return (
     <div className="dash">
-      {/* Only here: this page is where the profile the extension reads gets
-          filled in, so the prompt to install it belongs next to that work
-          rather than following the user around the app. */}
-      <ExtensionBanner />
-
-      <header className="dash-head">
-        <h1>Your profile</h1>
-        <p className="muted">
-          Autofill reads from here. Anything left blank is left blank on the form — it never
-          guesses.
-        </p>
-      </header>
+      {/*
+        The visible title is gone, but the page still needs one heading for
+        document structure — without an h1 a screen reader has nothing to
+        announce the page as, and heading-level navigation skips straight into
+        the section titles from nowhere.
+      */}
+      <h1 className="sr-only">Your profile</h1>
 
       <div className="profile-layout">
         <aside className="profile-aside">
@@ -210,6 +205,11 @@ export function ProfilePage() {
         </aside>
 
         <div className="profile-main">
+          {/* In the content column rather than spanning the page: it belongs
+              with the form it is asking you to make useful, and full width
+              above everything read as a site-wide announcement. */}
+          <ExtensionBanner />
+
 
       <Group id="contact" title="Contact" icon={<UserIcon />} tone="a" hint="Goes into the contact fields on every application.">
         <div className="form-grid">

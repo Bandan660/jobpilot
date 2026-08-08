@@ -1321,7 +1321,12 @@ textarea {
   flex-shrink: 0;
 }
 
-@media (max-width: 700px) {
+/*
+ * Stacks below 1080px, not 700px: the banner lives in the content column now,
+ * which is roughly 700px wide on a 1100px page — so it runs out of horizontal
+ * room long before the viewport does.
+ */
+@media (max-width: 1080px) {
   .ext-banner {
     flex-wrap: wrap;
     padding: var(--gap-md);
@@ -1330,4 +1335,9 @@ textarea {
   .ext-banner .btn {
     width: 100%;
   }
+}
+
+/* No page title above it any more, so it opens the column. */
+.profile-main > .ext-banner {
+  margin-bottom: var(--gap-xs);
 }
