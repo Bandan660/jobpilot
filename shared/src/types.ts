@@ -56,6 +56,12 @@ export const ATS_PROVIDER = [
   'WORKDAY',
   'ICIMS',
   'SMARTRECRUITERS',
+  /*
+   * LinkedIn is a job board rather than an ATS, but it owns the application
+   * flow for Easy Apply postings, which is what matters here: the form lives
+   * on linkedin.com and the application is submitted there.
+   */
+  'LINKEDIN',
   'GENERIC',
 ] as const;
 export type AtsProvider = (typeof ATS_PROVIDER)[number];

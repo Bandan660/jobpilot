@@ -14,6 +14,16 @@ export interface JobAdapter {
   extract(doc: Document, url: URL): Partial<CapturedJob>;
   /** Elements whose presence means the application went through. */
   confirmationSelectors: string[];
+  /**
+   * Where to look for confirmation, when the whole page is too wide a net.
+   *
+   * The default is the document. LinkedIn needs narrowing: its job list
+   * renders "Application submitted" against every posting you have already
+   * applied to, so a page-wide text match would record an application for
+   * whichever job you happen to be *viewing*. Returning null means "not
+   * confirmable right now" rather than "search everything".
+   */
+  confirmationScope?(): Element | null;
 }
 
 /** First selector that yields non-empty text wins. */

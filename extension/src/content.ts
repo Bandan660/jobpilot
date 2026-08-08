@@ -6,6 +6,7 @@ import type {
   Profile,
 } from '@jobpilot/shared';
 import { findAdapter, type JobAdapter } from './adapters/index.js';
+import { easyApplyModal } from './adapters/linkedin.js';
 import { extractFromJsonLd } from './adapters/jsonld.js';
 import { autofill, previewCoverage } from './autofill/index.js';
 import { SPA_POLL_INTERVAL_MS, SPA_RENDER_TIMEOUT_MS } from './config.js';
@@ -87,7 +88,19 @@ function pageLooksConfirmed(adapter: JobAdapter): boolean {
   if (adapter.confirmationSelectors.some((selector) => document.querySelector(selector))) {
     return true;
   }
-  const text = document.body?.innerText?.toLowerCase() ?? '';
+
+  /*
+   * An adapter that declares a scope and has none right now is not confirmed.
+   * Falling back to the whole page here would defeat the point of declaring
+   * one — see the note on confirmationScope.
+   */
+  let scope: Element | null | undefined = document.body;
+  if (adapter.confirmationScope) {
+    scope = adapter.confirmationScope();
+    if (!scope) return false;
+  }
+
+  const text = (scope as HTMLElement)?.innerText?.toLowerCase() ?? '';
   return CONFIRMATION_PHRASES.some((phrase) => text.includes(phrase));
 }
 
@@ -198,7 +211,14 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   const profile = await loadProfile();
   if (!profile) return;
 
-  const coverage = previewCoverage(profile);
+  /*
+   * Scope to the Easy Apply dialog when it is open. LinkedIn's page carries a
+   * search box and assorted filter inputs, so an unscoped count reports
+   * fillable fields on a posting with no application form in sight.
+   */
+  const modal = easyApplyModal();
+  const coverage = previewCoverage(profile, modal ?? undefined);
+
   // No form on the page yet — this is the posting, not the application.
   if (coverage.total === 0 && !duplicate) return;
 
@@ -206,7 +226,12 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
     { job, coverage, email: session.data.email, duplicate },
     {
       onFill: async (overwrite) => {
-        const summary = await runAutofill(overwrite, { silent: true });
+        // Re-read the modal at click time: it may have opened, or moved to the
+        // next step, since the panel was drawn.
+        const summary = await runAutofill(overwrite, {
+          silent: true,
+          root: easyApplyModal() ?? undefined,
+        });
         return { filled: summary.filled, unanswered: summary.unanswered.length };
       },
       onSave: async () => {
@@ -250,7 +275,17 @@ async function init(): Promise<void> {
       .catch((error) => console.warn('[jobpilot] panel setup failed:', error));
   }
 
-  teardown = watchForSubmit(adapter, () => currentJob);
+  const stopSubmit = watchForSubmit(adapter, () => currentJob);
+
+  // Only LinkedIn needs this: everywhere else the form is the page, and it is
+  // there by the time the script runs.
+  const stopModal =
+    adapter.ats === 'LINKEDIN' ? watchEasyApply(() => currentJob) : () => undefined;
+
+  teardown = () => {
+    stopSubmit();
+    stopModal();
+  };
 }
 
 /**
@@ -258,6 +293,46 @@ async function init(): Promise<void> {
  * patched to re-run init. Ashby in particular navigates board -> posting
  * entirely client-side.
  */
+/**
+ * Re-draw the panel when the Easy Apply dialog opens, closes, or advances.
+ *
+ * None of those are navigations, so nothing else here notices them. Each step
+ * of the flow is a different set of fields, and a panel still advertising the
+ * previous step's count is worse than no count at all.
+ *
+ * Debounced because LinkedIn mutates this subtree continuously while the
+ * dialog animates, and each burst would otherwise re-run a full form scan.
+ */
+function watchEasyApply(getJob: () => CapturedJob | null): () => void {
+  let lastSignature = '';
+  let timer: number | undefined;
+
+  const check = () => {
+    const modal = easyApplyModal();
+    // Field count stands in for "which step is showing" — cheaper than
+    // reading step labels, and it changes exactly when the form does.
+    const signature = modal ? String(modal.querySelectorAll('input, select, textarea').length) : '';
+    if (signature === lastSignature) return;
+    lastSignature = signature;
+
+    const job = getJob();
+    if (!job) return;
+    void maybeShowPanel(job, null);
+  };
+
+  const observer = new MutationObserver(() => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(check, 350);
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  return () => {
+    window.clearTimeout(timer);
+    observer.disconnect();
+  };
+}
+
 function watchNavigation(): void {
   let lastUrl = window.location.href;
 
@@ -295,7 +370,7 @@ async function loadProfile(): Promise<Profile | null> {
  */
 async function runAutofill(
   overwrite: boolean,
-  options: { silent?: boolean } = {}
+  options: { silent?: boolean; root?: ParentNode } = {}
 ): Promise<AutofillSummary> {
   const profile = await loadProfile();
   if (!profile) {
@@ -307,7 +382,7 @@ async function runAutofill(
     return { filled: 0, skipped: 0, unanswered: [] };
   }
 
-  const result = autofill(profile, { overwrite });
+  const result = autofill(profile, { overwrite, root: options.root });
 
   const parts = [`${result.filled} field${result.filled === 1 ? '' : 's'} filled`];
   if (result.skipped > 0) parts.push(`${result.skipped} already had a value`);
