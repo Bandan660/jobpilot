@@ -1040,24 +1040,29 @@ textarea {
 
 /* Preview modal ---------------------------------------------------------------- */
 
-.modal-backdrop {
+.sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 80;
-  background: rgba(3, 7, 14, 0.62);
-  backdrop-filter: blur(3px);
+  /*
+   * Lighter than it was. At 0.62 over a near-black ink the page behind read as
+   * solid black, which makes the dialog feel like a separate screen rather
+   * than something sitting on top of work you can still see.
+   */
+  background: rgba(8, 13, 22, 0.42);
+  backdrop-filter: blur(2px);
   display: grid;
   place-items: center;
   padding: var(--gap-md);
 }
 
 @media (max-width: 700px) {
-  .modal-backdrop {
+  .sheet-backdrop {
     padding: var(--gap-xs);
   }
 }
 
-.modal {
+.sheet {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1068,13 +1073,13 @@ textarea {
   min-height: 0;
 }
 
-.preview-modal {
+.sheet-preview {
   width: min(900px, 100%);
   /* Tall enough to read a page of A4 without scrolling the modal itself. */
   height: min(88vh, 1100px);
 }
 
-.modal-head {
+.sheet-head {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
@@ -1083,7 +1088,7 @@ textarea {
   flex-shrink: 0;
 }
 
-.modal-head strong {
+.sheet-head strong {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1115,10 +1120,10 @@ textarea {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .modal-backdrop {
+  .sheet-backdrop {
     animation: fade 140ms ease-out;
   }
-  .modal {
+  .sheet {
     animation: lift 200ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   @keyframes fade {
@@ -1388,7 +1393,7 @@ textarea {
 
 /* Edit dialog ------------------------------------------------------------------ */
 
-.modal-body {
+.sheet-body {
   padding: var(--gap-md);
   overflow-y: auto;
   display: flex;
@@ -1397,7 +1402,7 @@ textarea {
   min-height: 0;
 }
 
-.modal-foot {
+.sheet-foot {
   display: flex;
   justify-content: flex-end;
   gap: var(--gap-sm);
@@ -1419,10 +1424,10 @@ textarea {
  * question at a time, generous everywhere. In a ten-field dialog that spacing
  * means three fields visible and a scrollbar, which is what this is fixing.
  *
- * Everything here is scoped to .edit-modal so the onboarding flow keeps the
+ * Everything here is scoped to .sheet-edit so the onboarding flow keeps the
  * airier treatment it was designed with.
  */
-.edit-modal {
+.sheet-edit {
   width: min(680px, 100%);
   /*
    * Height comes from the content. A min-height was tried so short sections
@@ -1433,9 +1438,8 @@ textarea {
   max-height: min(88vh, 900px);
 }
 
-.edit-modal .modal-body {
-  padding: var(--gap-md) var(--gap-lg);
-  gap: var(--gap-md);
+.sheet-edit .sheet-body {
+  gap: var(--gap-sm);
 }
 
 /*
@@ -1444,13 +1448,13 @@ textarea {
  * collapses to one column — the layout should not depend on arithmetic that
  * close to its threshold.
  */
-.edit-modal .form-grid {
+.sheet-edit .form-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--gap-sm) var(--gap-md);
 }
 
 @media (max-width: 560px) {
-  .edit-modal .form-grid {
+  .sheet-edit .form-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -1463,8 +1467,8 @@ textarea {
  * not scanned — uppercase with tracking is measurably slower to read and was
  * making a simple form look like a control panel.
  */
-.edit-modal .ob-field,
-.edit-modal .ob-choice legend {
+.sheet-edit .ob-field,
+.sheet-edit .ob-choice legend {
   gap: 0.3rem;
   font-size: var(--step--1);
   font-weight: 650;
@@ -1473,9 +1477,9 @@ textarea {
   color: var(--text);
 }
 
-.edit-modal .ob-field input,
-.edit-modal .ob-field select,
-.edit-modal .ob-field textarea {
+.sheet-edit .ob-field input,
+.sheet-edit .ob-field select,
+.sheet-edit .ob-field textarea {
   padding: 0.6rem 0.75rem;
   font-size: var(--step--1);
   border-radius: 8px;
@@ -1484,60 +1488,61 @@ textarea {
   width: 100%;
 }
 
-.edit-modal .ob-field input::placeholder {
+.sheet-edit .ob-field input::placeholder {
   color: var(--muted);
 }
 
-/* Row rhythm: enough between fields to group label with input, not so much
-   that a six-field section needs scrolling. */
-.edit-modal .form-grid {
-  gap: var(--gap-md) var(--gap-md);
+/* Enough to group a label with its input, not so much that a six-field
+   section needs scrolling. */
+.sheet-edit .form-grid {
+  gap: var(--gap-sm) var(--gap-md);
 }
 
 /* Yes/no groups and money rows read as one field each, not three. */
-.edit-modal .ob-choice {
+.sheet-edit .ob-choice {
   gap: 0.3rem;
 }
 
-.edit-modal .ob-choice legend {
+.sheet-edit .ob-choice legend {
   margin-bottom: 0.4rem;
 }
 
-.edit-modal .ob-choice-row button {
+.sheet-edit .ob-choice-row button {
   padding: 0.4rem 0.75rem;
   font-size: var(--step--1);
 }
 
-.edit-modal .money-row {
+.sheet-edit .money-row {
   gap: var(--gap-xs);
 }
 
-.edit-modal .link-grid {
+.sheet-edit .link-grid {
   gap: var(--gap-sm);
 }
 
-.edit-modal .modal-head,
-.edit-modal .modal-foot {
-  padding-inline: var(--gap-lg);
+.sheet-edit .sheet-head,
+.sheet-edit .sheet-foot,
+.sheet-edit .sheet-body {
+  padding-inline: var(--gap-md);
 }
 
-.edit-modal .modal-head {
-  padding-block: var(--gap-md);
+.sheet-edit .sheet-head {
+  padding-block: var(--gap-sm);
   border-bottom: none;
 }
 
-.edit-modal .modal-head strong {
+.sheet-edit .sheet-head strong {
   font-size: var(--step-1);
   letter-spacing: -0.02em;
 }
 
 /* No top rule either: the buttons are clearly a footer by position, and two
    horizontal lines in a short dialog cut it into three thin bands. */
-.edit-modal .modal-foot {
-  padding-block: var(--gap-md);
+.sheet-edit .sheet-foot {
+  padding-block: var(--gap-sm);
   border-top: none;
 }
 
-.edit-modal .modal-body {
+.sheet-edit .sheet-body {
   padding-block: 0;
 }
