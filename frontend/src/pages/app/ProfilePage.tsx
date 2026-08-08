@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   PROFILE_REGIONS,
   profileReadiness,
@@ -18,8 +18,10 @@ import {
   BuildingIcon,
   CalendarIcon,
   CapIcon,
+  CloseIcon,
   CoinIcon,
   FileTextIcon,
+  PencilIcon,
   GlobeIcon,
   GithubIcon,
   LinkIcon,
@@ -46,6 +48,19 @@ const REGION_LABELS: Record<ProfileRegion, string> = {
 };
 
 const PERIODS: PayPeriod[] = ['YEAR', 'MONTH', 'WEEK', 'DAY', 'HOUR'];
+
+/** Booleans read as words in a readout; "false" is not an answer people write. */
+function yesNo(value: boolean | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  return value ? 'Yes' : 'No';
+}
+
+/** Minor units back to something readable, currency first. */
+function money(value: { amountCents: number | null; currency: string | null } | undefined): string | null {
+  if (!value || value.amountCents === null) return null;
+  const amount = (value.amountCents / 100).toLocaleString();
+  return [value.currency, amount].filter(Boolean).join(' ');
+}
 
 type SectionId =
   | 'contact'
@@ -99,6 +114,22 @@ export function ProfilePage() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Could not load your profile'))
       .finally(() => setLoading(false));
   }, []);
+
+  /*
+   * What the draft looked like when an edit dialog opened. Cancel restores it,
+   * which is the only way a cancel button can mean anything — inputs write
+   * straight into the draft as you type.
+   */
+  const snapshot = useRef<ProfileInput | null>(null);
+
+  const beginEdit = () => {
+    snapshot.current = draft;
+  };
+
+  const cancelEdit = () => {
+    if (snapshot.current) setDraft(snapshot.current);
+    snapshot.current = null;
+  };
 
   function patch(fields: ProfileInput) {
     setDraft((current) => ({ ...current, ...fields }));
@@ -211,7 +242,23 @@ export function ProfilePage() {
           <ExtensionBanner />
 
 
-      <Group id="contact" title="Contact" icon={<UserIcon />} tone="a" hint="Goes into the contact fields on every application.">
+      <EditSection
+        id="contact"
+        title="Contact"
+        icon={<UserIcon />}
+        tone="a"
+        hint="Goes into the contact fields on every application."
+        saving={saving}
+        onCancel={cancelEdit}
+        onSave={save}
+        values={[
+          ['Name', [draft.firstName, draft.lastName].filter(Boolean).join(' ')],
+          ['Preferred name', draft.preferredName],
+          ['Email', draft.email],
+          ['Phone', draft.phone],
+          ['Address', [draft.addressLine1, draft.city, draft.state, draft.postalCode, draft.country].filter(Boolean).join(', ')],
+        ]}
+      >
         <div className="form-grid">
           <Text label="First name" value={draft.firstName} onChange={(v) => patch({ firstName: v })} />
           <Text label="Last name" value={draft.lastName} onChange={(v) => patch({ lastName: v })} />
@@ -224,18 +271,27 @@ export function ProfilePage() {
           <Text label="Postal code" value={draft.postalCode} onChange={(v) => patch({ postalCode: v })} />
           <Text label="Country" value={draft.country} onChange={(v) => patch({ country: v })} />
         </div>
-      </Group>
+      </EditSection>
 
       <div id="resumes">
         <Resumes />
       </div>
 
-      <Group
+      <EditSection
         id="links"
         title="Portfolio & links"
         icon={<LinkIcon />}
         tone="e"
         hint="Asked for constantly, tedious to retype."
+        saving={saving}
+        onCancel={cancelEdit}
+        onSave={save}
+        values={[
+          ['LinkedIn', draft.linkedinUrl],
+          ['GitHub', draft.githubUrl],
+          ['Portfolio', draft.portfolioUrl],
+          ['Other', draft.otherUrl],
+        ]}
       >
         <div className="link-grid">
           <LinkCard
@@ -270,19 +326,40 @@ export function ProfilePage() {
             onChange={(v) => patch({ otherUrl: v })}
           />
         </div>
-      </Group>
+      </EditSection>
 
-      <Group title="Current role">
+      <EditSection
+        title="Current role"
+        icon={<BuildingIcon />}
+        tone="b"
+        saving={saving}
+        onCancel={cancelEdit}
+        onSave={save}
+        values={[
+          ['Title', draft.currentTitle],
+          ['Company', draft.currentCompany],
+        ]}
+      >
         <div className="form-grid">
           <Text label="Job title" value={draft.currentTitle} onChange={(v) => patch({ currentTitle: v })} />
           <Text label="Company" value={draft.currentCompany} onChange={(v) => patch({ currentCompany: v })} />
         </div>
-      </Group>
+      </EditSection>
 
-      <Group
-        id="eligibility" icon={<GlobeIcon />} tone="c"
+      <EditSection
+        id="eligibility"
+        icon={<GlobeIcon />}
+        tone="c"
         title="Work eligibility"
         hint="The questions that filter applications automatically, so worth getting right."
+        saving={saving}
+        onCancel={cancelEdit}
+        onSave={save}
+        values={[
+          ['Authorised to work', yesNo(draft.authorizedToWork)],
+          ['Needs sponsorship', yesNo(draft.requiresSponsorship)],
+          ['Will relocate', yesNo(draft.willingToRelocate)],
+        ]}
       >
         <YesNo
           label="Authorised to work without sponsorship"
@@ -329,9 +406,26 @@ export function ProfilePage() {
             })}
           </div>
         </fieldset>
-      </Group>
+      </EditSection>
 
-      <Group id="availability" title="Availability" icon={<CalendarIcon />} tone="e">
+      <EditSection
+        id="availability"
+        title="Availability"
+        icon={<CalendarIcon />}
+        tone="e"
+        saving={saving}
+        onCancel={cancelEdit}
+        onSave={save}
+        values={[
+          [
+            'Notice period',
+            draft.availability?.noticePeriodDays != null
+              ? `${draft.availability.noticePeriodDays} days`
+              : null,
+          ],
+          ['Earliest start', draft.availability?.earliestStartDate],
+        ]}
+      >
         <div className="form-grid">
           <NumberField
             label="Notice period (days)"
@@ -353,12 +447,21 @@ export function ProfilePage() {
             onChange={(v) => patch({ availability: { ...defaults(draft), lastWorkingDay: v } })}
           />
         </div>
-      </Group>
+      </EditSection>
 
-      <Group
-        id="compensation" icon={<CoinIcon />} tone="b"
+      <EditSection
+        id="compensation"
+        icon={<CoinIcon />}
+        tone="b"
         title="Compensation"
         hint="Stored in whole units of the currency. Forms asking in lakhs get the converted figure."
+        saving={saving}
+        onCancel={cancelEdit}
+        onSave={save}
+        values={[
+          ['Current', money(draft.compensation?.current)],
+          ['Expected', money(draft.compensation?.expected)],
+        ]}
       >
         <Money
           label="Current"
@@ -384,7 +487,7 @@ export function ProfilePage() {
             })
           }
         />
-      </Group>
+      </EditSection>
 
       <div id="experience">
         <ExperienceSection
@@ -425,7 +528,16 @@ export function ProfilePage() {
       </div>
 
       {(draft.savedAnswers?.length ?? 0) > 0 && (
-        <Group title="Saved answers" hint="Reused when the same question comes up again.">
+        <section className="panel form-group">
+          <div className="form-group-head">
+            <div className="group-title">
+              <span className="tile-icon tile-icon-sm" data-tone="f">
+                <FileTextIcon />
+              </span>
+              <h2>Saved answers</h2>
+            </div>
+            <p className="muted">Reused when the same question comes up again.</p>
+          </div>
           <ul className="entry-list">
             {draft.savedAnswers?.map((answer) => (
               <li key={answer.id}>
@@ -444,7 +556,7 @@ export function ProfilePage() {
               </li>
             ))}
           </ul>
-        </Group>
+        </section>
       )}
 
         </div>
@@ -480,12 +592,29 @@ function defaults(draft: ProfileInput) {
   );
 }
 
-function Group({
+/**
+ * A profile section: values on the page, inputs in a modal.
+ *
+ * A profile is read far more often than it is edited — you come here to check
+ * what autofill will send, and occasionally to correct one thing. Showing
+ * every field as a live input makes the common case look like unfinished work
+ * and buries the actual content in chrome.
+ *
+ * So the panel renders what you have, and the pencil opens the same inputs in
+ * a dialog. Cancel restores the snapshot taken when it opened, which is the
+ * behaviour a cancel button has to have — without it, "cancel" would leave
+ * every keystroke already applied to the draft.
+ */
+function EditSection({
   id,
   title,
   hint,
   icon,
   tone,
+  values,
+  onCancel,
+  onSave,
+  saving,
   children,
 }: {
   id?: string;
@@ -493,38 +622,109 @@ function Group({
   hint?: string;
   icon?: React.ReactNode;
   tone?: string;
+  /** Label/value pairs shown when the section is not being edited. */
+  values: [string, string | null | undefined][];
+  onCancel: () => void;
+  onSave: () => Promise<void> | void;
+  saving: boolean;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+
+  const close = () => {
+    onCancel();
+    setOpen(false);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  const filled = values.filter(([, value]) => value);
+
   return (
     <section className="panel form-group" id={id}>
-      <div className="form-group-head">
-        <div className="group-title">
-          {icon && (
-            <span className="tile-icon tile-icon-sm" data-tone={tone}>
-              {icon}
-            </span>
-          )}
-          <h2>{title}</h2>
+      <div className="form-group-head section-head-row">
+        <div className="group-title-block">
+          <div className="group-title">
+            {icon && (
+              <span className="tile-icon tile-icon-sm" data-tone={tone}>
+                {icon}
+              </span>
+            )}
+            <h2>{title}</h2>
+          </div>
+          {hint && <p className="muted">{hint}</p>}
         </div>
-        {hint && <p className="muted">{hint}</p>}
+
+        <button
+          className="icon-action"
+          onClick={() => setOpen(true)}
+          aria-label={`Edit ${title.toLowerCase()}`}
+          title="Edit"
+        >
+          <PencilIcon />
+        </button>
       </div>
-      {children}
+
+      {filled.length === 0 ? (
+        <p className="muted">Nothing added yet.</p>
+      ) : (
+        <dl className="field-readout">
+          {filled.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {open && (
+        <div className="modal-backdrop" onClick={close} role="dialog" aria-modal="true" aria-label={title}>
+          <div className="modal edit-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="modal-head">
+              <strong>{title}</strong>
+              <button className="icon-action" onClick={close} aria-label="Close" title="Close">
+                <CloseIcon />
+              </button>
+            </header>
+
+            <div className="modal-body">{children}</div>
+
+            <footer className="modal-foot">
+              <button className="btn btn-ghost" onClick={close}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={saving}
+                onClick={() => {
+                  void Promise.resolve(onSave()).then(() => setOpen(false));
+                }}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
-/**
- * One link, as a card rather than a labelled input.
- *
- * Four URL fields in a column are indistinguishable at a glance — the label is
- * the only thing telling them apart, and it is the smallest text in the row.
- * A solid brand tile makes each one identifiable before any reading happens,
- * which is the whole job of this section.
- *
- * The tile is the service's own colour on a filled ground, not a tinted
- * outline: these are logos, and a logo in the wrong colour reads as a
- * different company.
- */
 function LinkCard({
   brand,
   label,

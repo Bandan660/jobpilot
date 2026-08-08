@@ -1341,3 +1341,71 @@ textarea {
 .profile-main > .ext-banner {
   margin-bottom: var(--gap-xs);
 }
+
+/* Section readouts ------------------------------------------------------------ */
+
+/*
+ * What a section holds, when it is not being edited.
+ *
+ * A definition list rather than a grid of disabled inputs: this is content to
+ * read, and a boxed control implies something you can type into. Only fields
+ * with a value appear — blank rows are noise, and the sidebar already reports
+ * what is missing.
+ */
+.field-readout {
+  display: grid;
+  gap: var(--gap-sm) var(--gap-lg);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 560px) {
+  .field-readout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.field-readout dt {
+  font-size: var(--step--2);
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field-readout dd {
+  font-size: var(--step--1);
+  color: var(--text);
+  margin-top: 1px;
+  /* URLs and long addresses must wrap rather than widen the column. */
+  overflow-wrap: anywhere;
+}
+
+/* Edit dialog ------------------------------------------------------------------ */
+
+.edit-modal {
+  width: min(680px, 100%);
+}
+
+.modal-body {
+  padding: var(--gap-md);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  min-height: 0;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gap-sm);
+  padding: var(--gap-sm) var(--gap-md);
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+/* The head already carries a close control, so the pencil sits with the
+   section title rather than floating over the content. */
+.form-group .section-head-row > .icon-action {
+  flex-shrink: 0;
+}
