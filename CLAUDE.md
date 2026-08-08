@@ -129,6 +129,17 @@ in makes the largest element invisible during measurement. `Reveal` has an
 Without it, pages emit the site root as their canonical — silent duplicate
 content across the whole site.
 
+**Watch mode did not re-copy static files** until this was fixed. esbuild only
+watches what it bundles, so `manifest.json`, `popup.html` and `popup.css`
+were copied once at startup — editing the manifest mid-session left `dist`
+holding the old one, and the extension loaded without a permission the source
+plainly had. `build.mjs` now watches those three explicitly.
+
+**LinkedIn's selectors will rot.** It ships hashed class names that change
+without notice, so `adapters/linkedin.ts` carries several fallbacks per field
+ending in something structural. When capture starts returning nulls there,
+suspect the selectors before anything else.
+
 **Any API origin the extension uses must be in `host_permissions`.** The
 extension shipped defaulting to `localhost:8787` with no production origin
 declared, which made it non-functional on install — and silently, because a

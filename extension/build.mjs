@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild';
+import { watch as watchFile } from 'node:fs';
 import { cp, mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,7 +48,33 @@ if (watch) {
     await ctx.watch();
   }
   await copyStatic();
-  console.log('Watching for changes...');
+
+  /*
+   * esbuild only watches what it bundles, so manifest.json, popup.html and
+   * popup.css were copied once at startup and never again. Editing the
+   * manifest mid-session left dist holding the old one — the extension would
+   * load without a permission or a content-script match that the source
+   * clearly had, which reads as the change simply not working.
+   */
+  const staticFiles = [
+    resolve(root, 'manifest.json'),
+    resolve(root, 'src/popup.html'),
+    resolve(root, 'src/popup.css'),
+  ];
+
+  let pending;
+  for (const file of staticFiles) {
+    watchFile(file, () => {
+      // Editors write in bursts (truncate, then write), so a debounce avoids
+      // copying a half-written file.
+      clearTimeout(pending);
+      pending = setTimeout(() => {
+        void copyStatic().then(() => console.log('[watch] static files copied'));
+      }, 120);
+    });
+  }
+
+  console.log('Watching for changes (including manifest and popup assets)...');
 } else {
   await Promise.all(builds.map((build) => esbuild.build({ ...shared, ...build })));
   await copyStatic();
