@@ -3,15 +3,20 @@
   "name": "jobpilot - Autofill & Job Application Tracker",
   "version": "0.1.0",
   "description": "Autofills job applications from one profile, warns you before you apply twice, and tells you when a posting comes down.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
+    "https://jobpilot-api.jobpilot.workers.dev/*",
     "https://boards.greenhouse.io/*",
     "https://job-boards.greenhouse.io/*",
     "https://jobs.lever.co/*",
     "https://jobs.ashbyhq.com/*",
     "http://localhost:8787/*"
   ],
-  "optional_host_permissions": ["https://*/*"],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -44,7 +49,9 @@
         "https://www.hirist.tech/*",
         "https://www.seek.com.au/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],

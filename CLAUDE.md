@@ -129,6 +129,13 @@ in makes the largest element invisible during measurement. `Reveal` has an
 Without it, pages emit the site root as their canonical — silent duplicate
 content across the whole site.
 
+**Any API origin the extension uses must be in `host_permissions`.** The
+extension shipped defaulting to `localhost:8787` with no production origin
+declared, which made it non-functional on install — and silently, because a
+blocked fetch is indistinguishable from a network error. The default is the
+deployed Worker now; localhost stays declared so the popup override still works
+for development.
+
 **PowerShell mangles UTF-8.** Editing files through `Get-Content`/`Set-Content`
 double-encodes punctuation. Use Node or the editing tools for source files.
 
