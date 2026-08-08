@@ -1,6 +1,7 @@
 import type {
   CapturedJob,
   DuplicateCheckResponse,
+  DuplicateMatch,
   CaptureResponse,
   Profile,
 } from '@jobpilot/shared';
@@ -10,6 +11,7 @@ import { autofill, previewCoverage } from './autofill/index.js';
 import { SPA_POLL_INTERVAL_MS, SPA_RENDER_TIMEOUT_MS } from './config.js';
 import { send, type AutofillSummary, type Message } from './messages.js';
 import { renderBanner, removeBanner } from './ui/banner.js';
+import { renderPanel, removePanel } from './ui/panel.js';
 
 /**
  * Post-submit text that ATSs render on success. Used alongside each adapter's
@@ -166,7 +168,7 @@ function watchForSubmit(adapter: JobAdapter, getJob: () => CapturedJob | null): 
 
 /* ------------------------------ duplicates ------------------------------ */
 
-async function checkDuplicates(job: CapturedJob): Promise<void> {
+async function checkDuplicates(job: CapturedJob): Promise<DuplicateMatch | null> {
   const result = await send<DuplicateCheckResponse>({
     type: 'CHECK_DUPLICATE',
     payload: { jobUrl: job.jobUrl, company: job.company, title: job.title },
@@ -174,23 +176,48 @@ async function checkDuplicates(job: CapturedJob): Promise<void> {
 
   // Silent on failure: this fires on page load and the user did not ask for
   // it, so a network error must not interrupt them.
-  if (!result.ok || result.data.matches.length === 0) return;
+  if (!result.ok || result.data.matches.length === 0) return null;
+  return result.data.matches[0];
+}
 
-  const strongest = result.data.matches[0];
-  if (strongest.confidence === 'SAME_COMPANY') {
-    renderBanner({
-      tone: 'info',
-      title: `You've applied to ${strongest.companyName} before`,
-      body: `${strongest.title} - ${strongest.daysAgo ?? '?'} days ago (${strongest.status.toLowerCase()})`,
-    });
-    return;
-  }
+/* ------------------------------- side panel ------------------------------ */
 
-  renderBanner({
-    tone: 'warning',
-    title: 'You already applied to this role',
-    body: `${strongest.title} at ${strongest.companyName}, ${strongest.daysAgo ?? '?'} days ago - currently ${strongest.status.toLowerCase()}`,
+/**
+ * Open the panel by itself once there is something worth acting on.
+ *
+ * The bar for appearing unprompted is deliberately high: a real job page, a
+ * signed-in user, and an actual form on screen. Anything less and this is a
+ * panel covering a third of someone's window to tell them it cannot help.
+ */
+async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null): Promise<void> {
+  const session = await send<{ authenticated: boolean; email: string | null }>({
+    type: 'GET_SESSION',
   });
+  if (!session.ok || !session.data.authenticated) return;
+
+  const profile = await loadProfile();
+  if (!profile) return;
+
+  const coverage = previewCoverage(profile);
+  // No form on the page yet — this is the posting, not the application.
+  if (coverage.total === 0 && !duplicate) return;
+
+  await renderPanel(
+    { job, coverage, email: session.data.email, duplicate },
+    {
+      onFill: async (overwrite) => {
+        const summary = await runAutofill(overwrite, { silent: true });
+        return { filled: summary.filled, unanswered: summary.unanswered.length };
+      },
+      onSave: async () => {
+        await doCapture(job, false);
+        return true;
+      },
+      onSignOut: () => {
+        void send({ type: 'LOGOUT' }).then(() => removePanel());
+      },
+    }
+  );
 }
 
 /* --------------------------------- init --------------------------------- */
@@ -199,6 +226,7 @@ async function init(): Promise<void> {
   teardown?.();
   teardown = null;
   removeBanner();
+  removePanel();
   captured = false;
   currentJob = null;
 
@@ -215,7 +243,9 @@ async function init(): Promise<void> {
   if (pageLooksConfirmed(adapter)) {
     void doCapture(job, true);
   } else {
-    void checkDuplicates(job);
+    // Panel first, then the duplicate result folds into it — two overlapping
+    // floating surfaces on one page is worse than either alone.
+    void checkDuplicates(job).then((duplicate) => maybeShowPanel(job, duplicate));
   }
 
   teardown = watchForSubmit(adapter, () => currentJob);
@@ -261,7 +291,10 @@ async function loadProfile(): Promise<Profile | null> {
  * decision to send an application stays a deliberate click, which is also what
  * keeps this from becoming a mass-application tool.
  */
-async function runAutofill(overwrite: boolean): Promise<AutofillSummary> {
+async function runAutofill(
+  overwrite: boolean,
+  options: { silent?: boolean } = {}
+): Promise<AutofillSummary> {
   const profile = await loadProfile();
   if (!profile) {
     renderBanner({
@@ -276,6 +309,10 @@ async function runAutofill(overwrite: boolean): Promise<AutofillSummary> {
 
   const parts = [`${result.filled} field${result.filled === 1 ? '' : 's'} filled`];
   if (result.skipped > 0) parts.push(`${result.skipped} already had a value`);
+
+  if (options.silent) {
+    return { filled: result.filled, skipped: result.skipped, unanswered: result.unanswered };
+  }
 
   renderBanner({
     tone: result.filled > 0 ? 'success' : 'info',
