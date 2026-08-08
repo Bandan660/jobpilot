@@ -12,6 +12,21 @@ export interface JobAdapter {
   isJobPage(url: URL): boolean;
   /** CSS-selector extraction. Only fills what JSON-LD did not provide. */
   extract(doc: Document, url: URL): Partial<CapturedJob>;
+  /**
+   * Which posting the URL is asking for, and which one the DOM is actually
+   * showing. Both, because they disagree during a single-page navigation.
+   *
+   * Clicking a different result on LinkedIn changes the URL immediately and
+   * re-renders the detail pane a moment later. A scrape taken in between reads
+   * the *previous* posting and looks perfectly valid — so extraction is
+   * retried until these two agree.
+   *
+   * renderedExternalId MUST read from the document. Deriving it from the URL
+   * makes the comparison trivially true and the guard useless.
+   */
+  expectedExternalId?(url: URL): string | null;
+  renderedExternalId?(doc: Document): string | null;
+
   /** Elements whose presence means the application went through. */
   confirmationSelectors: string[];
   /**

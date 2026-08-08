@@ -84,13 +84,39 @@ function buildJob(adapter: JobAdapter, url: URL): CapturedJob | null {
 /** Waits for a client-rendered posting; resolves as soon as content appears. */
 async function waitForJob(adapter: JobAdapter, url: URL): Promise<CapturedJob | null> {
   const deadline = Date.now() + SPA_RENDER_TIMEOUT_MS;
+  const expected = adapter.expectedExternalId?.(url) ?? null;
+
+  let stale: CapturedJob | null = null;
 
   while (Date.now() < deadline) {
+    // Bail if the user has moved on again while we were waiting.
+    if (window.location.href !== url.href) return null;
+
     const job = buildJob(adapter, url);
-    if (job) return job;
+
+    if (job) {
+      /*
+       * The heart of the SPA fix. A job that reads cleanly but belongs to the
+       * posting you were looking at a second ago is worse than none: it is
+       * indistinguishable from a correct one, and it is what gets saved.
+       */
+      const rendered = adapter.renderedExternalId?.(document) ?? null;
+
+      /*
+       * Only reject when the DOM positively says it is showing a different
+       * posting. A null rendered id means "cannot tell" — refusing on that
+       * would break every layout where the attribute is absent.
+       */
+      if (!expected || !rendered || rendered === expected) return job;
+      stale = job;
+    }
+
     await new Promise((resolve) => setTimeout(resolve, SPA_POLL_INTERVAL_MS));
   }
 
+  if (stale) {
+    debug('pane never caught up with the URL; ignoring stale scrape for', stale.title);
+  }
   return null;
 }
 
@@ -386,6 +412,14 @@ function watchNavigation(): void {
     lastUrl = window.location.href;
     void init();
   };
+
+  /*
+   * Patching history is necessary but not sufficient. LinkedIn changes the
+   * visible posting in ways that do not always reach these hooks — a framework
+   * that captured pushState before this script ran still calls the original —
+   * so the URL is also polled. Cheap: a string compare a few times a second.
+   */
+  setInterval(onChange, 600);
 
   for (const method of ['pushState', 'replaceState'] as const) {
     const original = history[method];

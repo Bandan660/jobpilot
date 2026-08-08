@@ -73,6 +73,37 @@ export const linkedinAdapter: JobAdapter = {
     return jobIdFrom(url) !== null;
   },
 
+  expectedExternalId(url) {
+    return jobIdFrom(url);
+  },
+
+  /**
+   * The id the detail pane is currently rendering.
+   *
+   * Read from the DOM, never the URL — the whole point is catching the window
+   * where the two disagree. LinkedIn exposes it as a data attribute on the
+   * pane and, failing that, in the "save"/"apply" controls and any
+   * /jobs/view/{id} link inside the pane.
+   */
+  renderedExternalId(doc) {
+    const pane =
+      doc.querySelector('.jobs-search__job-details') ??
+      doc.querySelector('.job-view-layout') ??
+      doc.querySelector('main');
+    if (!pane) return null;
+
+    const attributed = pane.querySelector('[data-job-id], [data-occludable-job-id]');
+    const fromAttr =
+      attributed?.getAttribute('data-job-id') ??
+      attributed?.getAttribute('data-occludable-job-id') ??
+      null;
+    if (fromAttr && /^\d+$/.test(fromAttr)) return fromAttr;
+
+    const link = pane.querySelector<HTMLAnchorElement>('a[href*="/jobs/view/"]');
+    const fromLink = link?.getAttribute('href')?.match(/\/jobs\/view\/(\d+)/)?.[1];
+    return fromLink ?? null;
+  },
+
   extract(doc, url) {
     /*
      * Scope every lookup to the detail pane when there is one. In split view
