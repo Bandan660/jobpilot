@@ -28,12 +28,9 @@ GHOST_AFTER_DAYS = "30"
 
 # Resume storage. R2 has no egress fee, which matters because every autofill
 # that attaches a resume reads the object back out.
-# Uncomment once R2 is enabled in the Cloudflare dashboard and the bucket is
-# created (`wrangler r2 bucket create jobpilot-resumes`). Until then the
-# resume routes return 503 and the rest of the API deploys normally.
-# [[r2_buckets]]
-# binding = "RESUMES"
-# bucket_name = "jobpilot-resumes"
+[[r2_buckets]]
+binding = "RESUMES"
+bucket_name = "jobpilot-resumes"
 
 [observability]
 enabled = true

@@ -1,7 +1,12 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, ne } from 'drizzle-orm';
-import { MAX_RESUME_BYTES, RESUME_CONTENT_TYPES, type Resume } from '@jobpilot/shared';
+import {
+  MAX_RESUME_BYTES,
+  MAX_RESUMES_PER_USER,
+  RESUME_CONTENT_TYPES,
+  type Resume,
+} from '@jobpilot/shared';
 import { createDb } from '../db/client.js';
 import { resumes } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -94,6 +99,27 @@ resumeRoutes.post('/', async (c) => {
     });
   }
 
+  const db = createDb(c.env);
+
+  /*
+   * A ceiling per account, so free-tier storage stays bounded however many
+   * drafts someone keeps.
+   *
+   * Checked here, before the body is read and long before anything is written
+   * to R2. Rejecting after the put would leave an object with no row pointing
+   * at it, and nothing in this system ever collects those.
+   */
+  const owned = await db
+    .select({ id: resumes.id })
+    .from(resumes)
+    .where(eq(resumes.userId, userId));
+
+  if (owned.length >= MAX_RESUMES_PER_USER) {
+    throw new HTTPException(409, {
+      message: `You can keep ${MAX_RESUMES_PER_USER} resumes. Delete one to upload another.`,
+    });
+  }
+
   const bytes = await c.req.arrayBuffer();
 
   if (bytes.byteLength === 0) {
@@ -138,8 +164,6 @@ resumeRoutes.post('/', async (c) => {
     // Stored so an orphaned object can be traced back without the database.
     customMetadata: { userId, fileName },
   });
-
-  const db = createDb(c.env);
 
   const existing = await db
     .select({ id: resumes.id })

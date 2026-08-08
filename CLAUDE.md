@@ -148,6 +148,12 @@ without notice, so `adapters/linkedin.ts` carries several fallbacks per field
 ending in something structural. When capture starts returning nulls there,
 suspect the selectors before anything else.
 
+**Quota and size checks must run before the R2 write.** Rejecting an upload
+after `bucket.put()` leaves an object with no row pointing at it, and nothing
+in this system collects orphans. The upload handler's order is: count check,
+read body, size check, magic bytes, then put. Resumes are capped at 3MB and 5
+per account, which bounds free-tier storage at 15MB per user worst case.
+
 **Any API origin the extension uses must be in `host_permissions`.** The
 extension shipped defaulting to `localhost:8787` with no production origin
 declared, which made it non-functional on install — and silently, because a
@@ -221,12 +227,6 @@ dodge this.
 
 ## Known incomplete
 
-- **R2 is not enabled on the Cloudflare account.** Enabling it requires a card
-  on file even for the free tier. The `[[r2_buckets]]` binding is commented out
-  of `backend/wrangler.toml` because its absence failed the *entire* worker
-  deploy, not just the resume routes. Those routes return 503 until then. To
-  finish: enable R2 in the dashboard, `wrangler r2 bucket create
-  jobpilot-resumes`, uncomment the binding, deploy.
 - **Autofill has never been driven by a real profile end to end.** The editor
   and the API both exist now; nobody has filled one in and watched it fill a
   live form.

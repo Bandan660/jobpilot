@@ -237,7 +237,19 @@ export const RESUME_CONTENT_TYPES: Record<string, string> = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
 };
 
-export const MAX_RESUME_BYTES = 10 * 1024 * 1024;
+/*
+ * 3MB, down from 10MB.
+ *
+ * A text-based resume PDF is 80-400KB. Anything past a megabyte is a scan or
+ * an unflattened export, and neither reads better to an ATS — most parse them
+ * worse. The cap is generous against real documents while keeping the free
+ * 10GB of R2 meaningful: at this ceiling and five per account, storage is
+ * bounded at 15MB per user, and in practice closer to 1MB.
+ */
+export const MAX_RESUME_BYTES = 3 * 1024 * 1024;
+
+/** Kept per account. Older ones must be deleted before another is added. */
+export const MAX_RESUMES_PER_USER = 5;
 
 export interface Note {
   id: string;
