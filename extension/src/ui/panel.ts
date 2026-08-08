@@ -1,20 +1,21 @@
 import type { CapturedJob, DuplicateMatch } from '@jobpilot/shared';
 
 /**
- * In-page side panel.
+ * In-page side panel, opened from a button docked to the right edge.
+ *
+ * The button is the resting state and the panel is closed until it is clicked.
+ * Opening on its own was tried and dropped: a surface covering a third of the
+ * window before being asked for is the behaviour that gets extensions removed.
+ * What appears unprompted is the button, and only when there is genuinely
+ * something to do — a real job page, a signed-in user, a form on screen.
  *
  * WHY NOT chrome.sidePanel
  *
- * Chrome's own side panel is the obvious fit — real browser chrome, full
- * height, not overlapping the page. It cannot be used here, because
- * `chrome.sidePanel.open()` requires a user gesture and throws when called
- * from a page-load handler. A panel that only appears after you click the
- * toolbar is the popup we already had, in a different place.
- *
- * Appearing by itself when a form is detected is the entire request, so this
- * is a fixed-position element injected into the page instead. The cost is that
- * it overlays the page rather than shrinking it, which the collapse handle
- * exists to answer.
+ * Chrome's own side panel would be the better home for this — real browser
+ * chrome, full height, docked rather than overlapping. It is not usable from
+ * here: `chrome.sidePanel.open()` requires a user gesture, and the gesture has
+ * to reach the extension, which a click on a page-injected button does not do.
+ * Moving to it would mean opening from the toolbar icon only.
  *
  * ISOLATION
  *
@@ -226,27 +227,53 @@ const CSS = `
   }
   .link:hover { color: var(--text); }
 
-  /* Collapsed state: a slim handle clinging to the edge, so the panel can get
-     out of the way without being gone. */
+  /*
+   * The resting state: a launcher docked to the right edge. This is what the
+   * panel is by default — it opens only when asked, rather than taking a third
+   * of the window uninvited.
+   *
+   * Amber fill rather than the panel's dark surface, because at this size on
+   * an unknown page it has to be findable without being hunted for.
+   */
   .handle {
     position: absolute;
-    top: 50%; right: 0;
+    top: 50%; right: 14px;
     transform: translateY(-50%);
-    width: 30px;
-    padding: 14px 0;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-right: none;
-    border-radius: 9px 0 0 9px;
-    color: var(--signal);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 13px;
+    background: var(--signal);
+    color: var(--on-signal);
+    border: none;
+    border-radius: 999px;
     cursor: pointer;
-    display: grid; place-items: center; gap: 6px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), filter 160ms ease;
   }
-  .handle svg { width: 14px; height: 14px; }
+  .handle:hover { transform: translateY(-50%) scale(1.04); filter: brightness(1.06); }
+  .handle:active { transform: translateY(-50%) scale(0.98); }
+  .handle svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* Count of fillable fields — the one fact worth showing before opening. */
   .handle .count {
-    font-size: 10px; font-weight: 700;
-    writing-mode: vertical-rl;
-    color: var(--dim);
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One slow sweep so it registers as new without becoming a blinking
+     ornament on every page. */
+  @media (prefers-reduced-motion: no-preference) {
+    .handle { animation: pop 260ms cubic-bezier(0.22, 1, 0.36, 1); }
+    @keyframes pop {
+      from { opacity: 0; transform: translateY(-50%) translateX(14px); }
+    }
   }
 
   @media (prefers-reduced-motion: no-preference) {
@@ -285,7 +312,10 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
   const root = document.createElement('div');
   root.style.cssText = 'pointer-events: auto; height: 100%;';
 
-  let collapsed = false;
+  // Starts closed. The panel is opened by the button below, not by arriving on
+  // a page — covering a third of someone's window uninvited is the behaviour
+  // that makes extensions get uninstalled.
+  let collapsed = true;
 
   const paint = () => {
     root.innerHTML = '';
@@ -293,14 +323,31 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     if (collapsed) {
       const handle = document.createElement('button');
       handle.className = 'handle';
-      handle.setAttribute('aria-label', 'Open jobpilot');
-      handle.innerHTML = `${BOLT}<span class="count">${state.coverage.fillable}</span>`;
+      const label =
+        state.coverage.fillable > 0
+          ? `Autofill ${state.coverage.fillable} fields with jobpilot`
+          : 'Open jobpilot';
+      handle.setAttribute('aria-label', label);
+      handle.title = label;
+      handle.innerHTML = BOLT;
+      handle.append(document.createTextNode('Autofill'));
+
+      if (state.coverage.fillable > 0) {
+        const count = document.createElement('span');
+        count.className = 'count';
+        count.textContent = String(state.coverage.fillable);
+        handle.append(count);
+      }
+
       handle.addEventListener('click', () => {
         collapsed = false;
         paint();
       });
+
       root.append(handle);
-      host.style.width = '30px';
+      // Narrow host while closed, so the page stays clickable everywhere the
+      // button is not.
+      host.style.width = '200px';
       return;
     }
 

@@ -183,11 +183,11 @@ async function checkDuplicates(job: CapturedJob): Promise<DuplicateMatch | null>
 /* ------------------------------- side panel ------------------------------ */
 
 /**
- * Open the panel by itself once there is something worth acting on.
+ * Mount the launcher once there is something worth acting on.
  *
- * The bar for appearing unprompted is deliberately high: a real job page, a
- * signed-in user, and an actual form on screen. Anything less and this is a
- * panel covering a third of someone's window to tell them it cannot help.
+ * This shows the button, not the panel — the panel opens on click. The bar is
+ * still deliberately high: a real job page, a signed-in user, and an actual
+ * form on screen. Below that, even a button is clutter on someone else's site.
  */
 async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null): Promise<void> {
   const session = await send<{ authenticated: boolean; email: string | null }>({
