@@ -114,9 +114,40 @@ export const linkedinAdapter: JobAdapter = {
     ]);
     const location = rawLocation ? (rawLocation.split('·')[0]?.trim() ?? null) : null;
 
+    /*
+     * Last resort: the document title and og:title.
+     *
+     * LinkedIn writes "Acme hiring Software Engineer in Bengaluru | LinkedIn",
+     * which survives every class-name change the site has ever made. Without
+     * this, one renamed hashed class means no title, no company, and
+     * buildJob() discards the page entirely — the extension goes silent rather
+     * than degrading.
+     */
+    let fallbackTitle: string | null = null;
+    let fallbackCompany: string | null = null;
+
+    if (!title || !company) {
+      const meta = doc
+        .querySelector('meta[property="og:title"]')
+        ?.getAttribute('content')
+        ?.trim();
+      const raw = (meta || doc.title || '').replace(/\s*\|\s*LinkedIn\s*$/i, '').trim();
+
+      // Strip the unread-message counter LinkedIn prefixes: "(21) ".
+      const cleaned = raw.replace(/^\(\d+\)\s*/, '');
+
+      const hiring = cleaned.match(/^(.+?)\s+hiring\s+(.+?)(?:\s+in\s+.+)?$/i);
+      if (hiring) {
+        fallbackCompany = hiring[1]?.trim() ?? null;
+        fallbackTitle = hiring[2]?.trim() ?? null;
+      } else if (cleaned && !/^jobs?$/i.test(cleaned)) {
+        fallbackTitle = cleaned;
+      }
+    }
+
     const result: Partial<CapturedJob> = {
-      title,
-      company: company?.replace(/\s+/g, ' ').trim() ?? null,
+      title: title ?? fallbackTitle,
+      company: (company ?? fallbackCompany)?.replace(/\s+/g, ' ').trim() ?? null,
       location,
       externalId: jobIdFrom(url),
     };

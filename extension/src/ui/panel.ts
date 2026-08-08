@@ -323,16 +323,23 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     if (collapsed) {
       const handle = document.createElement('button');
       handle.className = 'handle';
-      const label =
-        state.coverage.fillable > 0
-          ? `Autofill ${state.coverage.fillable} fields with jobpilot`
-          : 'Open jobpilot';
+
+      /*
+       * The label tracks what is actually on the page. On a LinkedIn posting
+       * there is no form until Easy Apply is clicked, so promising "Autofill"
+       * there would be a button that cannot do what it says.
+       */
+      const hasFields = state.coverage.fillable > 0;
+      const label = hasFields
+        ? `Autofill ${state.coverage.fillable} fields with jobpilot`
+        : 'Open jobpilot — save this job or check for duplicates';
+
       handle.setAttribute('aria-label', label);
       handle.title = label;
       handle.innerHTML = BOLT;
-      handle.append(document.createTextNode('Autofill'));
+      handle.append(document.createTextNode(hasFields ? 'Autofill' : 'jobpilot'));
 
-      if (state.coverage.fillable > 0) {
+      if (hasFields) {
         const count = document.createElement('span');
         count.className = 'count';
         count.textContent = String(state.coverage.fillable);

@@ -29,6 +29,18 @@ const CONFIRMATION_PHRASES = [
   'successfully submitted',
 ];
 
+/**
+ * Traces why the panel did or did not appear.
+ *
+ * Every early return in this file is a silent no-op from the user's side, and
+ * "nothing happened" is the hardest report to act on. Prefixed so it is
+ * greppable in a console that a job board has already filled with its own
+ * logging.
+ */
+function debug(...args: unknown[]): void {
+  console.info('[jobpilot]', ...args);
+}
+
 /** Per-page-load guard. The server is idempotent, this just avoids noise. */
 let captured = false;
 let teardown: (() => void) | null = null;
@@ -206,10 +218,12 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   const session = await send<{ authenticated: boolean; email: string | null }>({
     type: 'GET_SESSION',
   });
-  if (!session.ok || !session.data.authenticated) return;
+  if (!session.ok || !session.data.authenticated) {
+    return debug('signed out — sign in from the toolbar popup');
+  }
 
   const profile = await loadProfile();
-  if (!profile) return;
+  if (!profile) return debug('could not load your profile');
 
   /*
    * Scope to the Easy Apply dialog when it is open. LinkedIn's page carries a
@@ -219,8 +233,7 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   const modal = easyApplyModal();
   const coverage = previewCoverage(profile, modal ?? undefined);
 
-  // No form on the page yet — this is the posting, not the application.
-  if (coverage.total === 0 && !duplicate) return;
+  debug('coverage:', coverage.fillable, 'of', coverage.total, modal ? '(in Easy Apply)' : '');
 
   await renderPanel(
     { job, coverage, email: session.data.email, duplicate },
@@ -257,10 +270,15 @@ async function init(): Promise<void> {
 
   const url = new URL(window.location.href);
   const adapter = findAdapter(url);
-  if (!adapter || !adapter.isJobPage(url)) return;
+  if (!adapter) return debug('no adapter for', url.hostname);
+  if (!adapter.isJobPage(url)) return debug('not a job page:', url.pathname + url.search);
+
+  debug('adapter:', adapter.version);
 
   const job = await waitForJob(adapter, url);
-  if (!job) return;
+  if (!job) return debug('could not read a title or company from this page');
+
+  debug('job:', job.title, '@', job.company);
   currentJob = job;
 
   // Landing directly on a confirmation page means the ATS redirected after a
