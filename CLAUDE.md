@@ -142,6 +142,15 @@ happening. GSAP drives only what nothing else touches — hero parallax, the
 pinned waypoint markers, the counters, the progress bar. `.tile` and
 `.cta-panel` stay with `Reveal`.
 
+**`gl_PointSize` is in device pixels, and additive blending vanishes on
+light backgrounds.** Both bit the hero field at once and between them rendered
+a single visible dot. Point size must be multiplied by the capped
+`devicePixelRatio`, the `vFade` smoothstep range must match the depth the
+grid actually occupies from that camera (rows past the far edge draw nothing),
+and blending must be `NormalBlending` — amber added to the light theme's
+near-white hero is still white. Check the numbers arithmetically before
+deploying; the site is unusable for checking this by eye from here.
+
 **three and gsap must stay dynamically imported.** three is ~190KB gzipped —
 larger than the entire rest of the site. Statically importing either one pulls
 it into the entry chunk and blocks first paint. After changing anything in

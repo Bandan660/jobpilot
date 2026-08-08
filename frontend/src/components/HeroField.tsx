@@ -26,6 +26,7 @@ import { useEffect, useRef } from 'react';
 const VERTEX = /* glsl */ `
   uniform float uTime;
   uniform float uScroll;
+  uniform float uPixelRatio;
   attribute float aScale;
   varying float vFade;
 
@@ -44,11 +45,18 @@ const VERTEX = /* glsl */ `
     gl_Position = projectionMatrix * mv;
 
     // Perspective-correct sizing, so distant points genuinely recede.
-    gl_PointSize = aScale * (26.0 / max(-mv.z, 0.1));
+    //
+    // The constant and the pixel ratio both matter. gl_PointSize is in device
+    // pixels, not CSS pixels, so on a 2x display a point sized for CSS pixels
+    // comes out half the intended size. Getting this wrong once already made
+    // the whole field sub-pixel and therefore invisible.
+    gl_PointSize = aScale * uPixelRatio * (90.0 / max(-mv.z, 0.1));
 
     // Fades at both ends: distant points into the background, near ones out of
-    // the camera rather than sliding past at full brightness.
-    vFade = smoothstep(64.0, 10.0, -mv.z) * smoothstep(2.0, 8.0, -mv.z);
+    // frame rather than sliding past at full brightness. The numbers track the
+    // actual depth range the grid occupies from this camera (~21 to ~65) — set
+    // wider than the geometry and the far half simply never draws.
+    vFade = smoothstep(70.0, 14.0, -mv.z) * smoothstep(16.0, 32.0, -mv.z);
   }
 `;
 
@@ -124,7 +132,8 @@ export function HeroField() {
       }
 
       // Capped: past 2x the extra pixels are invisible and the fill cost is real.
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      const pixelRatio = Math.min(window.devicePixelRatio, 2);
+      renderer.setPixelRatio(pixelRatio);
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 120);
@@ -133,7 +142,9 @@ export function HeroField() {
 
       /* A grid of points laid flat, receding from the camera. */
       const COLS = 96;
-      const ROWS = 64;
+      // Depth is bounded by what the fade above can actually show; rows beyond
+      // that are cost with no picture.
+      const ROWS = 48;
       const SPACING = 0.92;
       const count = COLS * ROWS;
 
@@ -163,6 +174,7 @@ export function HeroField() {
       const uniforms = {
         uTime: { value: 0 },
         uScroll: { value: 0 },
+        uPixelRatio: { value: pixelRatio },
         uColor: { value: new THREE.Color(r, g, b) },
         uOpacity: { value: 0 },
       };
@@ -173,7 +185,11 @@ export function HeroField() {
         fragmentShader: FRAGMENT,
         transparent: true,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        // Normal, not additive. Additive blending adds light to what is behind
+        // it, which on the light theme's near-white hero means amber plus white
+        // is still white — the entire field disappears. Normal blending is
+        // slightly less luminous on the dark theme and correct on both.
+        blending: THREE.NormalBlending,
       });
 
       scene.add(new THREE.Points(geometry, material));
@@ -218,13 +234,16 @@ export function HeroField() {
       visibility.observe(parent);
 
       let frame = 0;
-      const clock = new THREE.Clock();
+      // performance.now() rather than THREE.Clock: Clock is deprecated in
+      // favour of THREE.Timer, and neither is worth importing for a single
+      // elapsed-seconds value.
+      const started = performance.now();
 
-      const tick = () => {
+      const tick = (now: number) => {
         frame = requestAnimationFrame(tick);
         if (!onScreen || document.hidden) return;
 
-        uniforms.uTime.value = clock.getElapsedTime();
+        uniforms.uTime.value = (now - started) / 1000;
         // Eased towards the target rather than assigned: scroll events are
         // coarse, and stepping between them is visible.
         uniforms.uScroll.value += (scrollTarget - uniforms.uScroll.value) * 0.06;
@@ -233,7 +252,7 @@ export function HeroField() {
 
         renderer.render(scene, camera);
       };
-      tick();
+      tick(started);
 
       cleanup = () => {
         cancelAnimationFrame(frame);
