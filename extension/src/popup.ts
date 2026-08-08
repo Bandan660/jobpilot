@@ -1,11 +1,4 @@
-import type { CapturedJob, CaptureResponse } from '@jobpilot/shared';
-import {
-  send,
-  type AutofillSummary,
-  type Message,
-  type Response,
-  type SessionState,
-} from './messages.js';
+import { send, type SessionState } from './messages.js';
 
 const root = document.getElementById('root')!;
 const account = document.getElementById('account')!;
@@ -21,25 +14,6 @@ function el<K extends keyof HTMLElementTagNameMap>(
   node.append(...children);
   return node;
 }
-
-/**
- * Send a message to the content script in the active tab.
- * Returns null when there is no content script there — an unsupported site, or
- * a page that was already open when the extension was installed.
- */
-async function sendToPage<T>(message: Message): Promise<T | null> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return null;
-
-  try {
-    const result = (await chrome.tabs.sendMessage(tab.id, message)) as Response<T>;
-    return result?.ok ? result.data : null;
-  } catch {
-    return null;
-  }
-}
-
-const getPageJob = () => sendToPage<CapturedJob | null>({ type: 'GET_PAGE_JOB' });
 
 function renderAuth(session: SessionState, mode: 'login' | 'signup' = 'login'): void {
   root.replaceChildren();
@@ -134,130 +108,51 @@ function apiSettings(session: SessionState): HTMLElement {
  * Autofill controls. Shown only when the page actually has fillable fields, so
  * the popup does not offer an action that would do nothing.
  */
-async function autofillPanel(): Promise<HTMLElement> {
-  const wrapper = el('div', { className: 'autofill' });
-  const coverage = await sendToPage<{ fillable: number; total: number }>({
-    type: 'GET_FORM_COVERAGE',
-  });
-
-  if (!coverage || coverage.total === 0) {
-    return el('div');
-  }
-
-  const status = el('p', { className: 'muted' });
-
-  if (coverage.fillable === 0) {
-    status.textContent =
-      'Found a form, but nothing in your profile matches it yet. Add your details in the tracker.';
-    wrapper.append(status);
-    return wrapper;
-  }
-
-  const button = el('button', {
-    textContent: `Fill ${coverage.fillable} of ${coverage.total} fields`,
-  });
-
-  const overwrite = el('input', { type: 'checkbox', id: 'overwrite' });
-  const overwriteRow = el('label', { className: 'inline', htmlFor: 'overwrite' }, [
-    overwrite,
-    document.createTextNode('Replace values I already typed'),
-  ]);
-
-  button.addEventListener('click', async () => {
-    button.disabled = true;
-    button.textContent = 'Filling…';
-    status.className = 'muted';
-    status.textContent = '';
-
-    const result = await sendToPage<AutofillSummary>({
-      type: 'AUTOFILL_PAGE',
-      payload: { overwrite: overwrite.checked },
-    });
-
-    if (!result) {
-      status.className = 'error';
-      status.textContent = 'Could not reach the page. Reload it and try again.';
-      button.disabled = false;
-      button.textContent = 'Try again';
-      return;
-    }
-
-    status.className = 'success';
-    const unanswered = result.unanswered.length;
-    status.textContent =
-      `Filled ${result.filled}.` +
-      (result.skipped ? ` Left ${result.skipped} you had already filled.` : '') +
-      (unanswered ? ` ${unanswered} open question${unanswered === 1 ? '' : 's'} left for you.` : '');
-
-    button.textContent = 'Fill again';
-    button.disabled = false;
-  });
-
-  wrapper.append(
-    el('p', {
-      className: 'muted',
-      textContent: 'Autofill never submits — check the form before you send it.',
-    }),
-    button,
-    overwriteRow,
-    status
-  );
-
-  return wrapper;
-}
-
+/**
+ * The popup no longer duplicates the panel.
+ *
+ * Autofill, the job card and "save this job" all moved to the in-page panel,
+ * which sits next to the form they act on. Two surfaces offering the same
+ * button, one of them behind a toolbar icon, was the confusing part.
+ *
+ * What is left is the work only the popup can do: signing in before any panel
+ * can appear, and settings that are not tied to a page.
+ */
 async function renderSignedIn(session: SessionState): Promise<void> {
   root.replaceChildren();
   account.textContent = session.email ?? '';
 
-  const job = await getPageJob();
+  root.append(
+    el('p', {
+      className: 'muted',
+      textContent:
+        'Open a job posting and use the Autofill button on the right of the page. jobpilot records the application when you submit it.',
+    })
+  );
 
-  root.append(await autofillPanel());
+  /*
+   * The panel's close button hides it per host, and until now there was no way
+   * back short of editing storage by hand. Only shown when something is
+   * actually hidden, so it is not a permanently useless control.
+   */
+  const dismissed = await chrome.storage.local.get('panelDismissedHosts');
+  const hosts = (dismissed.panelDismissedHosts as string[] | undefined) ?? [];
 
-  if (!job) {
-    root.append(
-      el('p', {
-        className: 'muted',
-        textContent:
-          'No job posting detected on this tab. Open a Greenhouse, Lever, or Ashby posting and jobpilot will track it automatically when you apply.',
-      })
-    );
-  } else {
+  if (hosts.length > 0) {
     const status = el('p', { className: 'muted' });
-    const saveButton = el('button', { className: 'secondary', textContent: 'Save this job' });
-
-    saveButton.addEventListener('click', async () => {
-      saveButton.disabled = true;
-      status.textContent = 'Saving…';
-      status.className = 'muted';
-
-      const result = await send<CaptureResponse>({
-        type: 'CAPTURE',
-        // applied:false - an explicit bookmark, not a submitted application.
-        payload: { job, applied: false, capturedAt: new Date().toISOString() },
-      });
-
-      if (result.ok) {
-        status.textContent = result.data.created ? 'Saved to your tracker.' : 'Already in your tracker.';
-        status.className = 'success';
-      } else {
-        status.textContent = result.error;
-        status.className = 'error';
-        saveButton.disabled = false;
-      }
+    const restore = el('button', {
+      className: 'secondary',
+      textContent: `Show the panel again on ${hosts.length} site${hosts.length === 1 ? '' : 's'}`,
     });
 
-    root.append(
-      el('div', { className: 'job' }, [
-        el('div', { className: 'job-title', textContent: job.title ?? 'Untitled role' }),
-        el('div', {
-          className: 'job-meta',
-          textContent: [job.company, job.location].filter(Boolean).join(' · ') || 'Unknown company',
-        }),
-      ]),
-      saveButton,
-      status
-    );
+    restore.addEventListener('click', async () => {
+      await chrome.storage.local.remove('panelDismissedHosts');
+      restore.disabled = true;
+      status.textContent = 'Restored. Reload the page to see it.';
+      status.className = 'success';
+    });
+
+    root.append(restore, status);
   }
 
   const signOut = el('button', { className: 'secondary', textContent: 'Sign out' });
