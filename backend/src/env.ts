@@ -3,6 +3,11 @@ export interface Env {
   DATABASE_URL: string;
   JWT_SECRET: string;
   /** Resume objects. Keys are user-scoped; see routes/resumes.ts. */
+  /**
+   * Gemini key for match analysis. Absent until `wrangler secret put
+   * GEMINI_API_KEY` has been run; the route 503s rather than crashing.
+   */
+  GEMINI_API_KEY?: string;
   /** Absent until R2 is enabled on the account; routes 503 rather than crash. */
   RESUMES?: R2Bucket;
   CORS_ORIGINS: string;
