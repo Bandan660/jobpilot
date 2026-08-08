@@ -174,9 +174,6 @@ function SiteFooter() {
 export function SiteLayout() {
   return (
     <div className="marketing">
-      {/* Driven by ScrollTrigger once it loads; harmless and invisible at
-          scaleX(0) if it never does. */}
-      <span className="scroll-progress" aria-hidden="true" />
       <SiteHeader />
       <main>
         <Outlet />

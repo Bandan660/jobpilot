@@ -42,8 +42,14 @@
   --text: light-dark(#0b1420, #e8edf7);
   --text-dim: #a8b8d0;
   --text-dim: light-dark(#3a4757, #a8b8d0);
+  /*
+   * The light value is pinned by contrast, not taste. #66748a scored 4.458:1
+   * against the #f6f8fc page surface — under the 4.5:1 AA floor, which failed
+   * every footer link, the nav, and the status strip at once. #5f6d84 is
+   * 4.93:1. Anything lighter than this fails the audit again.
+   */
   --muted: #7e91b0;
-  --muted: light-dark(#66748a, #7e91b0);
+  --muted: light-dark(#5f6d84, #7e91b0);
 
   /* Accent: instrument amber. Used sparingly — it marks the one thing that
      matters in a given view, never decoration. */

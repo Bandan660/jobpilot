@@ -142,15 +142,17 @@ happening. GSAP drives only what nothing else touches — hero parallax, the
 pinned waypoint markers, the counters, the progress bar. `.tile` and
 `.cta-panel` stay with `Reveal`.
 
-**gsap must stay dynamically imported.** Statically importing it pulls
-ScrollTrigger into the entry chunk and blocks first paint. After changing
-`useScrollScenes.ts`, confirm the split survived: `grep -i gsap
-dist/index.html` must find nothing.
+**Animation libraries were tried on the marketing site and removed.** three.js
+cost ~190KB gzipped; GSAP ScrollTrigger cost 537ms of main-thread work and
+forced reflows, which alone held Total Blocking Time at 290ms and performance
+at 87. Both are gone. Motion on the marketing site is CSS only — the `Reveal`
+component, the `Mission` rail, and the hero's drifting dot grid. Do not
+reintroduce an animation library; the budget for one does not exist at 100.
 
-**three.js was tried for the hero and removed.** ~190KB gzipped, more than the
-rest of the site put together, and it measurably hurt performance on the user's
-own measurement. The hero backdrop is now a pure-CSS drifting dot grid. Do not
-reintroduce a WebGL dependency for decoration.
+**`--muted` in the light theme is pinned by contrast, not taste.** `#66748a`
+scored 4.458:1 against the `#f6f8fc` page surface, just under the 4.5:1 AA
+floor, and failed the nav, every footer link, and the status strip at once.
+`#5f6d84` is 4.93:1. Do not lighten it.
 
 **drizzle-kit prompts interactively** when it cannot distinguish a new column
 from a rename, which hangs a non-interactive shell.
