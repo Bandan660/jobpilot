@@ -1187,3 +1187,65 @@
   color: var(--muted);
   max-width: 30ch;
 }
+
+/* Scroll scenes -------------------------------------------------------------- */
+
+/*
+ * WebGL field behind the hero.
+ *
+ * Sits under the copy at a low z-index and never takes pointer events, so it
+ * cannot interfere with the buttons in front of it. The canvas is sized by JS
+ * against this element, so the element itself must have a size before the
+ * script runs — hence the absolute inset rather than sizing to content.
+ */
+.hero-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  /* Fades out at the bottom so the field dissolves into the page rather than
+     ending on a hard edge. */
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+
+.hero-field canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Keeps the copy above the canvas. The hero itself needs a stacking context
+   for the inset positioning to resolve against it. */
+.hero {
+  position: relative;
+  isolation: isolate;
+}
+
+.hero .shell {
+  position: relative;
+  z-index: 1;
+}
+
+/* Reading progress ----------------------------------------------------------- */
+
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 60;
+  background: linear-gradient(90deg, var(--signal-dim), var(--signal));
+  /* Scaled rather than resized: width would relayout every frame. */
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-progress {
+    display: none;
+  }
+}

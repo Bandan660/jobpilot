@@ -14,6 +14,8 @@ import {
   RadarSweep,
   WorksOn,
 } from '../components/illustrations.js';
+import { HeroField } from '../components/HeroField.js';
+import { useScrollScenes } from '../useScrollScenes.js';
 
 /** Static readout of the product, built in CSS so it stays crisp at any size. */
 function TrackerMock() {
@@ -46,6 +48,8 @@ function TrackerMock() {
 }
 
 export function Home() {
+  useScrollScenes();
+
   useSeo({
     title: 'Job application tracker that updates itself',
     description:
@@ -84,6 +88,7 @@ export function Home() {
   return (
     <>
       <section className="hero">
+        <HeroField />
         <div className="shell">
           <div className="hero-copy">
             <span className="eyebrow">Job application tracker</span>

@@ -136,6 +136,18 @@ production bundle that calls `localhost:8787` and fails every request with
 `ERR_CONNECTION_REFUSED`. Verify after building:
 `grep -c localhost:8787 dist/assets/*.js` must be 0.
 
+**GSAP must not animate anything `Reveal` already owns.** Both write
+`transform`; the inline value wins and the CSS reveal silently stops
+happening. GSAP drives only what nothing else touches — hero parallax, the
+pinned waypoint markers, the counters, the progress bar. `.tile` and
+`.cta-panel` stay with `Reveal`.
+
+**three and gsap must stay dynamically imported.** three is ~190KB gzipped —
+larger than the entire rest of the site. Statically importing either one pulls
+it into the entry chunk and blocks first paint. After changing anything in
+`HeroField.tsx` or `useScrollScenes.ts`, confirm the split survived:
+`grep -iE "three|gsap" dist/index.html` must find nothing.
+
 **drizzle-kit prompts interactively** when it cannot distinguish a new column
 from a rename, which hangs a non-interactive shell.
 
