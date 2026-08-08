@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import {
   MAX_RESUME_BYTES,
   MAX_RESUMES_PER_USER,
+  MAX_TOTAL_STORAGE_BYTES,
   RESUME_CONTENT_TYPES,
   type Resume,
 } from '@jobpilot/shared';
@@ -117,6 +118,39 @@ resumeRoutes.post('/', async (c) => {
   if (owned.length >= MAX_RESUMES_PER_USER) {
     throw new HTTPException(409, {
       message: `You can keep ${MAX_RESUMES_PER_USER} resumes. Delete one to upload another.`,
+    });
+  }
+
+  /*
+   * The bucket-wide ceiling.
+   *
+   * Summed from the database rather than asked of R2, because R2 has no cheap
+   * "how big is this bucket" call from inside a Worker — listing every object
+   * to add up sizes would cost a Class A operation per page on every upload.
+   * The rows are authoritative anyway: every object is written with one, and
+   * deletes remove the object before the row.
+   *
+   * Read before the body, so a full bucket costs the uploader nothing.
+   */
+  const [usage] = await db
+    .select({ total: sql<number>`coalesce(sum(${resumes.sizeBytes}), 0)` })
+    .from(resumes);
+
+  const used = Number(usage?.total ?? 0);
+
+  if (used + declared > MAX_TOTAL_STORAGE_BYTES) {
+    console.warn('resume storage ceiling reached', { used, limit: MAX_TOTAL_STORAGE_BYTES });
+    throw new HTTPException(507, {
+      message: 'Resume storage is full. Please try again later.',
+    });
+  }
+
+  // Surfaces in the Worker log while there is still time to act, rather than
+  // at the point uploads start failing.
+  if (used > MAX_TOTAL_STORAGE_BYTES * 0.8) {
+    console.warn('resume storage above 80%', {
+      usedGb: (used / 1024 ** 3).toFixed(2),
+      limitGb: (MAX_TOTAL_STORAGE_BYTES / 1024 ** 3).toFixed(2),
     });
   }
 

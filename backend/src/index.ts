@@ -24,7 +24,16 @@ app.use('*', (c, next) =>
     // saving the profile from a browser — and curl never caught it, because
     // curl does not enforce CORS. Only browsers do.
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    /*
+     * Every custom header any request sends, for the same reason as the method
+     * list above: the browser preflights them and blocks the request outright
+     * if one is missing. X-File-Name carries the resume filename, since the
+     * upload sends the file as a raw body rather than multipart.
+     *
+     * Adding a custom header anywhere in the client means adding it here too.
+     * curl will not tell you — it does not preflight.
+     */
+    allowHeaders: ['Content-Type', 'Authorization', 'X-File-Name'],
     maxAge: 86_400,
   })(c, next)
 );

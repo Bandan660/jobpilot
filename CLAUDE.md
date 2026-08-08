@@ -148,6 +148,14 @@ without notice, so `adapters/linkedin.ts` carries several fallbacks per field
 ending in something structural. When capture starts returning nulls there,
 suspect the selectors before anything else.
 
+**CORS must list every custom header, not just every method.** `X-File-Name`
+was missing from `allowHeaders` and the browser blocked resume upload at
+preflight — the same failure as the missing `PUT`, found the same way, by the
+user's console rather than by any test here. curl does not preflight, so it
+cannot catch either. Adding a custom header on the client means adding it to
+`allowHeaders` in `backend/src/index.ts`, and verifying with a real OPTIONS
+request carrying `Access-Control-Request-Headers`.
+
 **Quota and size checks must run before the R2 write.** Rejecting an upload
 after `bucket.put()` leaves an object with no row pointing at it, and nothing
 in this system collects orphans. The upload handler's order is: count check,

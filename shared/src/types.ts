@@ -251,6 +251,17 @@ export const MAX_RESUME_BYTES = 3 * 1024 * 1024;
 /** Kept per account. Older ones must be deleted before another is added. */
 export const MAX_RESUMES_PER_USER = 5;
 
+/*
+ * Hard ceiling across every account, well under R2's free 10GB.
+ *
+ * Per-account limits bound one user; they do nothing about a thousand of them.
+ * The headroom matters because R2 bills the moment the free tier is crossed,
+ * with no warning and no way to decline — so the API refuses new uploads while
+ * there is still a gigabyte spare, rather than discovering the overage on an
+ * invoice.
+ */
+export const MAX_TOTAL_STORAGE_BYTES = 9 * 1024 * 1024 * 1024;
+
 export interface Note {
   id: string;
   applicationId: string;
