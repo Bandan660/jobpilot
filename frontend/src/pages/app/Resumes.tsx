@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { MAX_RESUME_BYTES, formatDate, type Resume } from '@jobpilot/shared';
 import { api } from '../../api.js';
 import { ResumeBuilderLink } from '../../components/ResumeBuilderLink.js';
-import { DownloadIcon, EyeIcon, FileTextIcon, TrashIcon } from '../../components/icons.js';
+import {
+  DownloadIcon,
+  EyeIcon,
+  FileTextIcon,
+  TrashIcon,
+  UploadIcon,
+  CloseIcon,
+} from '../../components/icons.js';
 
 /**
  * Resume manager.
@@ -11,12 +18,102 @@ import { DownloadIcon, EyeIcon, FileTextIcon, TrashIcon } from '../../components
  * download goes through an authenticated endpoint, so there is no URL to share
  * accidentally or leak in a referrer.
  */
+/**
+ * In-page viewer for a stored resume.
+ *
+ * A modal rather than a new tab: checking your own file is a glance, and
+ * losing the page you were editing to do it is a poor trade.
+ *
+ * PDFs render in an iframe, which every target browser handles natively. Word
+ * documents do not render anywhere without a converter, so they are offered as
+ * a download instead of an empty frame that looks broken.
+ */
+function PreviewModal({
+  resume,
+  url,
+  onClose,
+}: {
+  resume: Resume;
+  url: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    // The page behind must not scroll while a full-screen overlay is up.
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [onClose]);
+
+  const isPdf = resume.contentType === 'application/pdf';
+
+  return (
+    <div
+      className="modal-backdrop"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Preview of ${resume.fileName}`}
+    >
+      {/* Clicks inside must not reach the backdrop's close handler. */}
+      <div className="modal preview-modal" onClick={(e) => e.stopPropagation()}>
+        <header className="modal-head">
+          <strong>{resume.fileName}</strong>
+          <button className="icon-action" onClick={onClose} aria-label="Close preview" title="Close">
+            <CloseIcon />
+          </button>
+        </header>
+
+        {isPdf ? (
+          <iframe className="preview-frame" src={url} title={resume.fileName} />
+        ) : (
+          <div className="preview-fallback">
+            <p className="muted">Word documents cannot be shown here.</p>
+            <button
+              className="btn btn-ghost"
+              onClick={() => void api.downloadResume(resume.id, resume.fileName)}
+            >
+              Download to view
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Resumes() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<{ resume: Resume; url: string } | null>(null);
+
+  // The object URL is ours to release; holding it after the viewer closes
+  // pins the whole file in memory.
+  const closePreview = () => {
+    setPreview((open) => {
+      if (open) URL.revokeObjectURL(open.url);
+      return null;
+    });
+  };
+
+  async function openPreview(resume: Resume) {
+    setError(null);
+    try {
+      setPreview({ resume, url: await api.previewResume(resume.id) });
+    } catch {
+      setError('Could not open that file');
+    }
+  }
 
   useEffect(() => {
     api
@@ -114,7 +211,7 @@ export function Resumes() {
               <div className="entry-actions">
                 <button
                   className="icon-action"
-                  onClick={() => void act(() => api.previewResume(resume.id))}
+                  onClick={() => void openPreview(resume)}
                   aria-label="Preview resume"
                   title="Preview"
                 >
@@ -143,6 +240,10 @@ export function Resumes() {
         </ul>
       )}
 
+      {preview && (
+        <PreviewModal resume={preview.resume} url={preview.url} onClose={closePreview} />
+      )}
+
       {error && <p className="error-text">{error}</p>}
 
       <div>
@@ -157,6 +258,7 @@ export function Resumes() {
           }}
         />
         <button className="btn btn-ghost" onClick={() => input.current?.click()} disabled={busy}>
+          <UploadIcon />
           {busy ? 'Uploading…' : resumes.length > 0 ? 'Replace resume' : 'Upload a resume'}
         </button>
         <p className="muted upload-hint">

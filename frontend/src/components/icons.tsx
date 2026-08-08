@@ -272,3 +272,28 @@ export function DownloadIcon(p: IconProps) {
     </svg>
   );
 }
+
+export function UploadIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M12 16V4M7.5 8.5L12 4l4.5 4.5" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+
+export function CloseIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+export function PlusIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}

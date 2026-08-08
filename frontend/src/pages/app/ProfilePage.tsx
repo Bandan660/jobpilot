@@ -230,6 +230,7 @@ export function ProfilePage() {
             label="LinkedIn"
             type="url"
             icon={<LinkedInIcon />}
+            brand="linkedin"
             placeholder="linkedin.com/in/you"
             value={draft.linkedinUrl}
             onChange={(v) => patch({ linkedinUrl: v })}
@@ -238,6 +239,7 @@ export function ProfilePage() {
             label="GitHub"
             type="url"
             icon={<GithubIcon />}
+            brand="github"
             placeholder="github.com/you"
             value={draft.githubUrl}
             onChange={(v) => patch({ githubUrl: v })}
@@ -246,6 +248,7 @@ export function ProfilePage() {
             label="Portfolio"
             type="url"
             icon={<GlobeIcon />}
+            brand="site"
             placeholder="yoursite.com"
             value={draft.portfolioUrl}
             onChange={(v) => patch({ portfolioUrl: v })}
@@ -507,6 +510,7 @@ function Text({
   onChange,
   type = 'text',
   icon,
+  brand,
   placeholder,
 }: {
   label: string;
@@ -516,13 +520,15 @@ function Text({
   /** Sits inside the input. Used for the link fields, where the mark
       identifies the field faster than its label does. */
   icon?: React.ReactNode;
+  /** Paints the mark in that service's own colour. */
+  brand?: 'linkedin' | 'github' | 'site';
   placeholder?: string;
 }) {
   return (
     <label className="ob-field">
       {label}
       {icon ? (
-        <span className="input-icon">
+        <span className="input-icon" data-brand={brand}>
           {icon}
           <input
             type={type}

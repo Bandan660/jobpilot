@@ -981,3 +981,143 @@ textarea {
 .input-icon:focus-within svg {
   color: var(--signal-text);
 }
+
+/* Brand colours on the link marks --------------------------------------------- */
+
+/*
+ * Each service's own colour, so the field is identifiable before reading its
+ * label. These are the only non-palette colours in the app and they are
+ * deliberate: a brand mark in the wrong colour reads as a different brand.
+ *
+ * They stay coloured on focus, unlike the plain marks, since the accent
+ * would override the identity the colour is carrying.
+ */
+.input-icon[data-brand='linkedin'] svg {
+  color: #0a66c2;
+}
+
+.input-icon[data-brand='github'] svg {
+  /* GitHub's mark is near-black, which disappears on the dark theme. */
+  color: light-dark(#181717, #e8edf7);
+}
+
+.input-icon[data-brand='site'] svg {
+  color: var(--accent-teal);
+}
+
+.input-icon[data-brand]:focus-within svg {
+  color: inherit;
+}
+
+.input-icon[data-brand='linkedin']:focus-within svg {
+  color: #0a66c2;
+}
+
+.input-icon[data-brand='github']:focus-within svg {
+  color: light-dark(#181717, #e8edf7);
+}
+
+.input-icon[data-brand='site']:focus-within svg {
+  color: var(--accent-teal);
+}
+
+/* Add button, sitting in a section header rather than a row. */
+.icon-action.add {
+  border-color: var(--line-bright);
+  color: var(--signal-text);
+}
+
+.icon-action.add:hover {
+  background: var(--signal-wash);
+  border-color: var(--signal-dim);
+  color: var(--signal-text);
+}
+
+/* Preview modal ---------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(3, 7, 14, 0.62);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  padding: var(--gap-md);
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 70px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.preview-modal {
+  width: min(900px, 100%);
+  /* Tall enough to read a page of A4 without scrolling the modal itself. */
+  height: min(88vh, 1100px);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: var(--gap-sm) var(--gap-md);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.modal-head strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--step--1);
+}
+
+.preview-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  /* White regardless of theme: a PDF page is white, and a dark frame around
+     it looks like a rendering fault. */
+  background: #fff;
+}
+
+.preview-fallback {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-sm);
+  padding: var(--gap-xl);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-backdrop {
+    animation: fade 140ms ease-out;
+  }
+  .modal {
+    animation: lift 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes lift {
+    from {
+      transform: translateY(10px) scale(0.99);
+    }
+  }
+}

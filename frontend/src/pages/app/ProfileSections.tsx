@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BuildingIcon, CapIcon, PencilIcon, TrashIcon } from '../../components/icons.js';
+import { BuildingIcon, CapIcon, PencilIcon, PlusIcon, TrashIcon } from '../../components/icons.js';
 import {
   EDUCATION_LEVELS,
   type Education,
@@ -196,10 +196,9 @@ export function ExperienceSection({
             )}
             <h2>Work experience</h2>
           </div>
-          <p className="muted">Parsed from your resume where possible. Correct anything wrong.</p>
         </div>
-        <button className="btn btn-ghost" onClick={add}>
-          Add role
+        <button className="icon-action add" onClick={add} aria-label="Add a role" title="Add a role">
+          <PlusIcon />
         </button>
       </div>
 
@@ -368,8 +367,13 @@ export function EducationSection({
             Add school results too — some markets ask for them on every application.
           </p>
         </div>
-        <button className="btn btn-ghost" onClick={add}>
-          Add education
+        <button
+          className="icon-action add"
+          onClick={add}
+          aria-label="Add education"
+          title="Add education"
+        >
+          <PlusIcon />
         </button>
       </div>
 
