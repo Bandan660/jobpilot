@@ -148,6 +148,14 @@ without notice, so `adapters/linkedin.ts` carries several fallbacks per field
 ending in something structural. When capture starts returning nulls there,
 suspect the selectors before anything else.
 
+**`tracker.css` owns `.modal`; the profile dialogs are `.sheet`.** Both files
+defined `.modal`, `.modal-backdrop` and `.modal-head`, and `tracker.css` loads
+last — so its `max-width: 420px` and near-black backdrop silently won every
+conflict, and three rounds of edits to the profile dialog appeared to do
+nothing. Do not reintroduce `.modal*` selectors outside `tracker.css`. When a
+style change seems to have no effect, look for a second definition before
+blaming the cache.
+
 **CORS must list every custom header, not just every method.** `X-File-Name`
 was missing from `allowHeaders` and the browser blocked resume upload at
 preflight — the same failure as the missing `PUT`, found the same way, by the
