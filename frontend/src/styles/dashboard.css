@@ -1321,50 +1321,10 @@ textarea {
   flex-shrink: 0;
 }
 
-/*
- * Dismiss.
- *
- * The shared .icon-action is a bare glyph in --muted on a transparent ground.
- * That works in a dense row of actions where the surrounding text explains it,
- * and disappears completely on this banner's amber wash — the control was
- * present and effectively invisible.
- *
- * Here it gets a ground, a border and a corner, which is where people look for
- * a close control on a banner.
- */
-.ext-banner .icon-action {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--panel);
-  border-color: var(--line-bright);
-  color: var(--text-dim);
-}
-
-.ext-banner .icon-action svg {
-  width: 13px;
-  height: 13px;
-}
-
-.ext-banner .icon-action:hover {
-  background: var(--panel-raised);
-  border-color: var(--signal-dim);
-  color: var(--text);
-}
-
-/* Room for it, so it never sits on top of the copy. */
-.ext-banner {
-  padding-right: calc(var(--gap-lg) + 26px);
-}
-
 @media (max-width: 700px) {
   .ext-banner {
     flex-wrap: wrap;
     padding: var(--gap-md);
-    padding-right: calc(var(--gap-md) + 26px);
   }
 
   .ext-banner .btn {
