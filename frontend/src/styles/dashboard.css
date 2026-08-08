@@ -1121,3 +1121,113 @@ textarea {
     }
   }
 }
+
+/* Portfolio & links ----------------------------------------------------------- */
+
+.link-grid {
+  display: grid;
+  gap: var(--gap-sm);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 620px) {
+  .link-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.link-card {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+  transition: border-color 140ms ease;
+  cursor: text;
+}
+
+.link-card:focus-within {
+  border-color: var(--signal-dim);
+}
+
+/*
+ * Solid brand ground, not a tint. These are logos, and a logo rendered in the
+ * wrong colour reads as a different company's.
+ */
+.link-tile {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.link-tile svg {
+  width: 19px;
+  height: 19px;
+}
+
+.link-card[data-brand='linkedin'] .link-tile {
+  background: #0a66c2;
+}
+
+/* GitHub's mark is near-black. On the dark theme that is invisible against the
+   panel, so the ground inverts and the mark goes dark. */
+.link-card[data-brand='github'] .link-tile {
+  background: light-dark(#181717, #e8edf7);
+  color: light-dark(#fff, #0b1420);
+}
+
+.link-card[data-brand='site'] .link-tile {
+  background: var(--accent-teal);
+  color: light-dark(#fff, #05201d);
+}
+
+.link-card[data-brand='other'] .link-tile {
+  background: var(--accent-violet);
+  color: light-dark(#fff, #17082e);
+}
+
+.link-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.link-label {
+  font-size: var(--step--2);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/*
+ * The input is the value line: no border, no ground of its own. The card is
+ * already the field, and a box inside a box reads as two controls.
+ */
+.link-card input {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--step--1);
+  color: var(--text);
+  width: 100%;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.link-card input:focus-visible {
+  outline: none;
+}
+
+.link-card input::placeholder {
+  color: var(--muted);
+}

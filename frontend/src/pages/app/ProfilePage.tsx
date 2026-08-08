@@ -224,38 +224,41 @@ export function ProfilePage() {
         <Resumes />
       </div>
 
-      <Group id="links" title="Links" icon={<LinkIcon />} tone="e" hint="Asked for constantly, tedious to retype.">
-        <div className="form-grid">
-          <Text
-            label="LinkedIn"
-            type="url"
-            icon={<LinkedInIcon />}
+      <Group
+        id="links"
+        title="Portfolio & links"
+        icon={<LinkIcon />}
+        tone="e"
+        hint="Asked for constantly, tedious to retype."
+      >
+        <div className="link-grid">
+          <LinkCard
             brand="linkedin"
+            label="LinkedIn"
+            icon={<LinkedInIcon />}
             placeholder="linkedin.com/in/you"
             value={draft.linkedinUrl}
             onChange={(v) => patch({ linkedinUrl: v })}
           />
-          <Text
-            label="GitHub"
-            type="url"
-            icon={<GithubIcon />}
+          <LinkCard
             brand="github"
+            label="GitHub"
+            icon={<GithubIcon />}
             placeholder="github.com/you"
             value={draft.githubUrl}
             onChange={(v) => patch({ githubUrl: v })}
           />
-          <Text
-            label="Portfolio"
-            type="url"
-            icon={<GlobeIcon />}
+          <LinkCard
             brand="site"
+            label="Portfolio"
+            icon={<GlobeIcon />}
             placeholder="yoursite.com"
             value={draft.portfolioUrl}
             onChange={(v) => patch({ portfolioUrl: v })}
           />
-          <Text
+          <LinkCard
+            brand="other"
             label="Other"
-            type="url"
             icon={<LinkIcon />}
             value={draft.otherUrl}
             onChange={(v) => patch({ otherUrl: v })}
@@ -501,6 +504,49 @@ function Group({
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * One link, as a card rather than a labelled input.
+ *
+ * Four URL fields in a column are indistinguishable at a glance — the label is
+ * the only thing telling them apart, and it is the smallest text in the row.
+ * A solid brand tile makes each one identifiable before any reading happens,
+ * which is the whole job of this section.
+ *
+ * The tile is the service's own colour on a filled ground, not a tinted
+ * outline: these are logos, and a logo in the wrong colour reads as a
+ * different company.
+ */
+function LinkCard({
+  brand,
+  label,
+  icon,
+  placeholder,
+  value,
+  onChange,
+}: {
+  brand: 'linkedin' | 'github' | 'site' | 'other';
+  label: string;
+  icon: React.ReactNode;
+  placeholder?: string;
+  value: string | null | undefined;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <label className="link-card" data-brand={brand}>
+      <span className="link-tile">{icon}</span>
+      <span className="link-body">
+        <span className="link-label">{label}</span>
+        <input
+          type="url"
+          value={value ?? ''}
+          placeholder={placeholder ?? 'Not added'}
+          onChange={(e) => onChange(e.target.value || null)}
+        />
+      </span>
+    </label>
   );
 }
 
