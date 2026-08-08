@@ -1051,6 +1051,12 @@ textarea {
   padding: var(--gap-md);
 }
 
+@media (max-width: 700px) {
+  .modal-backdrop {
+    padding: var(--gap-xs);
+  }
+}
+
 .modal {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1382,10 +1388,6 @@ textarea {
 
 /* Edit dialog ------------------------------------------------------------------ */
 
-.edit-modal {
-  width: min(680px, 100%);
-}
-
 .modal-body {
   padding: var(--gap-md);
   overflow-y: auto;
@@ -1421,7 +1423,14 @@ textarea {
  * airier treatment it was designed with.
  */
 .edit-modal {
-  width: min(760px, 100%);
+  width: min(1040px, 100%);
+  /*
+   * A floor as well as a ceiling. Without it a two-field section produced a
+   * dialog a third the size of a ten-field one, and the surface appeared to
+   * change identity between sections rather than just showing less.
+   */
+  min-height: min(460px, 82vh);
+  max-height: min(88vh, 900px);
 }
 
 .edit-modal .modal-body {
@@ -1440,7 +1449,7 @@ textarea {
   gap: var(--gap-sm) var(--gap-md);
 }
 
-@media (max-width: 620px) {
+@media (max-width: 560px) {
   .edit-modal .form-grid {
     grid-template-columns: minmax(0, 1fr);
   }
