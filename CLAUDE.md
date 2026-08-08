@@ -142,20 +142,15 @@ happening. GSAP drives only what nothing else touches — hero parallax, the
 pinned waypoint markers, the counters, the progress bar. `.tile` and
 `.cta-panel` stay with `Reveal`.
 
-**`gl_PointSize` is in device pixels, and additive blending vanishes on
-light backgrounds.** Both bit the hero field at once and between them rendered
-a single visible dot. Point size must be multiplied by the capped
-`devicePixelRatio`, the `vFade` smoothstep range must match the depth the
-grid actually occupies from that camera (rows past the far edge draw nothing),
-and blending must be `NormalBlending` — amber added to the light theme's
-near-white hero is still white. Check the numbers arithmetically before
-deploying; the site is unusable for checking this by eye from here.
+**gsap must stay dynamically imported.** Statically importing it pulls
+ScrollTrigger into the entry chunk and blocks first paint. After changing
+`useScrollScenes.ts`, confirm the split survived: `grep -i gsap
+dist/index.html` must find nothing.
 
-**three and gsap must stay dynamically imported.** three is ~190KB gzipped —
-larger than the entire rest of the site. Statically importing either one pulls
-it into the entry chunk and blocks first paint. After changing anything in
-`HeroField.tsx` or `useScrollScenes.ts`, confirm the split survived:
-`grep -iE "three|gsap" dist/index.html` must find nothing.
+**three.js was tried for the hero and removed.** ~190KB gzipped, more than the
+rest of the site put together, and it measurably hurt performance on the user's
+own measurement. The hero backdrop is now a pure-CSS drifting dot grid. Do not
+reintroduce a WebGL dependency for decoration.
 
 **drizzle-kit prompts interactively** when it cannot distinguish a new column
 from a rename, which hangs a non-interactive shell.

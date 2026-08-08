@@ -1191,33 +1191,49 @@
 /* Scroll scenes -------------------------------------------------------------- */
 
 /*
- * WebGL field behind the hero.
+ * Hero backdrop.
  *
- * Sits under the copy at a low z-index and never takes pointer events, so it
- * cannot interfere with the buttons in front of it. The canvas is sized by JS
- * against this element, so the element itself must have a size before the
- * script runs — hence the absolute inset rather than sizing to content.
+ * This was a WebGL point field. three.js cost ~190KB gzipped — more than the
+ * rest of the site put together — and measurably hurt performance, so it was
+ * removed. What follows is the same idea at zero JavaScript: the drifting dot
+ * grid already used on the dashboard hero, masked to a soft pool behind the
+ * heading.
+ *
+ * Composited on the GPU because only transform animates. The element is inset
+ * beyond the hero bounds so the grid can travel one full cell without ever
+ * exposing an edge.
  */
-.hero-field {
+.hero::after {
+  content: '';
   position: absolute;
-  inset: 0;
+  inset: -60px;
   z-index: 0;
   pointer-events: none;
-  overflow: hidden;
-  /* Fades out at the bottom so the field dissolves into the page rather than
-     ending on a hard edge. */
-  mask-image: linear-gradient(to bottom, #000 55%, transparent);
-  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  background-image: radial-gradient(circle, var(--signal-dim) 1px, transparent 1.6px);
+  background-size: 34px 34px;
+  /* Pools behind the heading and falls away, rather than tiling to the edges
+     and reading as wallpaper. */
+  mask-image: radial-gradient(ellipse 65% 55% at 62% 32%, #000, transparent 76%);
+  -webkit-mask-image: radial-gradient(ellipse 65% 55% at 62% 32%, #000, transparent 76%);
+  opacity: 0.75;
+  animation: hero-drift 22s linear infinite;
 }
 
-.hero-field canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
+/* Exactly one cell, so the loop is seamless. */
+@keyframes hero-drift {
+  to {
+    transform: translate3d(-34px, -34px, 0);
+  }
 }
 
-/* Keeps the copy above the canvas. The hero itself needs a stacking context
-   for the inset positioning to resolve against it. */
+@media (prefers-reduced-motion: reduce) {
+  .hero::after {
+    animation: none;
+  }
+}
+
+/* Keeps the copy above the backdrop. The hero needs a stacking context for the
+   inset positioning to resolve against it. */
 .hero {
   position: relative;
   isolation: isolate;
