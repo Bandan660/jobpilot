@@ -130,31 +130,6 @@ async function renderSignedIn(session: SessionState): Promise<void> {
     })
   );
 
-  /*
-   * The panel's close button hides it per host, and until now there was no way
-   * back short of editing storage by hand. Only shown when something is
-   * actually hidden, so it is not a permanently useless control.
-   */
-  const dismissed = await chrome.storage.local.get('panelDismissedHosts');
-  const hosts = (dismissed.panelDismissedHosts as string[] | undefined) ?? [];
-
-  if (hosts.length > 0) {
-    const status = el('p', { className: 'muted' });
-    const restore = el('button', {
-      className: 'secondary',
-      textContent: `Show the panel again on ${hosts.length} site${hosts.length === 1 ? '' : 's'}`,
-    });
-
-    restore.addEventListener('click', async () => {
-      await chrome.storage.local.remove('panelDismissedHosts');
-      restore.disabled = true;
-      status.textContent = 'Restored. Reload the page to see it.';
-      status.className = 'success';
-    });
-
-    root.append(restore, status);
-  }
-
   const signOut = el('button', { className: 'secondary', textContent: 'Sign out' });
   signOut.addEventListener('click', async () => {
     await send<SessionState>({ type: 'LOGOUT' });

@@ -27,7 +27,6 @@ import type { CapturedJob, DuplicateMatch } from '@jobpilot/shared';
  */
 
 const HOST_ID = 'jobpilot-panel-host';
-const DISMISS_KEY = 'panelDismissedHosts';
 
 export interface PanelJob {
   job: CapturedJob;
@@ -53,24 +52,20 @@ export interface PanelHandlers {
 
 let mounted: { destroy: () => void } | null = null;
 
+/*
+ * Module-level, so it survives a re-render.
+ *
+ * The panel is redrawn whenever the posting or the form changes, and a local
+ * flag would snap it shut mid-use every time the Easy Apply modal advanced a
+ * step. Open is a decision the user made; redrawing the contents is not a
+ * reason to undo it.
+ */
+let collapsed = true;
+
 export function removePanel(): void {
   mounted?.destroy();
   mounted = null;
   document.getElementById(HOST_ID)?.remove();
-}
-
-/** Per-host, so dismissing it on one ATS does not silence it everywhere. */
-async function isDismissed(): Promise<boolean> {
-  const stored = await chrome.storage.local.get(DISMISS_KEY);
-  const hosts = (stored[DISMISS_KEY] as string[] | undefined) ?? [];
-  return hosts.includes(window.location.host);
-}
-
-async function rememberDismissed(): Promise<void> {
-  const stored = await chrome.storage.local.get(DISMISS_KEY);
-  const hosts = new Set((stored[DISMISS_KEY] as string[] | undefined) ?? []);
-  hosts.add(window.location.host);
-  await chrome.storage.local.set({ [DISMISS_KEY]: [...hosts] });
 }
 
 const CSS = `
@@ -466,7 +461,6 @@ function buildAuth(
 }
 
 export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Promise<void> {
-  if (await isDismissed()) return;
   removePanel();
 
   const host = document.createElement('div');
@@ -489,11 +483,6 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
   const root = document.createElement('div');
   root.style.cssText = 'pointer-events: auto; height: 100%;';
-
-  // Starts closed. The panel is opened by the button below, not by arriving on
-  // a page — covering a third of someone's window uninvited is the behaviour
-  // that makes extensions get uninstalled.
-  let collapsed = true;
 
   const paint = () => {
     root.innerHTML = '';
@@ -572,14 +561,19 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       paint();
     });
 
+    /*
+     * Closes to the launcher, not away entirely. A close that removes the only
+     * way back leaves no route to the panel short of reloading the page, which
+     * is not what a close button should mean.
+     */
     const close = document.createElement('button');
     close.className = 'icon-btn';
-    close.setAttribute('aria-label', 'Hide on this site');
-    close.title = 'Hide on this site';
+    close.setAttribute('aria-label', 'Close');
+    close.title = 'Close';
     close.innerHTML = CLOSE;
     close.addEventListener('click', () => {
-      void rememberDismissed();
-      removePanel();
+      collapsed = true;
+      paint();
     });
 
     header.append(mark, word, who, collapse, close);

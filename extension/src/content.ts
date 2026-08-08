@@ -81,45 +81,6 @@ function buildJob(adapter: JobAdapter, url: URL): CapturedJob | null {
   };
 }
 
-/** Waits for a client-rendered posting; resolves as soon as content appears. */
-async function waitForJob(adapter: JobAdapter, url: URL): Promise<CapturedJob | null> {
-  const deadline = Date.now() + SPA_RENDER_TIMEOUT_MS;
-  const expected = adapter.expectedExternalId?.(url) ?? null;
-
-  let stale: CapturedJob | null = null;
-
-  while (Date.now() < deadline) {
-    // Bail if the user has moved on again while we were waiting.
-    if (window.location.href !== url.href) return null;
-
-    const job = buildJob(adapter, url);
-
-    if (job) {
-      /*
-       * The heart of the SPA fix. A job that reads cleanly but belongs to the
-       * posting you were looking at a second ago is worse than none: it is
-       * indistinguishable from a correct one, and it is what gets saved.
-       */
-      const rendered = adapter.renderedExternalId?.(document) ?? null;
-
-      /*
-       * Only reject when the DOM positively says it is showing a different
-       * posting. A null rendered id means "cannot tell" — refusing on that
-       * would break every layout where the attribute is absent.
-       */
-      if (!expected || !rendered || rendered === expected) return job;
-      stale = job;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, SPA_POLL_INTERVAL_MS));
-  }
-
-  if (stale) {
-    debug('pane never caught up with the URL; ignoring stale scrape for', stale.title);
-  }
-  return null;
-}
-
 /* --------------------------- submit detection --------------------------- */
 
 function pageLooksConfirmed(adapter: JobAdapter): boolean {
@@ -313,49 +274,129 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
 
 /* --------------------------------- init --------------------------------- */
 
+/**
+ * Watches the page and keeps the panel pointed at whatever is on screen.
+ *
+ * This replaced a one-shot init that waited for a job, drew the panel once and
+ * stopped. That is fine where the form is the page. On LinkedIn the detail
+ * pane is swapped repeatedly under a URL that has already changed, so a single
+ * read lands on whichever posting happened to be rendered at that instant —
+ * usually the previous one.
+ *
+ * Rather than trying to predict when the pane has settled, everything is
+ * re-read on every mutation and every URL poll, and the panel is redrawn only
+ * when the result actually differs. A signature comparison makes that cheap
+ * enough to run continuously.
+ */
+function startTracking(adapter: JobAdapter): () => void {
+  let lastSignature = '';
+  let lastJobKey = '';
+  let timer: number | undefined;
+  let running = false;
+
+  const evaluate = async () => {
+    if (running) return;
+    running = true;
+
+    try {
+      const url = new URL(window.location.href);
+
+      if (!adapter.isJobPage(url)) {
+        if (lastSignature) {
+          debug('left the posting');
+          lastSignature = '';
+          lastJobKey = '';
+          currentJob = null;
+          removePanel();
+        }
+        return;
+      }
+
+      const job = buildJob(adapter, url);
+      if (!job) return;
+
+      /*
+       * Field count stands in for which Easy Apply step is showing. It changes
+       * exactly when the form does, and costs one querySelectorAll.
+       */
+      const modal = easyApplyModal();
+      const fields = modal ? modal.querySelectorAll('input, select, textarea').length : 0;
+
+      const jobKey = [job.externalId, job.title, job.company].join('|');
+      const signature = [jobKey, fields].join('|');
+      if (signature === lastSignature) return;
+
+      const jobChanged = jobKey !== lastJobKey;
+      lastSignature = signature;
+      lastJobKey = jobKey;
+      currentJob = job;
+      if (jobChanged) {
+        captured = false;
+        debug('job:', job.title, '@', job.company);
+      }
+
+      /*
+       * Only re-check duplicates when the posting itself changed. Advancing a
+       * step in the modal is not a reason to hit the API again.
+       */
+      const duplicate = jobChanged ? await checkDuplicates(job) : lastDuplicate;
+      lastDuplicate = duplicate;
+
+      await maybeShowPanel(job, duplicate);
+    } finally {
+      running = false;
+    }
+  };
+
+  const schedule = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => void evaluate(), 300);
+  };
+
+  const observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // Backstop for anything the observer misses, and for the very first read.
+  const poll = window.setInterval(() => void evaluate(), 800);
+  void evaluate();
+
+  return () => {
+    window.clearTimeout(timer);
+    window.clearInterval(poll);
+    observer.disconnect();
+  };
+}
+
+/** Remembered so a step change does not drop the duplicate warning. */
+let lastDuplicate: DuplicateMatch | null = null;
+
 async function init(): Promise<void> {
   teardown?.();
   teardown = null;
   removeBanner();
-  removePanel();
   captured = false;
   currentJob = null;
+  lastDuplicate = null;
 
   const url = new URL(window.location.href);
   const adapter = findAdapter(url);
   if (!adapter) return debug('no adapter for', url.hostname);
-  if (!adapter.isJobPage(url)) return debug('not a job page:', url.pathname + url.search);
 
   debug('adapter:', adapter.version);
 
-  const job = await waitForJob(adapter, url);
-  if (!job) return debug('could not read a title or company from this page');
-
-  debug('job:', job.title, '@', job.company);
-  currentJob = job;
-
-  // Landing directly on a confirmation page means the ATS redirected after a
-  // submit that happened before this script loaded.
-  if (pageLooksConfirmed(adapter)) {
-    void doCapture(job, true);
-  } else {
-    // Panel first, then the duplicate result folds into it — two overlapping
-    // floating surfaces on one page is worse than either alone.
-    checkDuplicates(job)
-      .then((duplicate) => maybeShowPanel(job, duplicate))
-      .catch((error) => console.warn('[jobpilot] panel setup failed:', error));
+  // Landing straight on a confirmation means the ATS redirected after a submit
+  // that happened before this script loaded.
+  if (adapter.isJobPage(url) && pageLooksConfirmed(adapter)) {
+    const job = buildJob(adapter, url);
+    if (job) void doCapture(job, true);
   }
 
+  const stopTracking = startTracking(adapter);
   const stopSubmit = watchForSubmit(adapter, () => currentJob);
 
-  // Only LinkedIn needs this: everywhere else the form is the page, and it is
-  // there by the time the script runs.
-  const stopModal =
-    adapter.ats === 'LINKEDIN' ? watchEasyApply(() => currentJob) : () => undefined;
-
   teardown = () => {
+    stopTracking();
     stopSubmit();
-    stopModal();
   };
 }
 
@@ -364,45 +405,6 @@ async function init(): Promise<void> {
  * patched to re-run init. Ashby in particular navigates board -> posting
  * entirely client-side.
  */
-/**
- * Re-draw the panel when the Easy Apply dialog opens, closes, or advances.
- *
- * None of those are navigations, so nothing else here notices them. Each step
- * of the flow is a different set of fields, and a panel still advertising the
- * previous step's count is worse than no count at all.
- *
- * Debounced because LinkedIn mutates this subtree continuously while the
- * dialog animates, and each burst would otherwise re-run a full form scan.
- */
-function watchEasyApply(getJob: () => CapturedJob | null): () => void {
-  let lastSignature = '';
-  let timer: number | undefined;
-
-  const check = () => {
-    const modal = easyApplyModal();
-    // Field count stands in for "which step is showing" — cheaper than
-    // reading step labels, and it changes exactly when the form does.
-    const signature = modal ? String(modal.querySelectorAll('input, select, textarea').length) : '';
-    if (signature === lastSignature) return;
-    lastSignature = signature;
-
-    const job = getJob();
-    if (!job) return;
-    void maybeShowPanel(job, null);
-  };
-
-  const observer = new MutationObserver(() => {
-    window.clearTimeout(timer);
-    timer = window.setTimeout(check, 350);
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
-
-  return () => {
-    window.clearTimeout(timer);
-    observer.disconnect();
-  };
-}
 
 function watchNavigation(): void {
   let lastUrl = window.location.href;
