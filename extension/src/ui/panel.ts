@@ -34,12 +34,21 @@ export interface PanelJob {
   coverage: { fillable: number; total: number };
   email: string | null;
   duplicate: DuplicateMatch | null;
+  /**
+   * Signed out renders the form in the panel rather than sending people to the
+   * toolbar popup. Chrome caps that popup at 600px, so it can never be the
+   * full-height surface — and bouncing between two windows to sign in, then
+   * back to the page to act, was the confusing part.
+   */
+  authenticated: boolean;
 }
 
 export interface PanelHandlers {
   onFill: (overwrite: boolean) => Promise<{ filled: number; unanswered: number }>;
   onSave: () => Promise<boolean>;
   onSignOut: () => void;
+  /** Resolves to an error message, or null on success. */
+  onAuth: (mode: 'login' | 'signup', email: string, password: string) => Promise<string | null>;
 }
 
 let mounted: { destroy: () => void } | null = null;
@@ -214,6 +223,40 @@ const CSS = `
 
   .note { font-size: 11.5px; color: var(--dim); }
 
+  /* Auth form ------------------------------------------------------------ */
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 11.5px; color: var(--dim); font-weight: 600; }
+  .field input {
+    background: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 10px 11px;
+    color: var(--text);
+    font: inherit; font-size: 13px;
+  }
+  .field input:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+  .field input::placeholder { color: #6b7d99; }
+
+  .err {
+    background: rgba(255, 107, 94, 0.12);
+    border: 1px solid rgba(255, 107, 94, 0.35);
+    color: #ffb4ac;
+    border-radius: 7px;
+    padding: 9px 11px;
+    font-size: 12px;
+  }
+
+  .switch {
+    background: none; border: none; padding: 0;
+    color: var(--signal); font: inherit; font-size: 12.5px;
+    cursor: pointer; text-decoration: underline; align-self: center;
+  }
+
   .foot {
     display: flex; gap: 10px; align-items: center;
     padding: 10px 16px;
@@ -287,6 +330,141 @@ const MARK = '<svg viewBox="0 0 32 32" fill="none"><path d="M16 7l7 9-7 9-7-9z" 
 const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>';
 const CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
+/**
+ * Signed-out view: the same panel shell with a sign-in form in place of the
+ * job actions, so the surface never changes shape underneath the user.
+ */
+function buildAuth(
+  state: PanelJob,
+  handlers: PanelHandlers,
+  onCollapse: () => void
+): HTMLElement {
+  let mode: 'login' | 'signup' = 'login';
+
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.setAttribute('role', 'complementary');
+  panel.setAttribute('aria-label', 'jobpilot');
+
+  const header = document.createElement('header');
+  const mark = document.createElement('span');
+  mark.className = 'mark';
+  mark.innerHTML = MARK;
+  const word = document.createElement('span');
+  word.className = 'wordmark';
+  word.textContent = 'jobpilot';
+  const spacer = document.createElement('span');
+  spacer.className = 'who';
+  const collapse = document.createElement('button');
+  collapse.className = 'icon-btn';
+  collapse.setAttribute('aria-label', 'Collapse');
+  collapse.innerHTML = CHEV;
+  collapse.addEventListener('click', onCollapse);
+  header.append(mark, word, spacer, collapse);
+
+  const body = document.createElement('div');
+  body.className = 'body';
+
+  const intro = document.createElement('p');
+  intro.className = 'note';
+
+  const job = document.createElement('div');
+  job.className = 'card';
+  const role = document.createElement('div');
+  role.className = 'role';
+  role.textContent = state.job.title ?? 'This posting';
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = [state.job.company, state.job.location].filter(Boolean).join(' · ');
+  job.append(role, meta);
+
+  const emailField = document.createElement('div');
+  emailField.className = 'field';
+  const emailLabel = document.createElement('label');
+  emailLabel.textContent = 'Email';
+  const email = document.createElement('input');
+  email.type = 'email';
+  email.autocomplete = 'username';
+  email.placeholder = 'you@example.com';
+  emailLabel.htmlFor = email.id = 'jp-email';
+  emailField.append(emailLabel, email);
+
+  const passField = document.createElement('div');
+  passField.className = 'field';
+  const passLabel = document.createElement('label');
+  passLabel.textContent = 'Password';
+  const password = document.createElement('input');
+  password.type = 'password';
+  password.placeholder = 'At least 8 characters';
+  passLabel.htmlFor = password.id = 'jp-password';
+  passField.append(passLabel, password);
+
+  const error = document.createElement('div');
+  error.className = 'err';
+  error.hidden = true;
+
+  const switcher = document.createElement('button');
+  switcher.className = 'switch';
+
+  const action = document.createElement('div');
+  action.className = 'action';
+  const submit = document.createElement('button');
+  submit.className = 'fill';
+  action.append(submit);
+
+  const applyMode = () => {
+    intro.textContent =
+      mode === 'login'
+        ? 'Sign in to autofill this application and record it in your tracker.'
+        : 'Create an account to autofill applications and track every one you send.';
+    submit.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+    switcher.textContent =
+      mode === 'login' ? 'No account? Create one' : 'Already have an account? Sign in';
+    password.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  };
+
+  switcher.addEventListener('click', () => {
+    mode = mode === 'login' ? 'signup' : 'login';
+    error.hidden = true;
+    applyMode();
+  });
+
+  const go = async () => {
+    error.hidden = true;
+    if (!email.value.trim() || !password.value) {
+      error.textContent = 'Enter your email and password.';
+      error.hidden = false;
+      return;
+    }
+
+    submit.disabled = true;
+    const label = submit.textContent;
+    submit.textContent = mode === 'login' ? 'Signing in…' : 'Creating…';
+
+    const failure = await handlers.onAuth(mode, email.value.trim(), password.value);
+    if (failure) {
+      error.textContent = failure;
+      error.hidden = false;
+      submit.disabled = false;
+      submit.textContent = label;
+    }
+    // On success the caller re-renders the panel, so this element goes away.
+  };
+
+  submit.addEventListener('click', () => void go());
+  // Enter submits from either field, which is what a two-field form implies.
+  for (const input of [email, password]) {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') void go();
+    });
+  }
+
+  applyMode();
+  body.append(intro, job, emailField, passField, error, switcher);
+  panel.append(header, body, action);
+  return panel;
+}
+
 export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Promise<void> {
   if (await isDismissed()) return;
   removePanel();
@@ -359,6 +537,14 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     }
 
     host.style.width = '372px';
+
+    if (!state.authenticated) {
+      root.append(buildAuth(state, handlers, () => {
+        collapsed = true;
+        paint();
+      }));
+      return;
+    }
 
     const panel = document.createElement('div');
     panel.className = 'panel';

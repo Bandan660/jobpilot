@@ -218,12 +218,15 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   const session = await send<{ authenticated: boolean; email: string | null }>({
     type: 'GET_SESSION',
   });
-  if (!session.ok || !session.data.authenticated) {
-    return debug('signed out — sign in from the toolbar popup');
-  }
+  const authenticated = session.ok && session.data.authenticated;
 
-  const profile = await loadProfile();
-  if (!profile) return debug('could not load your profile');
+  /*
+   * Signed out still renders: the panel carries the sign-in form itself. The
+   * profile and coverage lookups are skipped because both need a token, so
+   * they would only produce a 401 and clear the session again.
+   */
+  const profile = authenticated ? await loadProfile() : null;
+  if (authenticated && !profile) return debug('could not load your profile');
 
   /*
    * Scope to the Easy Apply dialog when it is open. LinkedIn's page carries a
@@ -231,12 +234,20 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
    * fillable fields on a posting with no application form in sight.
    */
   const modal = easyApplyModal();
-  const coverage = previewCoverage(profile, modal ?? undefined);
+  const coverage = profile
+    ? previewCoverage(profile, modal ?? undefined)
+    : { fillable: 0, total: 0 };
 
   debug('coverage:', coverage.fillable, 'of', coverage.total, modal ? '(in Easy Apply)' : '');
 
   await renderPanel(
-    { job, coverage, email: session.data.email, duplicate },
+    {
+      job,
+      coverage,
+      email: session.ok ? session.data.email : null,
+      duplicate,
+      authenticated,
+    },
     {
       onFill: async (overwrite) => {
         // Re-read the modal at click time: it may have opened, or moved to the
@@ -252,7 +263,23 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
         return true;
       },
       onSignOut: () => {
-        void send({ type: 'LOGOUT' }).then(() => removePanel());
+        void send({ type: 'LOGOUT' }).then(() => {
+          removePanel();
+          void maybeShowPanel(job, null);
+        });
+      },
+      onAuth: async (mode, email, password) => {
+        const result = await send({
+          type: mode === 'login' ? 'LOGIN' : 'SIGNUP',
+          payload: { email, password },
+        });
+        if (!result.ok) return result.error;
+
+        // Re-enter with a session: the same call now takes the signed-in path
+        // and swaps the form for the job actions in place.
+        removePanel();
+        await maybeShowPanel(job, duplicate);
+        return null;
       },
     }
   );
