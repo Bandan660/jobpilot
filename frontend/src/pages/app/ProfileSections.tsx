@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { BuildingIcon, CapIcon, PencilIcon, PlusIcon, TrashIcon } from '../../components/icons.js';
 import {
   EDUCATION_LEVELS,
@@ -25,6 +25,56 @@ import {
  * permanently red draws the eye to the one action nobody wants to take by
  * accident.
  */
+/**
+ * Tracks what "cancel" has to undo while an entry is open.
+ *
+ * Two different meanings depending on how editing started: backing out of Add
+ * should leave nothing behind, while backing out of Edit should restore the
+ * entry as it was. Without this, the only way out of an accidental Add was to
+ * fill something in and then delete it.
+ */
+function useEntryEditing<T extends { id: string }>(
+  entries: T[],
+  onChange: (next: T[]) => void
+) {
+  const [editing, setEditing] = useState<string | null>(null);
+  // Refs, not state: these are read at the moment cancel is pressed and must
+  // never cause a render of their own.
+  const original = useRef<T | null>(null);
+  const isNew = useRef(false);
+
+  return {
+    editing,
+    /** Called after the entry has been appended. */
+    startAdding(id: string) {
+      original.current = null;
+      isNew.current = true;
+      setEditing(id);
+    },
+    startEditing(entry: T) {
+      original.current = entry;
+      isNew.current = false;
+      setEditing(entry.id);
+    },
+    cancel(id: string) {
+      if (isNew.current) {
+        onChange(entries.filter((e) => e.id !== id));
+      } else if (original.current) {
+        const restored = original.current;
+        onChange(entries.map((e) => (e.id === id ? restored : e)));
+      }
+      original.current = null;
+      isNew.current = false;
+      setEditing(null);
+    },
+    done() {
+      original.current = null;
+      isNew.current = false;
+      setEditing(null);
+    },
+  };
+}
+
 function EntryActions({ onEdit, onRemove, what }: { onEdit: () => void; onRemove: () => void; what: string }) {
   return (
     <div className="entry-actions">
@@ -177,7 +227,7 @@ export function ExperienceSection({
   icon?: React.ReactNode;
   tone?: string;
 }) {
-  const [editing, setEditing] = useState<string | null>(null);
+  const edit = useEntryEditing(entries, onChange);
 
   function update(id: string, patch: Partial<WorkExperience>) {
     onChange(entries.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -196,7 +246,7 @@ export function ExperienceSection({
       employmentType: null,
     };
     onChange([entry, ...entries]);
-    setEditing(entry.id);
+    edit.startAdding(entry.id);
   }
 
   return (
@@ -223,7 +273,7 @@ export function ExperienceSection({
         <ul className="entry-list">
           {entries.map((entry) => (
             <li key={entry.id} className="entry-block">
-              {editing === entry.id ? (
+              {edit.editing === entry.id ? (
                 <div className="entry-edit">
                   <div className="form-grid">
                     <label className="ob-field">
@@ -310,8 +360,11 @@ export function ExperienceSection({
                     />
                   </label>
 
-                  <div className="entry-actions">
-                    <button className="btn btn-ghost" onClick={() => setEditing(null)}>
+                  <div className="entry-actions edit-actions">
+                    <button className="btn btn-ghost" onClick={() => edit.cancel(entry.id)}>
+                      Cancel
+                    </button>
+                    <button className="btn btn-primary" onClick={edit.done}>
                       Done
                     </button>
                   </div>
@@ -340,7 +393,7 @@ export function ExperienceSection({
 
                   <EntryActions
                     what={entry.title || 'this role'}
-                    onEdit={() => setEditing(entry.id)}
+                    onEdit={() => edit.startEditing(entry)}
                     onRemove={() => onChange(entries.filter((e) => e.id !== entry.id))}
                   />
                 </>
@@ -368,7 +421,7 @@ export function EducationSection({
   icon?: React.ReactNode;
   tone?: string;
 }) {
-  const [editing, setEditing] = useState<string | null>(null);
+  const edit = useEntryEditing(entries, onChange);
 
   function update(id: string, patch: Partial<Education>) {
     onChange(entries.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -387,7 +440,7 @@ export function EducationSection({
       scoreType: 'PERCENTAGE',
     };
     onChange([entry, ...entries]);
-    setEditing(entry.id);
+    edit.startAdding(entry.id);
   }
 
   return (
@@ -422,7 +475,7 @@ export function EducationSection({
         <ul className="entry-list">
           {entries.map((entry) => (
             <li key={entry.id} className="entry-block">
-              {editing === entry.id ? (
+              {edit.editing === entry.id ? (
                 <div className="entry-edit">
                   <div className="form-grid">
                     <label className="ob-field">
@@ -496,8 +549,11 @@ export function EducationSection({
                     </label>
                   </div>
 
-                  <div className="entry-actions">
-                    <button className="btn btn-ghost" onClick={() => setEditing(null)}>
+                  <div className="entry-actions edit-actions">
+                    <button className="btn btn-ghost" onClick={() => edit.cancel(entry.id)}>
+                      Cancel
+                    </button>
+                    <button className="btn btn-primary" onClick={edit.done}>
                       Done
                     </button>
                   </div>
@@ -522,7 +578,7 @@ export function EducationSection({
 
                   <EntryActions
                     what={entry.school || 'this entry'}
-                    onEdit={() => setEditing(entry.id)}
+                    onEdit={() => edit.startEditing(entry)}
                     onRemove={() => onChange(entries.filter((e) => e.id !== entry.id))}
                   />
                 </>

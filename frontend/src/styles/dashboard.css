@@ -1588,3 +1588,18 @@ textarea {
   margin-bottom: 0.35rem;
   max-width: 60ch;
 }
+
+/* Entry edit footer ----------------------------------------------------------- */
+
+/*
+ * Cancel and Done sit together at the end of an open entry, not in the row of
+ * icon actions the collapsed entries use. Right-aligned so they read as a form
+ * footer rather than as two more controls in the list.
+ */
+.edit-actions {
+  justify-content: flex-end;
+  gap: var(--gap-sm);
+  margin-left: 0;
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--line);
+}
