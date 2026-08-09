@@ -198,6 +198,14 @@ export const linkedinAdapter: JobAdapter = {
     return result;
   },
 
+  descriptionSelectors: [
+    '.jobs-description__content',
+    '.jobs-box__html-content',
+    '[class*="jobs-description"]',
+    '#job-details',
+    '.description__text',
+  ],
+
   /*
    * Post-submit, LinkedIn swaps the dialog for a "Your application was sent"
    * panel. There is no navigation, so these are what the submit watcher has to

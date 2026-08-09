@@ -27,6 +27,15 @@ export interface JobAdapter {
   expectedExternalId?(url: URL): string | null;
   renderedExternalId?(doc: Document): string | null;
 
+  /**
+   * Where the posting's body text lives, most specific first.
+   *
+   * Optional: without it the description falls back to structured data and
+   * then to a heuristic, which is usually enough. Worth filling in for
+   * platforms whose JSON-LD carries a summary rather than the whole posting.
+   */
+  descriptionSelectors?: string[];
+
   /** Elements whose presence means the application went through. */
   confirmationSelectors: string[];
   /**

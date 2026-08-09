@@ -51,6 +51,8 @@ export const greenhouseAdapter: JobAdapter = {
     return result;
   },
 
+  descriptionSelectors: ['#content', '.job__description', '[class*="job__description"]'],
+
   confirmationSelectors: [
     '#application_confirmation',
     '.application-confirmation',

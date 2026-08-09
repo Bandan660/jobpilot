@@ -155,6 +155,11 @@ export const workdayAdapter: JobAdapter = {
     );
   },
 
+  descriptionSelectors: [
+    '[data-automation-id="jobPostingDescription"]',
+    '[data-automation-id="job-posting-details"]',
+  ],
+
   confirmationSelectors: [
     '[data-automation-id="applicationSubmitted"]',
     '[data-automation-id="successBanner"]',

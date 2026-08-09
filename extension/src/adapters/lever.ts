@@ -48,5 +48,7 @@ export const leverAdapter: JobAdapter = {
     return result;
   },
 
+  descriptionSelectors: ['.section-wrapper.page-full-width', '[data-qa="job-description"]', '.content'],
+
   confirmationSelectors: ['.application-confirmation', '.postings-confirmation', '#confirmation'],
 };

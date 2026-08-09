@@ -140,6 +140,42 @@ export function hasJobPosting(doc: Document): boolean {
   return postingNode(doc) !== null;
 }
 
+/**
+ * The posting's description text, from structured data.
+ *
+ * `JobPosting.description` is HTML in practice — the spec allows it and every
+ * ATS takes the option, so this arrives as a blob of `<p>` and `<li>` tags.
+ * Parsed with the DOM rather than a tag-stripping regex: the text inside is
+ * user-supplied and a regex that gets it wrong yields either markup in the
+ * prompt or a truncated description, and the DOM is right for free.
+ *
+ * List items get a leading dash. Requirements are almost always a bulleted
+ * list, and flattening them into one paragraph loses the boundary between
+ * "5 years of React" and the next line.
+ */
+export function descriptionFromJsonLd(doc: Document): string | null {
+  const posting = postingNode(doc);
+  const raw = posting ? text(posting.description) : null;
+  if (!raw) return null;
+
+  const holder = doc.createElement('div');
+  holder.innerHTML = raw;
+
+  for (const item of holder.querySelectorAll('li')) {
+    item.textContent = `- ${item.textContent?.trim() ?? ''}`;
+  }
+  for (const block of holder.querySelectorAll('p, div, br, li, h1, h2, h3, h4')) {
+    block.after(doc.createTextNode('\n'));
+  }
+
+  const flattened = (holder.textContent ?? '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return flattened || null;
+}
+
 export function extractFromJsonLd(doc: Document): Partial<CapturedJob> | null {
   const posting = postingNode(doc);
   if (!posting) return null;
