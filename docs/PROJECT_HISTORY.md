@@ -4,7 +4,7 @@ A record of what was built, in what order, and why — including the reversals,
 because the reasoning behind a change is usually more useful later than the
 change itself.
 
-Current as of 6 August 2026. Three commits on `main`.
+Current as of 10 August 2026.
 
 ---
 
@@ -196,3 +196,113 @@ test here, because **curl does not preflight**. First `PUT`, then `X-File-Name`.
 - `frontend/src/content/site.ts` still holds placeholder contact details.
 - Two stray Cloudflare secrets whose *names* are a database URL and a Gemini
   key. The user chose to leave them.
+
+---
+
+## 9–10 August 2026 — adapters, assisted apply, and a matcher that stopped using AI
+
+The longest session so far, and the one with the most reversals. Recorded here
+because the reversals are the useful part.
+
+### Every injected host got an adapter
+
+`findAdapter` returned null on any host without one, `init` returned early, and
+the JSON-LD fallback the docs promised never ran — there was no adapter left to
+carry it. Roughly twenty sites in the manifest were silent no-ops, including
+ones emitting perfectly good structured data.
+
+A `genericAdapter` matching whatever nothing else claimed fixed that, gated on
+the page declaring a schema.org JobPosting so a careers index or jobpilot's own
+site correctly fails the test. Twenty platform adapters on top: Workday
+hand-written because it emits no structured data, thirteen through a
+declarative factory, five job boards separated out because the application does
+not happen there.
+
+### Two orphans and a lie
+
+`expectedExternalId` / `renderedExternalId` had been declared, documented at
+length, implemented by LinkedIn, and called by nothing for two commits — the
+rewrite to continuous tracking replaced the retry loop they served. The
+signature comparison that replaced it cannot cover that case, because the
+signature is computed *from* the stale DOM.
+
+Coverage was scanned against the whole document whenever no Easy Apply dialog
+was open, so a LinkedIn posting counted the search box, the filter selects and
+the message composer: "0 of 28 fields can be filled" — arithmetically true and
+the opposite of what was happening.
+
+### The LINKEDIN enum
+
+Saving any LinkedIn posting had always failed with "Something went wrong".
+`LINKEDIN` went into `ATS_PROVIDER` when Easy Apply support landed and was
+never added to the Postgres type. Nothing caught it because zod validates
+against the TypeScript union, which had the value; the insert then died on the
+enum and a generic 500 handler swallowed the detail. Fixed by migration
+`0001_add_linkedin_ats`, applied to the deployed database.
+
+The generic 500 handler is right — internal detail must not leak — but it means
+every unhandled server error looks identical from the client. `wrangler tail`
+is the only place the truth lives.
+
+### Auto-submit, reversed deliberately
+
+The codebase said, in its own words, that making the submit button reachable by
+`.click()` "stops being an assistant and becomes a tool for spraying
+applications". The owner chose hands-off submission with the Web Store and
+LinkedIn rate-limiting costs stated. The rule in CLAUDE.md was rewritten rather
+than left contradicting the code, which is the point worth remembering: a
+prohibition the code ignores is worse than no prohibition, because the next
+session believes it.
+
+The guardrails are what make it defensible. `autoSubmit` defaults to false so
+nothing that fills a form without being asked can send anything; the blocker
+check runs again immediately before the click; the submission counts only once
+the page removes the button.
+
+### Bulk, then not bulk
+
+A queue that worked down a whole LinkedIn collection was built, run, and
+dropped within the hour — applying to everything reachable was not what the
+product was for. One press is one application now, and when the form asks
+something the profile cannot answer the session stops, names it, and resumes
+when the user has filled it in. It never skips the job, because skipping loses
+an application to a single dropdown.
+
+Whatever gets typed by hand is offered back to the profile as a saved answer,
+keyed by the question, so the same question fills itself next time. That loop
+is the only thing that shortens the blocked list.
+
+### Glass, then not glass
+
+The panel was given a backdrop blur and read as washed-out grey over a light
+ATS form — the blur pulls the page's brightness through whatever tint sits on
+top, which is the opposite of the separation the panel exists to have. Solid
+surfaces now, with a CSS check asserting it stays that way.
+
+### The matcher that stopped using AI
+
+Skills matching shipped against Gemini, worked, and hit the free-tier 429 on
+first real use. Replaced with a 105-skill dictionary in `shared/src/skills.ts`:
+instant, free, offline, deterministic, and neither the posting nor the profile
+leaves the browser.
+
+Its own tests caught two bugs that had already been *written and commented
+against*. Auto-adding each canonical name as an alias undid the short-name
+defence — `Go` is listed only as "golang" precisely so "you will go far here"
+does not invent a requirement, and the auto-add put "go" straight back. And
+"js" as an alias for JavaScript matched the ".js" in "Next.js", so any posting
+naming it appeared to require JavaScript separately. That one moved the score.
+
+The score is requirement overlap, never a callback probability. Nothing here
+can see the other applicants, the budget, or whether the role is already
+filled, and a number presented as odds would make someone skip a job they were
+right for.
+
+### What this session cost the most time on
+
+Text surgery on large files. Two separate regex-based edits deleted more than
+intended — one took out four helper functions, another removed
+`maybeShowPanel`, `init` and `watchNavigation`. Both were caught by the
+typechecker and recovered, the second only because the work had been committed
+an hour earlier. Targeted edits over pattern-matched slices on anything large.
+

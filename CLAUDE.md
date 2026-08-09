@@ -440,72 +440,73 @@ dodge this.
 
 ---
 
-## Where things stand — 9 Aug 2026
+## Where things stand — 10 Aug 2026
 
-Everything below is deployed and pushed. `docs/PROJECT_HISTORY.md` has the
-detail; this is what a new session needs before touching anything.
+Everything below is committed on `main` and pushed.
+`docs/PROJECT_HISTORY.md` has the narrative; this is what a new session needs
+before touching anything.
 
 **Working, confirmed against reality:**
 
-- Capture and autofill on a live Greenhouse posting — 10 of 15 fields filled,
-  correct title and company. The adapters are no longer theoretical.
+- Capture and autofill on a live Greenhouse posting.
+- **Applications have been submitted through the extension**, on LinkedIn Easy
+  Apply, and recorded in the tracker. That milestone is passed.
 - Duplicate detection across platforms, CSV import, the tracker, the profile.
-- R2 resume storage: one per account, 200KB, replaced on upload.
+- Local skills matching: a posting's named skills against the profile, drawn on
+  arrival with no model and no network.
 
-**Working, never exercised end to end:**
+**Working, thinly:**
 
-- **No application has ever been submitted through the extension.** Everything
-  up to the submit button is confirmed; the capture-on-submit path is not.
-  This is the next milestone that matters, and it needs the user, not us.
-- LinkedIn Easy Apply auto-fill. Written and typechecked, never run.
-- Lever, Ashby and the JSON-LD fallback.
+- One application per press. The session stops on a question the profile
+  cannot answer, names it, and resumes when the user has filled it in. Run
+  against real postings and iterated on twice.
+- Auto-submit is on. Guarded by a blocker re-check immediately before the
+  click, a cancellation check, and confirmation that the page accepted it.
 
-**Parked at the user's request:**
+**Never run against a live form:**
 
-- Gemini match analysis. `POST /api/analyze` is deployed and
-  `GEMINI_API_KEY` is set correctly. Their Gemini free-tier daily quota was
-  already exhausted when tested — a valid key returning 429 on
-  `generate_content_free_tier_requests`. Retry after a reset before assuming
-  anything is broken.
+- 20 of the 24 adapters. Built from published markup conventions and verified
+  against synthetic DOM only. Greenhouse and LinkedIn are the exceptions.
+- Resume attachment via `DataTransfer` — the assignment itself is browser
+  behaviour no test here can exercise.
+
+**Parked:**
+
+- Gemini. Both `/api/analyze` and `/api/analyze/answer` are deployed and the
+  key is valid; the free tier returns 429. Answer drafting still depends on it.
+  Skills matching no longer does.
 
 **Decisions already made — do not re-raise:**
 
-- The user declined rotating two Cloudflare secrets whose *names* contain a
+- Auto-submit stays on. Taken with the Web Store and rate-limiting costs
+  stated. See the guardrails note above before changing anything near it.
+- The match score is requirement overlap, never a callback probability.
+- Commit directly to `main`. No feature branches; the owner works solo.
+- The owner declined rotating two Cloudflare secrets whose *names* contain a
   database URL and a Gemini API key. Raised twice; they chose to keep them.
-- No resume builder here. That is `hirefresher.in`, their separate product,
-  linked to from six placements.
-- No animation library on the marketing site. three.js and GSAP were both
-  tried and removed on measured performance grounds.
+- No resume builder here. That is `hirefresher.in`, their separate product.
+- No animation library on the marketing site.
 
 ---
 
 ## Known incomplete
 
-- **No application has been submitted through the extension.** Capture and
-  autofill work on a live Greenhouse posting; the submit path is unproven.
-- **LinkedIn auto-apply is withheld, not removed.** It was run against a live
-  Easy Apply posting and stopped on step 1 without saying why. Two real bugs
-  came out of that — `findBlockers` counting wrapper elements, and the panel
-  repaint detaching the status node — and both are fixed, but nothing has
-  confirmed the flow end to end. `linkedinFlow` in `flows.ts` is complete and
-  deliberately unreachable: `flowFor` returns null for LINKEDIN. Re-enabling is
-  one line, once someone can watch it run.
-- **Assisted apply on ATS platforms has never been run against a live form.**
-  Blocker detection and resume attachment are verified against synthetic DOM;
-  the `DataTransfer` assignment itself is browser behaviour that no test here
-  can exercise. Greenhouse is the one to try it on first — it is the only
-  platform anything has been confirmed on.
-- **Answer drafting is deployed in code only.** `POST /api/analyze/answer`
-  needs `wrangler deploy`, and the Gemini free-tier quota was already exhausted
-  the last time it was tried, so nothing has seen a real response.
+- **20 of the 24 adapters have never seen a live posting.** Built from each
+  platform's published markup conventions and verified against synthetic DOM
+  only. Greenhouse and LinkedIn are the two exceptions. Expect the first live
+  run on each to find something; suspect the selectors before anything else.
+- **Assisted apply is proven on LinkedIn Easy Apply only.** The single-job
+  session, auto-submit and the resume attachment have all run there. No ATS
+  form has been driven end to end — Greenhouse is the one to try next, being
+  the only other platform anything is confirmed on. The `DataTransfer`
+  assignment behind resume attachment is browser behaviour no test here can
+  exercise.
+- **Answer drafting has never produced an answer.** `POST /api/analyze/answer`
+  is deployed and the key is valid; the Gemini free tier returns 429. It is the
+  only feature still depending on the model — skills matching no longer does.
 - `optional_host_permissions` is declared but not wired to `chrome.scripting`.
-- **Every host in the manifest now has an adapter, and only Greenhouse has
-  ever been run against a live posting.** The other 23 are built from each
-  platform's published markup conventions and verified against synthetic DOM,
-  which proves the routing and the parsing but says nothing about whether the
-  selectors match the real page. Expect the first live run on each to find
-  something. Workday matters most: it emits no JSON-LD, so `workday.ts` is the
-  only thing standing between it and an empty capture.
+- Workday matters most among the untested: it emits no JSON-LD at all, so
+  `workday.ts` is the only thing standing between it and an empty capture.
 - Two hosts are matched by an adapter but absent from `manifest.json`, so the
   content script never runs there: `myworkdaysite.com` (newer Workday tenants)
   and `successfactors.eu` (EU-hosted SAP). Adding the match patterns is all
