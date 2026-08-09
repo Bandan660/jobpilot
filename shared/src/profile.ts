@@ -52,6 +52,17 @@ export type EducationLevel = (typeof EDUCATION_LEVELS)[number];
 
 /** Grading systems differ enough that the number alone is meaningless. */
 export const SCORE_TYPES = ['PERCENTAGE', 'GPA', 'CGPA', 'GRADE'] as const;
+
+/**
+ * How a course was studied.
+ *
+ * The education equivalent of employment type, and a real form field rather
+ * than a nicety — Indian ATSs in particular ask "course type" on almost every
+ * graduate application, and an unanswered required field is what stops an
+ * autofilled form from submitting.
+ */
+export const STUDY_MODES = ['FULL_TIME', 'PART_TIME', 'DISTANCE'] as const;
+export type StudyMode = (typeof STUDY_MODES)[number];
 export type ScoreType = (typeof SCORE_TYPES)[number];
 
 export interface Education {
@@ -64,6 +75,8 @@ export interface Education {
   endDate: string | null;
   score: string | null;
   scoreType: ScoreType | null;
+  /** Nullable: entries written before this existed have no answer. */
+  studyMode: StudyMode | null;
 }
 
 export interface SavedAnswer {

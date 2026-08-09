@@ -3,9 +3,11 @@ import { BuildingIcon, CapIcon, PencilIcon, PlusIcon, TrashIcon } from '../../co
 import {
   EDUCATION_LEVELS,
   EMPLOYMENT_TYPE,
+  STUDY_MODES,
   type Education,
   type EducationLevel,
   type EmploymentType,
+  type StudyMode,
   type WorkExperience,
 } from '@jobpilot/shared';
 
@@ -109,6 +111,12 @@ const EMPLOYMENT_LABELS: Record<EmploymentType, string> = {
   VOLUNTEER: 'Volunteer',
   PER_DIEM: 'Per diem',
   OTHER: 'Other',
+};
+
+const STUDY_MODE_LABELS: Record<StudyMode, string> = {
+  FULL_TIME: 'Full-time',
+  PART_TIME: 'Part-time',
+  DISTANCE: 'Distance / correspondence',
 };
 
 const LEVEL_LABELS: Record<EducationLevel, string> = {
@@ -438,6 +446,7 @@ export function EducationSection({
       endDate: null,
       score: null,
       scoreType: 'PERCENTAGE',
+      studyMode: null,
     };
     onChange([entry, ...entries]);
     edit.startAdding(entry.id);
@@ -524,6 +533,25 @@ export function EducationSection({
                       />
                     </label>
                     <label className="ob-field">
+                      Course type
+                      <select
+                        value={entry.studyMode ?? ''}
+                        onChange={(e) =>
+                          update(entry.id, {
+                            studyMode: (e.target.value || null) as StudyMode | null,
+                          })
+                        }
+                      >
+                        <option value="">Not specified</option>
+                        {STUDY_MODES.map((mode) => (
+                          <option key={mode} value={mode}>
+                            {STUDY_MODE_LABELS[mode]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="ob-field">
                       Score
                       {/* Value and grading system together: "71" means nothing
                           without knowing whether it is a percentage or a CGPA. */}
@@ -566,6 +594,11 @@ export function EducationSection({
                     <div className="entry-chips">
                       {entry.level && <span className="chip chip-static">{LEVEL_LABELS[entry.level]}</span>}
                       {entry.field && <span className="chip chip-static">{entry.field}</span>}
+                      {entry.studyMode && (
+                        <span className="chip chip-static">
+                          {STUDY_MODE_LABELS[entry.studyMode]}
+                        </span>
+                      )}
                       {entry.endDate && <span className="chip chip-static">{entry.endDate}</span>}
                       {entry.score && (
                         <span className="chip chip-static">

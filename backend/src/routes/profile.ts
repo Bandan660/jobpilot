@@ -11,6 +11,7 @@ import {
   PAY_PERIODS,
   PROFILE_REGIONS,
   SCORE_TYPES,
+  STUDY_MODES,
   answerKey,
   type Profile,
 } from '@jobpilot/shared';
@@ -65,6 +66,9 @@ const educationSchema = z.object({
   endDate: z.string().max(10).nullable(),
   score: z.string().max(20).nullable(),
   scoreType: z.enum(SCORE_TYPES).nullable(),
+  // Optional for the same reason as employmentType: rows predating the field
+  // do not carry the key, and requiring it would reject every one of them.
+  studyMode: z.enum(STUDY_MODES).nullable().optional(),
 });
 
 const savedAnswerSchema = z.object({
@@ -212,7 +216,13 @@ profileRoutes.put('/', async (c) => {
   // shape has `key` optional, and the raw array leaking through would store
   // answers the matcher can never look up. `onboardingComplete` is a request
   // flag, not a column, so it comes out here too.
-  const { savedAnswers: submitted, experience: roles, onboardingComplete, ...rest } = input;
+  const {
+    savedAnswers: submitted,
+    experience: roles,
+    education: schools,
+    onboardingComplete,
+    ...rest
+  } = input;
 
   // Recompute answer keys server-side. The extension looks answers up by key,
   // so letting a client send its own would let one bad write break matching
@@ -233,9 +243,15 @@ profileRoutes.put('/', async (c) => {
     employmentType: role.employmentType ?? null,
   }));
 
+  const education = schools?.map((entry) => ({
+    ...entry,
+    studyMode: entry.studyMode ?? null,
+  }));
+
   const values = {
     ...rest,
     ...(experience ? { experience } : {}),
+    ...(education ? { education } : {}),
     ...(savedAnswers ? { savedAnswers } : {}),
     // Only ever set, never cleared: finishing onboarding is not something a
     // later profile edit should undo.

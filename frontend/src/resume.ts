@@ -208,6 +208,8 @@ function extractEducation(text: string): Education[] {
       endDate: year ? `${year[year.length - 1]}-06` : null,
       score: null,
       scoreType: null,
+      // A resume rarely states it, and guessing lands on real applications.
+      studyMode: null,
     });
 
     if (entries.length >= 6) break;
