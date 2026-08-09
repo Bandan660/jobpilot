@@ -309,6 +309,69 @@ export interface CapturedJob {
   adapterVersion: string;
 }
 
+/**
+ * Field limits for a captured job, in one place.
+ *
+ * The API validates against these and the extension clamps to them before
+ * sending. Two copies of the same number is how a scrape that is merely long
+ * becomes a 400 the user can do nothing about: a Workday posting listing
+ * fourteen offices produces a location string well past 200 characters, and
+ * "Invalid capture payload: job.location String must contain at most 200
+ * character(s)" is not a sentence anyone can act on.
+ *
+ * Clamping rather than rejecting is deliberate. A truncated location is still
+ * a useful record of where the job was; a refused save is not a record at all.
+ */
+export const CAPTURE_LIMITS = {
+  jobUrl: 2048,
+  title: 300,
+  company: 200,
+  location: 200,
+  externalId: 200,
+  compRaw: 500,
+  adapterVersion: 50,
+} as const;
+
+/**
+ * Cut every field to what the API will accept.
+ *
+ * Runs in the extension immediately before send. Truncation is marked with an
+ * ellipsis so a clipped value is visibly clipped rather than looking like the
+ * posting said something shorter than it did.
+ */
+export function clampCapturedJob(job: CapturedJob): CapturedJob {
+  const cut = (value: string | null, limit: number): string | null => {
+    if (value === null) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return trimmed.length <= limit ? trimmed : `${trimmed.slice(0, limit - 1)}…`;
+  };
+
+  return {
+    ...job,
+    // Not truncated: a cut URL is a broken URL, and every downstream use of
+    // this field — canonicalization, the sweep worker, the tracker link —
+    // needs it whole. Over the limit it is dropped to the origin, which at
+    // least still resolves.
+    jobUrl:
+      job.jobUrl.length <= CAPTURE_LIMITS.jobUrl ? job.jobUrl : safeOrigin(job.jobUrl),
+    title: cut(job.title, CAPTURE_LIMITS.title),
+    company: cut(job.company, CAPTURE_LIMITS.company),
+    location: cut(job.location, CAPTURE_LIMITS.location),
+    externalId: cut(job.externalId, CAPTURE_LIMITS.externalId),
+    compRaw: cut(job.compRaw, CAPTURE_LIMITS.compRaw),
+    adapterVersion: job.adapterVersion.slice(0, CAPTURE_LIMITS.adapterVersion),
+  };
+}
+
+function safeOrigin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url.slice(0, CAPTURE_LIMITS.jobUrl);
+  }
+}
+
 /** Extension -> POST /api/capture */
 export interface CaptureRequest {
   job: CapturedJob;

@@ -1,0 +1,19 @@
+-- LINKEDIN was added to ATS_PROVIDER in shared/ when Easy Apply support
+-- landed, and never added to the database type. The two have disagreed since.
+--
+-- The failure was invisible from the client: zod validates `ats` against the
+-- TypeScript union, which has the value, so the request passed. The insert
+-- then hit a Postgres enum that does not, threw `invalid input value for enum
+-- ats_provider: "LINKEDIN"`, and Hono's handler turned it into a generic 500 —
+-- so saving any LinkedIn posting reported "Something went wrong" and nothing
+-- pointed at the cause.
+--
+-- BEFORE 'GENERIC' keeps the database order matching the declaration order in
+-- shared/src/types.ts. Enum order is sort order in Postgres, and having the
+-- two drift is how the next confusing bug starts.
+--
+-- Note for whoever adds the next value: ALTER TYPE ... ADD VALUE commits fine
+-- inside a transaction on Postgres 12+, but the new value cannot be *used*
+-- until that transaction ends. Adding a value and inserting a row with it in
+-- one migration will fail.
+ALTER TYPE "public"."ats_provider" ADD VALUE IF NOT EXISTS 'LINKEDIN' BEFORE 'GENERIC';
