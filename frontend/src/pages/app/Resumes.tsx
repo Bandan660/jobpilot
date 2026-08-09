@@ -56,15 +56,15 @@ function PreviewModal({
 
   return (
     <div
-      className="sheet-backdrop"
+      className="dlg-backdrop"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={`Preview of ${resume.fileName}`}
     >
       {/* Clicks inside must not reach the backdrop's close handler. */}
-      <div className="sheet sheet-preview" onClick={(e) => e.stopPropagation()}>
-        <header className="sheet-head">
+      <div className="dlg dlg-preview" onClick={(e) => e.stopPropagation()}>
+        <header className="dlg-head">
           <strong>{resume.fileName}</strong>
           <button className="icon-action" onClick={onClose} aria-label="Close preview" title="Close">
             <CloseIcon />

@@ -693,18 +693,18 @@ function EditSection({
       )}
 
       {open && (
-        <div className="sheet-backdrop" onClick={close} role="dialog" aria-modal="true" aria-label={title}>
-          <div className="sheet sheet-edit" onClick={(e) => e.stopPropagation()}>
-            <header className="sheet-head">
+        <div className="dlg-backdrop" onClick={close} role="dialog" aria-modal="true" aria-label={title}>
+          <div className="dlg dlg-edit" onClick={(e) => e.stopPropagation()}>
+            <header className="dlg-head">
               <strong>{title}</strong>
               <button className="icon-action" onClick={close} aria-label="Close" title="Close">
                 <CloseIcon />
               </button>
             </header>
 
-            <div className="sheet-body">{children}</div>
+            <div className="dlg-body">{children}</div>
 
-            <footer className="sheet-foot">
+            <footer className="dlg-foot">
               <button className="btn btn-ghost" onClick={close}>
                 Cancel
               </button>
