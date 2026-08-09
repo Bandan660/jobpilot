@@ -169,6 +169,43 @@ were copied once at startup — editing the manifest mid-session left `dist`
 holding the old one, and the extension loaded without a permission the source
 plainly had. `build.mjs` now watches those three explicitly.
 
+**Skills matching is a dictionary, not a model.** `shared/src/skills.ts` is a
+set intersection: recognised skill names in the posting, against the profile's
+skills list *and* the text of every role. It replaced a Gemini call that worked
+and cost a request per posting on a free tier that runs out. Instant, free,
+offline, deterministic, and neither the posting nor the profile leaves the
+browser. `/api/analyze` is still deployed and still better at prose — it is
+simply not what "which of these named skills do I have" needs.
+
+Two traps live in that file and both were caught by its own tests after being
+written *and* commented against:
+
+- The canonical name must not be auto-added as an alias. `Go` is listed only as
+  "golang" precisely so "you will go far here" does not invent a requirement,
+  and auto-adding put "go" straight back.
+- Two-letter aliases are not worth their reach. `js` for JavaScript matched the
+  ".js" in "Next.js" and "Node.js", so every posting naming either appeared to
+  require JavaScript separately — and the score moved because of it.
+
+`\b` does not work for names ending in punctuation: `\bc\+\+\b` never matches
+"C++". The matcher uses "not flanked by a letter or digit" lookarounds instead.
+
+**The match score is requirement overlap, not a chance of being called back.**
+It reports the share of what a posting *asks for* that the profile evidences.
+Nothing here can see the other applicants, the budget, the referral the role is
+already earmarked for, or whether it is filled — so odds would be invented, and
+the cost of inventing them is someone skipping a job they were right for
+because a model said 40%. The prompt says so, the panel says so, and the
+`matched` / `missing` lists are the part actually worth reading. Do not relabel
+it as a callback probability.
+
+It is drawn on arrival, not behind a button — the button only ever existed
+because each check cost a Gemini request. A set intersection costs nothing, so
+asking the user to press something to see an answer already computed was making
+them do the machine's work. `matchCache` in `content.ts` holds it for the
+posting and clears on navigation, because the panel repaints on every form
+change and the description scrape is an `innerText` read that forces layout.
+
 **One application per press, and a blocked job is never skipped.** One click
 applies to the posting on screen and stops. A queue that worked down a whole
 collection was tried and dropped — applying to everything reachable is not what

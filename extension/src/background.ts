@@ -4,7 +4,6 @@ import type {
   CaptureResponse,
   DuplicateCheckResponse,
   Profile,
-  Resume,
 } from '@jobpilot/shared';
 import type { Message, Response, SessionState, StoredResumePayload } from './messages.js';
 import {
@@ -189,9 +188,6 @@ async function handle(message: WorkerMessage): Promise<unknown> {
 
     case 'GET_PROFILE':
       return api<{ profile: Profile }>('/api/profile');
-
-    case 'GET_RESUMES':
-      return api<{ resumes: Resume[] }>('/api/resumes');
 
     case 'GET_RESUME':
       return currentResume();

@@ -36,8 +36,6 @@ export type Message =
    * capped at 3MB, which is the cheapest part of this.
    */
   | { type: 'GET_RESUME' }
-  /** Metadata only. The panel shows a filename; it must not pull 3MB to do it. */
-  | { type: 'GET_RESUMES' }
   | { type: 'DRAFT_ANSWER'; payload: DraftAnswerRequest }
   /**
    * Answers the user typed by hand, merged into the profile by key.

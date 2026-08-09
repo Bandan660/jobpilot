@@ -28,6 +28,14 @@ import type { CapturedJob, DuplicateMatch } from '@jobpilot/shared';
 
 const HOST_ID = 'jobpilot-panel-host';
 
+/** What the local matcher reports. No prose, so no model. */
+export interface SkillSummary {
+  score: number;
+  matched: string[];
+  missing: string[];
+  yearsWanted: number | null;
+}
+
 export interface PanelJob {
   job: CapturedJob;
   coverage: { fillable: number; total: number };
@@ -42,10 +50,15 @@ export interface PanelJob {
   authenticated: boolean;
   /** Easy Apply is available here, so the auto-apply action is worth showing. */
   canAutoApply: boolean;
-  /** The resume on file, or null when the profile has none. Metadata only. */
-  resume: { fileName: string; sizeBytes: number } | null;
-  /** Whether this page has somewhere to put it. */
-  hasResumeField: boolean;
+  /**
+   * The skills comparison, already computed.
+   *
+   * Passed in rather than fetched on demand because it is now a set
+   * intersection rather than a model call — there is nothing to wait for and
+   * nothing to spend, so making the user press a button to see it was asking
+   * them to do work the machine had already done.
+   */
+  match: SkillSummary | null;
   /**
    * Is there an application form here at all?
    *
@@ -60,6 +73,7 @@ export interface PanelJob {
    * on this page is just clutter.
    */
   canApply: boolean;
+  /** Enough posting text on this page to be worth analysing. */
 }
 
 export interface PanelHandlers {
@@ -74,10 +88,6 @@ export interface PanelHandlers {
     draftAnswers: boolean
   ) => Promise<void>;
   onCancelAutoApply: () => void;
-  /** Puts the stored resume in the form's file input. Resolves to a message. */
-  onAttachResume: () => Promise<{ ok: boolean; message: string }>;
-  /** Opens the profile page, for when there is no resume to attach. */
-  onOpenProfile: () => void;
 
   /* One application at a time. */
   onStartSession: () => void;
@@ -166,16 +176,132 @@ function reportRunProgress(line: string, tone: 'busy' | 'blocked' | 'ready'): vo
   paintRunState();
 }
 
-/** "bandan-pradhan.pdf" -> "PDF". Falls back to a generic mark. */
-function extensionOf(fileName: string): string {
-  const extension = fileName.split('.').pop()?.toUpperCase() ?? '';
-  return extension && extension.length <= 4 ? extension : 'DOC';
-}
+/* -------------------------------- match ---------------------------------- */
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/**
+ * How well this posting's named skills line up with the profile.
+ *
+ * WHAT THE NUMBER IS, AND WHAT IT IS NOT
+ *
+ * The share of the skills this posting *names* that the profile evidences. It
+ * is not a chance of being called back, and nothing here says it is: this
+ * cannot see the other applicants, the budget, the referral the role is
+ * already earmarked for, or whether it is filled. A number presented as odds
+ * would be invented, and the cost of inventing it is someone skipping a job
+ * they were right for because a panel said 40%.
+ *
+ * The lists are the useful half. "Not in your profile" is a thing to act on
+ * before applying; the percentage is a glance.
+ *
+ * Drawn on arrival rather than behind a button, because the comparison is a
+ * set intersection over a dictionary — there is nothing to wait for and
+ * nothing to spend.
+ */
+function matchCard(match: SkillSummary): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'card match';
+
+  const total = match.matched.length + match.missing.length;
+
+  /*
+   * Nothing recognised is not a zero. A posting written entirely in prose, or
+   * about a field the dictionary does not cover, says nothing about the
+   * candidate — and "0%" would read as a verdict on them.
+   */
+  if (total === 0) {
+    const none = document.createElement('div');
+    none.className = 'match-line';
+    none.textContent = 'No skills named in this posting that jobpilot recognises.';
+    card.append(none);
+    return card;
+  }
+
+  const top = document.createElement('div');
+  top.className = 'match-top';
+
+  const dial = document.createElement('div');
+  dial.className = 'dial';
+  /*
+   * Three bands, not a gradient. A number sliding through fifty shades invites
+   * reading a precision into it that a dictionary lookup has not earned.
+   */
+  dial.dataset.band = match.score >= 70 ? 'high' : match.score >= 40 ? 'mid' : 'low';
+  dial.style.setProperty('--pct', String(Math.max(0, Math.min(100, match.score))));
+  const num = document.createElement('span');
+  num.className = 'dial-n';
+  num.textContent = String(match.score);
+  dial.append(num);
+
+  const verdict = document.createElement('div');
+  verdict.className = 'match-verdict';
+  const label = document.createElement('div');
+  label.className = 'match-label';
+  label.textContent = 'Skills matched';
+
+  /*
+   * Composed from the counts, not written by anything. Generated prose would
+   * assert more confidence than this has earned.
+   */
+  const parts = [`${match.matched.length} of ${total} named`];
+  if (match.yearsWanted !== null) parts.push(`asks ${match.yearsWanted}+ years`);
+
+  const line = document.createElement('div');
+  line.className = 'match-line';
+  line.textContent = `${parts.join(' · ')}`;
+  verdict.append(label, line);
+
+  top.append(dial, verdict);
+  card.append(top);
+
+  /*
+   * Capped, because this is the one part of the panel with no upper bound: a
+   * posting naming twenty technologies produces twenty chips and pushes the
+   * actions off the bottom of the window. Six is about two rows. The rest are
+   * one click away rather than hidden — the count says how many.
+   */
+  const VISIBLE_CHIPS = 6;
+
+  const chips = (items: string[], kind: 'has' | 'gap', heading: string) => {
+    if (items.length === 0) return;
+
+    const group = document.createElement('div');
+    group.className = 'chips-group';
+    const h = document.createElement('div');
+    h.className = 'chips-h';
+    h.textContent = `${heading} (${items.length})`;
+    const row = document.createElement('div');
+    row.className = 'chips';
+
+    const add = (item: string) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.dataset.kind = kind;
+      chip.textContent = item;
+      row.append(chip);
+    };
+
+    for (const item of items.slice(0, VISIBLE_CHIPS)) add(item);
+
+    if (items.length > VISIBLE_CHIPS) {
+      const more = document.createElement('button');
+      more.className = 'chip more';
+      more.textContent = `+${items.length - VISIBLE_CHIPS}`;
+      more.title = items.slice(VISIBLE_CHIPS).join(', ');
+      more.addEventListener('click', () => {
+        more.remove();
+        for (const item of items.slice(VISIBLE_CHIPS)) add(item);
+      });
+      row.append(more);
+    }
+
+    group.append(h, row);
+    card.append(group);
+  };
+
+  chips(match.matched, 'has', 'You have');
+  chips(match.missing, 'gap', 'Not in your profile');
+
+  return card;
 }
 
 /* ----------------------------- apply session ----------------------------- */
@@ -479,19 +605,38 @@ const CSS = `
   /* The only scrolling region: the header and the action stay put. */
   .body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 14px 16px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 9px;
   }
+
+  /*
+   * A thin, dark scrollbar for the times it is genuinely needed.
+   *
+   * The chip lists have no fixed height, so no amount of tightening guarantees
+   * a fit at every window size — the goal is that scrolling is rare and, when
+   * it happens, does not look like the panel broke. The default is a pale
+   * chunky bar that reads as the host page's chrome bleeding through.
+   */
+  .body::-webkit-scrollbar { width: 8px; }
+  .body::-webkit-scrollbar-track { background: transparent; }
+  .body::-webkit-scrollbar-thumb {
+    background: var(--glass-edge);
+    border-radius: 999px;
+    border: 2px solid var(--glass);
+  }
+  .body::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+  .body { scrollbar-width: thin; scrollbar-color: var(--glass-edge) transparent; }
 
   .card {
     background: var(--glass-raised);
     border: 1px solid var(--glass-line);
-    border-radius: 12px;
-    padding: 12px;
+    border-radius: 11px;
+    padding: 10px 11px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   }
 
@@ -500,7 +645,7 @@ const CSS = `
 
   .lamp-row {
     display: flex; align-items: center; gap: 6px;
-    margin-top: 9px; padding-top: 9px;
+    margin-top: 7px; padding-top: 7px;
     border-top: 1px solid var(--glass-line);
     font-size: 11px; color: var(--dim);
   }
@@ -519,7 +664,7 @@ const CSS = `
   .warn .role { color: var(--signal); font-size: 12.5px; }
 
   .action {
-    padding: 14px 16px;
+    padding: 12px 14px;
     border-top: 1px solid var(--glass-line);
     background: var(--ink);
     flex-shrink: 0;
@@ -568,6 +713,169 @@ const CSS = `
   .toggle input { accent-color: var(--signal); width: 14px; height: 14px; cursor: pointer; }
 
   .note { font-size: 11.5px; color: var(--dim); }
+
+  /* Match ---------------------------------------------------------------- */
+
+  .match-head { font-size: 12.5px; font-weight: 650; margin-bottom: 9px; }
+  .match-err { margin-top: 8px; font-size: 11.5px; color: #ff9b9b; line-height: 1.4; }
+
+  .match-top { display: flex; align-items: center; gap: 12px; }
+
+  /*
+   * A ring rather than a bar: a bar reads as progress toward something, and
+   * there is nothing here to complete. conic-gradient needs no SVG and no
+   * animation frame.
+   */
+  .dial {
+    --pct: 0;
+    width: 44px; height: 44px; border-radius: 50%;
+    flex-shrink: 0;
+    display: grid; place-items: center;
+    background: conic-gradient(var(--band) calc(var(--pct) * 1%), rgba(255,255,255,0.07) 0);
+    position: relative;
+  }
+  .dial::after {
+    content: ''; position: absolute; inset: 4px;
+    border-radius: 50%; background: var(--glass-raised);
+  }
+  .dial-n { position: relative; z-index: 1; font-size: 13.5px; font-weight: 700; }
+  .dial[data-band='high'] { --band: var(--live); }
+  .dial[data-band='mid']  { --band: var(--signal); }
+  .dial[data-band='low']  { --band: #ff8f8f; }
+  .dial[data-band='high'] .dial-n { color: var(--live); }
+  .dial[data-band='mid'] .dial-n  { color: var(--signal); }
+  .dial[data-band='low'] .dial-n  { color: #ff8f8f; }
+
+  .match-verdict { min-width: 0; }
+  .match-label {
+    font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--dim); font-weight: 700;
+  }
+  .match-line { font-size: 12px; line-height: 1.4; margin-top: 3px; }
+
+  .chips-group { margin-top: 9px; }
+  .chips-h { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+  .chip {
+    font-size: 10.5px; line-height: 1.25;
+    padding: 3px 7px; border-radius: 999px;
+    border: 1px solid var(--glass-line);
+  }
+  /* The overflow control. A button, so it is reachable by keyboard. */
+  .chip.more {
+    background: transparent; color: var(--dim);
+    font: inherit; font-size: 10.5px; cursor: pointer;
+  }
+  .chip.more:hover { color: var(--text); border-color: var(--glass-edge); }
+  .chip[data-kind='has'] { background: rgba(63,207,142,0.12); border-color: rgba(63,207,142,0.32); color: #9fe6c4; }
+  .chip[data-kind='gap'] { background: rgba(255,176,32,0.10); border-color: rgba(255,176,32,0.30); color: #ffd08a; }
+
+  .match .note { margin-top: 10px; }
+
+  /* Bulk run -------------------------------------------------------------- */
+
+  /* Not a card: it is the action bar's own content, not something inside it. */
+  .run { display: flex; flex-direction: column; gap: 8px; }
+  .run > .fill { margin-top: 0; }
+
+  /* Stage rail */
+  .rail { display: flex; align-items: center; justify-content: space-between; }
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+  .bead {
+    width: 21px; height: 21px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 10px; font-weight: 700;
+    border: 1px solid var(--glass-line);
+    color: var(--dim);
+  }
+  .stage-l { font-size: 9.5px; color: var(--dim); }
+  .stage[data-state='done'] .bead { background: rgba(63,207,142,0.18); border-color: rgba(63,207,142,0.5); color: var(--live); }
+  .stage[data-state='done'] .stage-l { color: var(--live); }
+  .stage[data-state='now'] .bead {
+    background: var(--signal); border-color: transparent; color: var(--on-signal);
+    box-shadow: 0 0 0 4px rgba(255,176,32,0.16);
+  }
+  .stage[data-state='now'] .stage-l { color: var(--signal); font-weight: 700; }
+
+  /* The questions the form still wants. Amber, not red: nothing is broken. */
+  .ask-head { font-size: 12.5px; font-weight: 650; color: var(--signal); }
+  .asks { list-style: none; margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+  .asks li {
+    font-size: 12px; line-height: 1.35;
+    padding: 7px 9px; border-radius: 8px;
+    background: rgba(255,176,32,0.10);
+    border: 1px solid rgba(255,176,32,0.28);
+  }
+  .asks li[data-kind='invalid'] {
+    background: rgba(239,68,68,0.10);
+    border-color: rgba(239,68,68,0.3);
+  }
+  .asks li[data-kind='invalid']::before { content: '⚠︎  '; opacity: 0.8; }
+
+  .sess-msg { font-size: 12px; line-height: 1.4; color: var(--dim); }
+  .sess-msg[data-tone='done']  { color: var(--live); font-weight: 600; }
+  .sess-msg[data-tone='error'] { color: #ff9b9b; }
+
+  .offer {
+    margin-top: 11px; padding: 10px;
+    border: 1px solid var(--glass-line); border-radius: 10px;
+    background: var(--glass-raised);
+  }
+  .offer-t { font-size: 12px; line-height: 1.4; margin-bottom: 8px; }
+
+  .run .fill { margin-top: 11px; }
+
+  /* Match ---------------------------------------------------------------- */
+
+  .match-head { font-size: 12.5px; font-weight: 650; margin-bottom: 9px; }
+  .match-err { margin-top: 8px; font-size: 11.5px; color: #ff9b9b; line-height: 1.4; }
+
+  .match-top { display: flex; align-items: center; gap: 12px; }
+
+  /*
+   * A ring rather than a bar: a bar reads as progress toward something, and
+   * there is nothing here to complete. conic-gradient needs no SVG and no
+   * animation frame.
+   */
+  .dial {
+    --pct: 0;
+    width: 54px; height: 54px; border-radius: 50%;
+    flex-shrink: 0;
+    display: grid; place-items: center;
+    background: conic-gradient(var(--band) calc(var(--pct) * 1%), rgba(255,255,255,0.07) 0);
+    position: relative;
+  }
+  .dial::after {
+    content: ''; position: absolute; inset: 5px;
+    border-radius: 50%; background: var(--glass-raised);
+  }
+  .dial-n { position: relative; z-index: 1; font-size: 15px; font-weight: 700; }
+  .dial[data-band='high'] { --band: var(--live); }
+  .dial[data-band='mid']  { --band: var(--signal); }
+  .dial[data-band='low']  { --band: #ff8f8f; }
+  .dial[data-band='high'] .dial-n { color: var(--live); }
+  .dial[data-band='mid'] .dial-n  { color: var(--signal); }
+  .dial[data-band='low'] .dial-n  { color: #ff8f8f; }
+
+  .match-verdict { min-width: 0; }
+  .match-label {
+    font-size: 9.5px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--dim); font-weight: 700;
+  }
+  .match-line { font-size: 12px; line-height: 1.4; margin-top: 3px; }
+
+  .chips-group { margin-top: 11px; }
+  .chips-h { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .chip {
+    font-size: 11px; line-height: 1.3;
+    padding: 4px 8px; border-radius: 999px;
+    border: 1px solid var(--glass-line);
+  }
+  .chip[data-kind='has'] { background: rgba(63,207,142,0.12); border-color: rgba(63,207,142,0.32); color: #9fe6c4; }
+  .chip[data-kind='gap'] { background: rgba(255,176,32,0.10); border-color: rgba(255,176,32,0.30); color: #ffd08a; }
+
+  .match .note { margin-top: 10px; }
 
   /* Bulk run -------------------------------------------------------------- */
 
@@ -1161,81 +1469,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     });
     body.append(save);
 
-    /*
-     * The resume from the profile.
-     *
-     * Shown whenever there is one, not only when this page can take it —
-     * knowing which resume jobpilot would send is worth as much as being able
-     * to send it, and a card that appears and disappears between postings is
-     * harder to trust than one that is always there saying what it holds.
-     */
-    const resumeCard = document.createElement('div');
-    resumeCard.className = 'card resume';
-
-    const doc = document.createElement('div');
-    doc.className = 'doc';
-
-    const rMeta = document.createElement('div');
-    rMeta.className = 'resume-meta';
-    const rName = document.createElement('div');
-    rName.className = 'resume-name';
-    const sub = document.createElement('div');
-    sub.className = 'resume-sub';
-    rMeta.append(rName, sub);
-
-    if (current.resume) {
-      doc.textContent = extensionOf(current.resume.fileName);
-      rName.textContent = current.resume.fileName;
-      rName.title = current.resume.fileName;
-      sub.textContent = formatBytes(current.resume.sizeBytes);
-      resumeCard.append(doc, rMeta);
-
-      if (current.hasResumeField) {
-        const attach = document.createElement('button');
-        attach.className = 'attach';
-        attach.textContent = 'Attach';
-        attach.addEventListener('click', () => {
-          attach.disabled = true;
-          attach.textContent = 'Attaching…';
-          void acts.onAttachResume().then((result) => {
-            attach.textContent = result.ok ? 'Attached' : 'Failed';
-            attach.dataset.done = result.ok ? '1' : '0';
-            sub.textContent = result.message;
-            // Only a success is final. A failure is worth another try, since
-            // the usual cause is the form not having rendered its field yet.
-            if (!result.ok) {
-              setTimeout(() => {
-                attach.disabled = false;
-                attach.textContent = 'Attach';
-                delete attach.dataset.done;
-              }, 2600);
-            }
-          });
-        });
-        resumeCard.append(attach);
-      } else {
-        sub.textContent = formatBytes(current.resume.sizeBytes);
-      }
-    } else {
-      doc.textContent = '—';
-      rName.textContent = 'No resume saved';
-      sub.textContent = 'Add one to your profile and it attaches itself.';
-      resumeCard.append(doc, rMeta);
-
-      const open = document.createElement('button');
-      open.className = 'linkish';
-      open.textContent = 'Profile';
-      open.addEventListener('click', () => acts.onOpenProfile());
-      resumeCard.append(open);
-    }
-
-    body.append(resumeCard);
-
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent =
-      'Autofill never submits, and leaves a field blank rather than guessing at it.';
-    body.append(note);
+    if (current.match) body.append(matchCard(current.match));
 
     /* Primary action */
     const action = document.createElement('div');

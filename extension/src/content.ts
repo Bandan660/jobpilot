@@ -5,22 +5,21 @@ import type {
   CaptureResponse,
   Profile,
 } from '@jobpilot/shared';
-import { clampCapturedJob } from '@jobpilot/shared';
+import { clampCapturedJob, matchSkills, type SkillMatch } from '@jobpilot/shared';
 
 import { findAdapter, type JobAdapter } from './adapters/index.js';
 import { easyApplyModal } from './adapters/linkedin.js';
 import { runApply, type ApplyFlow } from './autofill/apply.js';
 import { findApplicationForm, flowFor, linkedinFlow } from './autofill/flows.js';
+import { jobDescription } from './adapters/description.js';
 import { extractFromJsonLd } from './adapters/jsonld.js';
 import { autofill, previewCoverage } from './autofill/index.js';
 import {
-  APP_BASE_URL,
   CONFIRMATION_CHECK_MS,
   SPA_POLL_INTERVAL_MS,
   SPA_RENDER_TIMEOUT_MS,
 } from './config.js';
 import { send, type AutofillSummary, type Message, type StoredResumePayload } from './messages.js';
-import { attachResume, findResumeInput } from './autofill/resume.js';
 import { renderBanner, removeBanner } from './ui/banner.js';
 import {
   renderPanel,
@@ -466,24 +465,43 @@ let applyFlow: ApplyFlow | null = null;
 let autoApplyCancelled = false;
 
 /**
- * Resume metadata, fetched once per page rather than once per paint.
+ * The skills comparison for the posting on screen.
  *
- * `null` means "no resume on file", `undefined` means "not looked yet" — the
- * distinction matters, because collapsing them would re-request on every paint
- * for exactly the accounts that have nothing to return.
+ * Computed once and reused. The panel repaints on every form change, and
+ * re-scraping the description each time means an `innerText` read — which
+ * forces a layout — several times a second. `undefined` is "not looked yet",
+ * `null` is "no posting text here to compare".
  */
-let resumeCache: { fileName: string; sizeBytes: number } | null | undefined;
+let matchCache: SkillMatch | null | undefined;
 
-async function loadResume(): Promise<{ fileName: string; sizeBytes: number } | null> {
-  if (resumeCache !== undefined) return resumeCache;
+async function computeMatch(): Promise<SkillMatch | null> {
+  if (matchCache !== undefined) return matchCache;
 
-  const result = await send<{ resumes: { fileName: string; sizeBytes: number }[] }>({
-    type: 'GET_RESUMES',
-  });
+  const description = pageDescription();
+  if (!description) {
+    matchCache = null;
+    return null;
+  }
 
-  // Newest first, same order the attach path picks from.
-  resumeCache = result.ok ? (result.data.resumes[0] ?? null) : null;
-  return resumeCache;
+  const profile = await loadProfile();
+  // Not cached on failure: the user is probably about to sign in from the
+  // panel, and caching null would leave the card missing until a reload.
+  if (!profile) return null;
+
+  matchCache = matchSkills(description, profile);
+  return matchCache;
+}
+
+/**
+ * The posting's body text, or null when there is not enough of it.
+ *
+ * Not cached: the pane's content changes with the posting, and a stale
+ * description would be compared against the wrong job.
+ */
+function pageDescription(): string | null {
+  const url = new URL(window.location.href);
+  const adapter = findAdapter(url);
+  return adapter ? jobDescription(document, adapter) : null;
 }
 
 /**
@@ -508,13 +526,11 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   if (authenticated && !profile) return debug('could not load your profile');
 
   /*
-   * Metadata only — filename and size. Pulling the bytes here would download
-   * the file on every panel paint, which is every posting and every form step,
-   * for a card that only shows its name. The bytes are fetched on Attach.
-   *
-   * Cached for the page: it cannot change without leaving to the profile.
+   * Handed to the panel already computed. It is a set intersection over a
+   * dictionary, so there is nothing to wait for and nothing to spend — which
+   * is why it no longer sits behind a button.
    */
-  const resume = authenticated ? await loadResume() : null;
+  const match = authenticated ? await computeMatch() : null;
 
   /*
    * Scoped to an actual application form — a dialog, or a form that collects a
@@ -556,8 +572,7 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
       // queue drives LinkedIn's split view and knows nothing about any other
       // site's results page.
       canApply: canRunSession(),
-      resume,
-      hasResumeField: findResumeInput(applyFlow?.scope() ?? document) !== null,
+      match,
     },
     {
       onFill: async (overwrite) => {
@@ -584,29 +599,6 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
       },
       onCancelAutoApply: () => {
         autoApplyCancelled = true;
-      },
-
-      onAttachResume: async () => {
-        const stored = await send<StoredResumePayload | null>({ type: 'GET_RESUME' });
-        if (!stored.ok) return { ok: false, message: stored.error };
-        if (!stored.data) return { ok: false, message: 'No resume on file.' };
-
-        const outcome = attachResume(stored.data, { scope: applyFlow?.scope() ?? document });
-
-        switch (outcome.status) {
-          case 'attached':
-            return { ok: true, message: `Attached to ${outcome.label}` };
-          case 'already-attached':
-            return { ok: true, message: 'A file is already attached here' };
-          case 'no-field':
-            return { ok: false, message: 'No upload field found on this form' };
-          case 'failed':
-            return { ok: false, message: outcome.reason };
-        }
-      },
-
-      onOpenProfile: () => {
-        window.open(`${APP_BASE_URL}/dashboard/profile`, '_blank', 'noopener');
       },
 
       /* --------------------------- apply session --------------------------- */
@@ -834,6 +826,9 @@ async function init(): Promise<void> {
    */
   resetSession();
   resetPanelSession();
+
+  // The comparison was about the posting that just went away.
+  matchCache = undefined;
 
   captured = false;
   submitRecorded = false;
