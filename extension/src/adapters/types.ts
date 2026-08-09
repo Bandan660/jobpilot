@@ -41,18 +41,157 @@ export interface JobAdapter {
   confirmationScope?(): Element | null;
 }
 
-/** First selector that yields non-empty text wins. */
-export function textFrom(doc: Document | Element, selectors: string[]): string | null {
+/**
+ * Collapse the whitespace a rendered DOM carries into a single-line value.
+ *
+ * `textContent` preserves the source formatting, so a Workday location that
+ * reads "Bengaluru, India" on screen arrives as a newline, fourteen spaces,
+ * the city, another newline. Trimming the ends is not enough — the run in the
+ * middle survives, and lands in the database.
+ */
+export function squish(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+export interface TextOptions {
+  /**
+   * Reject anything longer than this.
+   *
+   * The loose selectors these adapters end on — `[class*="location"]` and
+   * friends — match a wrapper as happily as a label, and a wrapper's
+   * textContent is the whole posting. A title or a location has a length; a
+   * value well past it is a mis-match, and returning null lets the next
+   * selector in the chain try instead.
+   */
+  maxLength?: number;
+}
+
+/** First selector that yields plausible non-empty text wins. */
+export function textFrom(
+  doc: Document | Element,
+  selectors: string[],
+  options: TextOptions = {}
+): string | null {
+  const limit = options.maxLength ?? 300;
+
   for (const selector of selectors) {
-    const el = doc.querySelector(selector);
-    const value = el?.textContent?.trim();
+    let elements: NodeListOf<Element>;
+    try {
+      elements = doc.querySelectorAll(selector);
+    } catch {
+      // A malformed selector must not take the whole capture down with it.
+      continue;
+    }
+
+    for (const el of elements) {
+      const value = squish(el.textContent ?? '');
+      if (value && value.length <= limit) return value;
+    }
+  }
+  return null;
+}
+
+/** First selector that yields a non-empty attribute wins. */
+export function attrFrom(
+  doc: Document | Element,
+  selectors: string[],
+  attribute: string
+): string | null {
+  for (const selector of selectors) {
+    const value = doc.querySelector(selector)?.getAttribute(attribute);
+    const cleaned = value ? squish(value) : '';
+    if (cleaned) return cleaned;
+  }
+  return null;
+}
+
+/** `<meta property="og:title">` and friends, by property or name. */
+export function metaFrom(doc: Document, keys: string[]): string | null {
+  for (const key of keys) {
+    const escaped = key.replace(/"/g, '\\"');
+    const value = attrFrom(
+      doc,
+      [`meta[property="${escaped}"]`, `meta[name="${escaped}"]`],
+      'content'
+    );
     if (value) return value;
   }
   return null;
 }
 
+/**
+ * Value sitting next to a label — "Job Locations: Bengaluru".
+ *
+ * The older ATSs (iCIMS, Taleo, SuccessFactors) render posting metadata as
+ * label/value pairs with no class worth targeting, so the label text is the
+ * only durable handle. Matches `<dt>/<dd>`, table rows, and the
+ * label-span-next-to-value-span shape all three of them also use.
+ */
+export function labelledValue(doc: Document | Element, labels: string[]): string | null {
+  const wanted = labels.map((label) => label.toLowerCase());
+  const candidates = doc.querySelectorAll('dt, th, label, .label, [class*="label" i]');
+
+  for (const node of candidates) {
+    const text = squish(node.textContent ?? '')
+      .toLowerCase()
+      .replace(/[:*]\s*$/, '');
+    if (!wanted.some((label) => text === label || text.startsWith(label))) continue;
+
+    // <dt>/<dd> and <th>/<td> put the value in the next sibling; the
+    // label-span shape puts it in a sibling too, just an untagged one.
+    const value = squish(node.nextElementSibling?.textContent ?? '');
+    if (value && value.length <= 200) return value;
+  }
+
+  return null;
+}
+
+/**
+ * Remote, read off the location string.
+ *
+ * Only ever returns true or null, never false. Most postings simply do not
+ * say, and a location of "London" is not evidence that the role is on-site —
+ * recording false there would be inventing a fact the page never stated.
+ */
+export function remoteFromLocation(location: string | null): boolean | null {
+  if (!location) return null;
+  return /\b(remote|work from home|wfh|telecommute|anywhere)\b/i.test(location) ? true : null;
+}
+
 export function pathSegments(url: URL): string[] {
   return url.pathname.split('/').filter(Boolean);
+}
+
+/**
+ * Host match by exact name or by dotted suffix.
+ *
+ * Suffixes are written with a leading dot (".workable.com") so that a
+ * lookalike domain registered as "notworkable.com" cannot match — the naive
+ * `endsWith('workable.com')` does match it.
+ */
+export function hostMatches(url: URL, patterns: string[]): boolean {
+  const host = url.hostname.toLowerCase();
+  return patterns.some((pattern) =>
+    pattern.startsWith('.') ? host.endsWith(pattern) : host === pattern
+  );
+}
+
+/**
+ * The tenant label of a multi-tenant ATS host.
+ *
+ * "acme.wd3.myworkdayjobs.com" and "careers-acme.icims.com" both identify the
+ * employer in the subdomain, and on those platforms it is often the only place
+ * the company name appears at all. Generic prefixes and suffixes vendors add
+ * around it are stripped; anything left that is plainly not a name — "www",
+ * "jobs" — returns null rather than a wrong company.
+ */
+const HOST_LABEL_NOISE = /^(www|jobs?|careers?|apply|apply-|recruiting|hire|hiring|talent)$/i;
+
+export function tenantFromHost(url: URL): string | null {
+  const label = url.hostname.toLowerCase().split('.')[0] ?? '';
+  const stripped = label.replace(/^(careers?|jobs?|apply|recruiting)[-_]/, '');
+  if (!stripped || HOST_LABEL_NOISE.test(stripped)) return null;
+  return humanizeSlug(stripped);
 }
 
 /**

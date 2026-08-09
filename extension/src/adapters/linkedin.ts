@@ -112,6 +112,7 @@ export const linkedinAdapter: JobAdapter = {
      */
     const pane =
       doc.querySelector('.jobs-search__job-details') ??
+      doc.querySelector('.jobs-details__main-content') ??
       doc.querySelector('.job-view-layout') ??
       doc.querySelector('main') ??
       doc;
@@ -124,12 +125,23 @@ export const linkedinAdapter: JobAdapter = {
       'h1',
     ]);
 
+    /*
+     * The last two entries are the durable ones.
+     *
+     * Every class above them is hashed and rotates; a link to /company/{slug}
+     * is how LinkedIn's own navigation works and has outlived every redesign.
+     * It is scoped to a top-card container first because in split view the
+     * left-hand results list is full of other postings' company links, and an
+     * unscoped match returns whichever one happens to be first in the DOM.
+     */
     const company = textFrom(pane as Element, [
       '.job-details-jobs-unified-top-card__company-name a',
       '.job-details-jobs-unified-top-card__company-name',
       '.jobs-unified-top-card__company-name',
       '.topcard__org-name-link',
       '[data-tracking-control-name="public_jobs_topcard-org-name"]',
+      '[class*="top-card"] a[href*="/company/"]',
+      'a[href*="/company/"]',
     ]);
 
     /*

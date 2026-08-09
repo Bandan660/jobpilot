@@ -109,7 +109,8 @@ function extractIdentifier(posting: Json): string | null {
   return null;
 }
 
-export function extractFromJsonLd(doc: Document): Partial<CapturedJob> | null {
+/** The first JobPosting node in any ld+json block on the page. */
+function postingNode(doc: Document): Json | null {
   const scripts = doc.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]');
 
   for (const script of scripts) {
@@ -122,26 +123,41 @@ export function extractFromJsonLd(doc: Document): Partial<CapturedJob> | null {
     }
 
     const posting = findJobPosting(parsed);
-    if (!posting) continue;
-
-    const org = posting.hiringOrganization;
-    const company =
-      typeof org === 'object' && org !== null ? text((org as Json).name) : text(org);
-
-    return {
-      title: text(posting.title),
-      company,
-      location: extractLocation(posting),
-      remote: extractRemote(posting),
-      employmentType: normalizeEmploymentType(
-        Array.isArray(posting.employmentType)
-          ? String(posting.employmentType[0])
-          : (posting.employmentType as string | undefined)
-      ),
-      externalId: extractIdentifier(posting),
-      compRaw: extractSalary(posting),
-    };
+    if (posting) return posting;
   }
 
   return null;
+}
+
+/**
+ * Does this page declare itself a job posting?
+ *
+ * The generic adapter's whole gate. Structured data is a claim the page makes
+ * in public, for Google Jobs, and it is the only evidence available on a host
+ * nothing here knows anything about.
+ */
+export function hasJobPosting(doc: Document): boolean {
+  return postingNode(doc) !== null;
+}
+
+export function extractFromJsonLd(doc: Document): Partial<CapturedJob> | null {
+  const posting = postingNode(doc);
+  if (!posting) return null;
+
+  const org = posting.hiringOrganization;
+  const company = typeof org === 'object' && org !== null ? text((org as Json).name) : text(org);
+
+  return {
+    title: text(posting.title),
+    company,
+    location: extractLocation(posting),
+    remote: extractRemote(posting),
+    employmentType: normalizeEmploymentType(
+      Array.isArray(posting.employmentType)
+        ? String(posting.employmentType[0])
+        : (posting.employmentType as string | undefined)
+    ),
+    externalId: extractIdentifier(posting),
+    compRaw: extractSalary(posting),
+  };
 }
