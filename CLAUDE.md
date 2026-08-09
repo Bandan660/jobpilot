@@ -74,6 +74,40 @@ Typechecks are cheap and have caught real bugs in this project. Run all three.
 
 ## Design decisions that constrain future work
 
+**Coverage must be scoped to a form, never to the document.** `scanForm`
+defaults to `document`, and the panel used that default whenever no Easy Apply
+dialog was open — so on a LinkedIn posting it counted the search box, the
+filter selects, the sort dropdown and the message composer, and reported "0 of
+28 fields can be filled". Arithmetically true, and the opposite of what was
+happening: there were no fields and no form. `findApplicationForm()` in
+`flows.ts` is the strict test (a dialog with controls, or a form collecting a
+file or an email) and returns null on a listing page. It is deliberately
+separate from `dialogOrPage`, which keeps the loose `document` fallback because
+Workday and Ashby post from a plain div — that fallback is right for an action
+the user asked for and wrong for a passive count.
+
+**A detected submit records automatically, and exactly once.** A confirmation
+form was tried here and removed: the session records the application itself,
+and the confirmation screen that submission produces then trips the detector —
+so the user got a dialog asking them to add something already added.
+
+Three guards keep it to one write per posting, and all three are load-bearing:
+
+- `submitRecorded` — the MutationObserver re-fires on every mutation the
+  "application sent" panel makes while it animates in, dozens of times.
+- `captured` — set only on a confirmed write, never before the request. Setting
+  it early latched the guard on failure: retries returned true without sending
+  anything, losing the application while the UI reported success.
+- `captureInFlight` — the session's own save is still open when the detector
+  fires a few hundred milliseconds later, and `captured` is false for exactly
+  that window. Without this flag that window is a second write. Removing it
+  reproduces the duplicate immediately.
+
+The tradeoff accepted here: a detected submit is evidence, not proof, and
+`application_events` is append-only. A false positive is a wrong row the user
+can correct in the tracker, which turned out to cost less than a dialog in
+front of every application.
+
 **`application_events` is append-only.** Every status change is written there
 regardless of cause — user, extension, or system. Nothing updates or deletes.
 This is what allows Gmail-driven status updates to be added later by writing
@@ -135,18 +169,126 @@ were copied once at startup — editing the manifest mid-session left `dist`
 holding the old one, and the extension loaded without a permission the source
 plainly had. `build.mjs` now watches those three explicitly.
 
-**Auto-apply must never click submit.** `autoApply.ts` locates the submit
-button only to detect that it has reached the review step, and returns. If a
-change there ever makes that button reachable by `.click()`, this stops being
-an assistant and becomes a tool for spraying applications — which is also the
-line the Chrome Web Store review looks for. It stops rather than guessing at
-required questions too: LinkedIn refuses to advance past them, so pressing on
-just stalls silently.
+**One application per press, and a blocked job is never skipped.** The bulk
+queue that worked down a whole collection was replaced: one click applies to
+the posting on screen and stops. When the form asks something the profile
+cannot answer, `autoapply/session.ts` stops with the questions **named** and
+leaves the form open — the user answers them in the page's own form and presses
+continue, which is the *same call*, because `runApply` never overwrites a
+filled field and so a second pass fills only what is still empty. Skipping was
+the old behaviour and it lost an application to a single dropdown.
+
+Whatever the user typed by hand is read off the form in `beforeSubmit` — the
+last moment it exists, since a successful submit replaces the whole dialog —
+and offered back to the profile as a `SavedAnswer` keyed by the question. That
+loop is the only thing that makes the blocked list shorter over time.
+
+**Auto-submit is on, deliberately, and the guardrails are the point.** This
+reverses the original "never clicks submit" rule. The owner chose hands-off
+bulk applying with the costs stated — Chrome Web Store review looks for exactly
+this behaviour and it is a common rejection reason, and LinkedIn can rate-limit
+or restrict an account that submits faster than a person could. Do not
+re-litigate the decision; do not quietly weaken what protects it:
+
+- `autoSubmit` defaults to **false** in `runApply`. Everything that fills a
+  form without being asked — the panel's Fill, the coverage preview — cannot
+  send anything and cannot be made to from elsewhere. Sending is one flag on
+  one call path, so "can this send an application without me" stays answerable
+  by reading one file.
+- `findBlockers` runs **again immediately before the click**, not once at the
+  start. A draft can fail and the page can render a validation error during the
+  fill. An incomplete application sent is worse than none, because it burns the
+  posting.
+- The submission is confirmed by the page, not by the click. A click the form
+  rejected leaves the button in place; counting that as sent is how a run
+  reports fifty applications and delivers none.
+- Cancellation is checked in the same breath as the click. Stop must stop.
+
+The default pace is one application every ~2.5s and the faster options say what
+they risk rather than showing a bigger number.
+
+**One driver, several flows.** `apply.ts` holds the
+fill → attach → draft → check → advance sequence for every platform; `flows.ts`
+holds only what differs (where the form is, whether it paginates, what the
+buttons say). This replaced a LinkedIn-only `autoApply.ts` that would have had
+to be copied per platform. Adding an ATS means adding a flow, not a driver.
+
+**The resume goes in through `DataTransfer`.** `input.files` is a read-only
+`FileList` that cannot be constructed; assigning a `DataTransfer`'s `files` is
+the only supported path, and it is what a real drag-and-drop produces. It never
+replaces a file already attached — overwriting the tailored resume someone just
+picked leaves no trace of what it replaced. It also refuses inputs it cannot
+identify as resume fields, because a resume in the transcript slot is worse
+than an empty one, and refuses `accept` mismatches, because the page would
+otherwise reject it silently at submit.
+
+**Answer drafting is prompted to refuse.** `POST /api/analyze/answer` is given
+the profile as the only permitted source of fact and told to return `NO_BASIS`
+rather than fill a gap. An empty draft is a success, not a failure — it means
+the profile does not support an answer, which is exactly when the user must
+write it themselves. The alternative is a model inventing an internship on
+someone's application. Off by default in the panel, per-run.
 
 **LinkedIn's selectors will rot.** It ships hashed class names that change
 without notice, so `adapters/linkedin.ts` carries several fallbacks per field
 ending in something structural. When capture starts returning nulls there,
 suspect the selectors before anything else.
+
+**The panel is opaque. Glass was tried and removed.** `backdrop-filter` pulls
+the host page's brightness through whatever tint sits on top, so over a light
+ATS form the panel read as washed-out grey rather than as dark chrome — the
+opposite of the separation it exists to have. Every surface is a solid colour
+now; the `--glass-*` token names survive only so the rules did not all have to
+change. Coloured accent tints over that opaque base are fine. Reintroducing
+`backdrop-filter` is not.
+
+**One action in the action bar, never two.** The Fill button renders only when
+there is a form here *and* no session available — a session fills as its first
+step, so offering both is the same work twice, and a disabled "No form to fill"
+under a live "Apply with jobpilot" is what made the panel read as broken. The
+status line has to agree with the button below it: on a LinkedIn posting the
+form does not exist until Easy Apply is pressed, which is "ready to apply", not
+"no application form on this page".
+
+**`genericAdapter` matches every host, so it must stay last in `ADAPTERS`.**
+`findAdapter` takes the first match; anything registered after it is dead code.
+It is also the reason an unknown host does something instead of nothing —
+before it existed, `findAdapter` returned null, `init` returned early, and the
+documented JSON-LD fallback never ran, because no adapter was left to carry it.
+Its `isJobPage` demands a schema.org `JobPosting` in the document rather than
+guessing from the URL, which is what keeps the panel off careers indexes and
+off jobpilot's own site.
+
+**`[aria-required="true"]` matches wrappers, not just controls.** `findBlockers`
+queried `input[required], select[required], textarea[required],
+[aria-required="true"]` and cast every hit to a form control. LinkedIn puts
+that attribute on the `div` around each field as well as on the field, and a
+`div` has no `.value` — so the emptiness test read `undefined` as "unanswered"
+and reported a blocker for a question already answered. Auto-apply stopped on
+step 1, contact info, every field prefilled by LinkedIn itself. Filter real
+controls first, then check required-ness. Same function: a checkbox with no
+`name` made `input[name=""]` match nothing, so an unnamed consent box always
+read as unticked.
+
+**Anything the panel's `paint()` creates dies on the next repaint.** The panel
+is redrawn whenever the tracking signature changes, and the Easy Apply field
+count is part of that signature — so opening the modal rebuilds the panel about
+a second into an auto-apply run, and every step advance rebuilds it again.
+`report` had captured the status element from the paint that started the run,
+so every message after "Opening Easy Apply…" went into a detached node and the
+user saw nothing at all. `collapsed` was already module-level for exactly this
+reason; the run state was not. It is now, along with the live node handles.
+Anything that must outlive a repaint belongs beside them.
+
+**An adapter hook nothing calls is not a feature.** `expectedExternalId` /
+`renderedExternalId` — the guard against scraping the previous posting during
+an SPA navigation — were declared, documented at length, implemented by
+LinkedIn, and called by nothing for two commits: the rewrite to continuous
+tracking replaced the retry loop they served and left them orphaned. The
+signature comparison that replaced it cannot cover that case, because the
+signature is computed *from* the stale DOM and therefore looks perfectly
+stable. `isStale()` in `content.ts` wires them back up. Grep for a caller
+before trusting any optional member of `JobAdapter`.
 
 **The profile dialogs are `.dlg`. `.modal` and `.sheet` are both taken.** Both files
 `tracker.css` owns `.modal*` for the Add Application dialog and loads after
@@ -233,6 +375,24 @@ cache-first would serve an old app shell after every deploy. Only
 `/assets/` is cache-first, and only because Vite fingerprints those names.
 Bump `VERSION` in `public/sw.js` when changing any of this.
 
+**A TypeScript union is not a Postgres enum.** `LINKEDIN` was added to
+`ATS_PROVIDER` when Easy Apply support landed and never added to the database
+type, and the two disagreed for months. Nothing caught it: zod validates `ats`
+against the TS union, so every request passed, and the insert then died on
+`invalid input value for enum ats_provider: "LINKEDIN"` — which `onError` turns
+into a generic 500. Saving any LinkedIn posting reported "Something went wrong"
+with nothing anywhere pointing at the enum. Fixed by `0001_add_linkedin_ats`.
+Adding a value to any `as const` array that backs a `pgEnum` means writing a
+migration in the same change, and `ALTER TYPE … ADD VALUE` cannot be *used* in
+the transaction that adds it.
+
+**A generic 500 handler hides exactly the errors worth reading.** `onError`
+returns "Something went wrong" for anything that is not an `HTTPException`,
+which is right — internal detail must not leak — but it means every unhandled
+server error looks identical from the client. When the extension reports it,
+the detail is in `wrangler tail` and nowhere else. Reach for that before
+guessing at the payload.
+
 **drizzle-kit prompts interactively** when it cannot distinguish a new column
 from a rename, which hangs a non-interactive shell.
 
@@ -285,10 +445,33 @@ detail; this is what a new session needs before touching anything.
 
 - **No application has been submitted through the extension.** Capture and
   autofill work on a live Greenhouse posting; the submit path is unproven.
+- **LinkedIn auto-apply is withheld, not removed.** It was run against a live
+  Easy Apply posting and stopped on step 1 without saying why. Two real bugs
+  came out of that — `findBlockers` counting wrapper elements, and the panel
+  repaint detaching the status node — and both are fixed, but nothing has
+  confirmed the flow end to end. `linkedinFlow` in `flows.ts` is complete and
+  deliberately unreachable: `flowFor` returns null for LINKEDIN. Re-enabling is
+  one line, once someone can watch it run.
+- **Assisted apply on ATS platforms has never been run against a live form.**
+  Blocker detection and resume attachment are verified against synthetic DOM;
+  the `DataTransfer` assignment itself is browser behaviour that no test here
+  can exercise. Greenhouse is the one to try it on first — it is the only
+  platform anything has been confirmed on.
+- **Answer drafting is deployed in code only.** `POST /api/analyze/answer`
+  needs `wrangler deploy`, and the Gemini free-tier quota was already exhausted
+  the last time it was tried, so nothing has seen a real response.
 - `optional_host_permissions` is declared but not wired to `chrome.scripting`.
-- The extension injects into ~24 sites but has 4 adapters. Everything else
-  falls back to JSON-LD, which Workday and Taleo do not emit — so most of that
-  list currently does nothing.
+- **Every host in the manifest now has an adapter, and only Greenhouse has
+  ever been run against a live posting.** The other 23 are built from each
+  platform's published markup conventions and verified against synthetic DOM,
+  which proves the routing and the parsing but says nothing about whether the
+  selectors match the real page. Expect the first live run on each to find
+  something. Workday matters most: it emits no JSON-LD, so `workday.ts` is the
+  only thing standing between it and an empty capture.
+- Two hosts are matched by an adapter but absent from `manifest.json`, so the
+  content script never runs there: `myworkdaysite.com` (newer Workday tenants)
+  and `successfactors.eu` (EU-hosted SAP). Adding the match patterns is all
+  either needs.
 - The extension is not on the Web Store, so the install banner points at
   `/copilot` rather than a listing.
 - `frontend/src/content/site.ts` holds placeholder contact details that render
