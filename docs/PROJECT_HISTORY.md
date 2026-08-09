@@ -129,3 +129,70 @@ Stated plainly because it matters:
 - The rendered UI has not been visually confirmed by me — the browser I can
   drive is not on this machine, so every visual change was verified by build
   success and the user's own eyes.
+
+---
+
+# Session: 8–9 Aug 2026
+
+## Shipped
+
+**Profile page rebuilt twice.** First into a full editor (skills, languages,
+inline experience/education editors, readiness ring, scroll-spy sidebar). Then
+again, on user feedback, into a **read-first** page: sections display values and
+a pencil opens the inputs in a dialog. Cancel restores a snapshot, because
+inputs write into the draft as you type.
+
+**HireFresher cross-promotion.** `hirefresher.in` is the user's separate ATS
+resume builder. Six placements, each with its own `utm_medium`. Deliberately no
+`/resume-builder` redirect page: an instant redirect is a doorway page, and a
+real page would target the same keywords as the other site and split authority
+between two of the user's own domains.
+
+**PWA.** Manifest, real PNG icons generated from the favicon (including a
+maskable variant padded into the safe zone), iOS meta tags, and a hand-written
+service worker. It never caches `/api/` — those responses are per-user and
+auth'd. Navigations are network-first so a deploy is never masked by a stale
+shell; only fingerprinted `/assets/` are cache-first.
+
+**Extension: LinkedIn support.** Adapter plus Easy Apply handling. The job id is
+usually `?currentJobId=`, extraction is scoped to the detail pane, and the modal
+is watched by MutationObserver because it has no URL and replaces its own DOM
+between steps.
+
+**Extension: auto-apply.** Opens Easy Apply, fills each step, advances, stops at
+review. It never clicks submit — verified against the built bundle, not just the
+source. Blocked steps name the unanswered question rather than guessing.
+
+**Extension: in-page side panel** replacing the toolbar popup, opened from a
+docked launcher. Sign-in lives in it too, since Chrome caps toolbar popups at
+600px and they cannot be the full-height surface asked for.
+
+**R2 enabled.** One resume per account, 200KB, replaced on upload. A 9GB
+bucket-wide ceiling backs the per-account limit, because per-account limits
+bound one user and do nothing about a thousand.
+
+**Gemini match analysis endpoint** — deployed, key set, **parked** at the user's
+request. Their free-tier quota was already exhausted when tested.
+
+## What cost the most time, and why
+
+Three UI changes in a row appeared to do nothing. The cause was not caching: two
+other stylesheets already owned the class names. `tracker.css` owns `.modal*`
+and loads last, so its `max-width: 420px` and near-black backdrop won silently.
+Renaming to `.sheet` hit `layout.css`'s spreadsheet mock, which sets
+`font-family: var(--font-mono)` — that is why the dialog rendered in monospace.
+The dialogs are `.dlg` now, checked against every stylesheet *before* use.
+
+Two CORS failures were found by the user's browser console rather than by any
+test here, because **curl does not preflight**. First `PUT`, then `X-File-Name`.
+
+## Still open
+
+- The extension has **never completed a real application end to end**. Capture
+  and autofill are confirmed working on a live Greenhouse posting; nothing has
+  been submitted.
+- Gemini analysis is parked pending quota.
+- Extension is not on the Web Store, so the install banner points at `/copilot`.
+- `frontend/src/content/site.ts` still holds placeholder contact details.
+- Two stray Cloudflare secrets whose *names* are a database URL and a Gemini
+  key. The user chose to leave them.
