@@ -19,11 +19,28 @@ await mkdir(outdir, { recursive: true });
  * "type": "module"). Mixing those output formats is exactly what a plain
  * esbuild script handles well and what a single Vite config fights against.
  */
+/**
+ * Production builds ship a sourcemap. They did not, and the cost of that was a
+ * real debugging session lost.
+ *
+ * A minified bundle with no map turns every error report into noise:
+ * chrome://extensions showed `content.js:322 (se)`, where `se` was the
+ * one-letter name esbuild had given `removePanel` and line 322 landed inside
+ * the panel's CSS template literal — a position no JavaScript can throw from.
+ * Neither the function name nor the line survived minification in any form
+ * worth reading, and the entry could not be tied to any version of the source.
+ *
+ * External `.map` files rather than inline: devtools fetch them only when
+ * someone opens them, so the script the browser parses on every page load
+ * stays exactly the size it was. Shipping source alongside an extension gives
+ * nothing away either — a .crx is a zip, and Web Store review reads the source
+ * regardless.
+ */
 const shared = {
   bundle: true,
   target: 'chrome114',
   logLevel: 'info',
-  sourcemap: watch ? 'inline' : false,
+  sourcemap: watch ? 'inline' : true,
   minify: !watch,
 };
 
