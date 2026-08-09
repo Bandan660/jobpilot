@@ -242,13 +242,55 @@ dodge this.
 
 ---
 
+## Where things stand — 9 Aug 2026
+
+Everything below is deployed and pushed. `docs/PROJECT_HISTORY.md` has the
+detail; this is what a new session needs before touching anything.
+
+**Working, confirmed against reality:**
+
+- Capture and autofill on a live Greenhouse posting — 10 of 15 fields filled,
+  correct title and company. The adapters are no longer theoretical.
+- Duplicate detection across platforms, CSV import, the tracker, the profile.
+- R2 resume storage: one per account, 200KB, replaced on upload.
+
+**Working, never exercised end to end:**
+
+- **No application has ever been submitted through the extension.** Everything
+  up to the submit button is confirmed; the capture-on-submit path is not.
+  This is the next milestone that matters, and it needs the user, not us.
+- LinkedIn Easy Apply auto-fill. Written and typechecked, never run.
+- Lever, Ashby and the JSON-LD fallback.
+
+**Parked at the user's request:**
+
+- Gemini match analysis. `POST /api/analyze` is deployed and
+  `GEMINI_API_KEY` is set correctly. Their Gemini free-tier daily quota was
+  already exhausted when tested — a valid key returning 429 on
+  `generate_content_free_tier_requests`. Retry after a reset before assuming
+  anything is broken.
+
+**Decisions already made — do not re-raise:**
+
+- The user declined rotating two Cloudflare secrets whose *names* contain a
+  database URL and a Gemini API key. Raised twice; they chose to keep them.
+- No resume builder here. That is `hirefresher.in`, their separate product,
+  linked to from six placements.
+- No animation library on the marketing site. three.js and GSAP were both
+  tried and removed on measured performance grounds.
+
+---
+
 ## Known incomplete
 
-- **Autofill has never been driven by a real profile end to end.** The editor
-  and the API both exist now; nobody has filled one in and watched it fill a
-  live form.
+- **No application has been submitted through the extension.** Capture and
+  autofill work on a live Greenhouse posting; the submit path is unproven.
 - `optional_host_permissions` is declared but not wired to `chrome.scripting`.
-- Adapters have never been run against a live posting.
+- The extension injects into ~24 sites but has 4 adapters. Everything else
+  falls back to JSON-LD, which Workday and Taleo do not emit — so most of that
+  list currently does nothing.
+- The extension is not on the Web Store, so the install banner points at
+  `/copilot` rather than a listing.
 - `frontend/src/content/site.ts` holds placeholder contact details that render
   into the live privacy policy and terms.
 - Privacy policy is accurate to the code but has had no legal review.
