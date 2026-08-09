@@ -169,9 +169,10 @@ were copied once at startup — editing the manifest mid-session left `dist`
 holding the old one, and the extension loaded without a permission the source
 plainly had. `build.mjs` now watches those three explicitly.
 
-**One application per press, and a blocked job is never skipped.** The bulk
-queue that worked down a whole collection was replaced: one click applies to
-the posting on screen and stops. When the form asks something the profile
+**One application per press, and a blocked job is never skipped.** One click
+applies to the posting on screen and stops. A queue that worked down a whole
+collection was tried and dropped — applying to everything reachable is not what
+this is for, and it is not coming back. When the form asks something the profile
 cannot answer, `autoapply/session.ts` stops with the questions **named** and
 leaves the form open — the user answers them in the page's own form and presses
 continue, which is the *same call*, because `runApply` never overwrites a
@@ -184,11 +185,11 @@ and offered back to the profile as a `SavedAnswer` keyed by the question. That
 loop is the only thing that makes the blocked list shorter over time.
 
 **Auto-submit is on, deliberately, and the guardrails are the point.** This
-reverses the original "never clicks submit" rule. The owner chose hands-off
-bulk applying with the costs stated — Chrome Web Store review looks for exactly
-this behaviour and it is a common rejection reason, and LinkedIn can rate-limit
-or restrict an account that submits faster than a person could. Do not
-re-litigate the decision; do not quietly weaken what protects it:
+reverses the original "never clicks submit" rule. The owner chose sending
+without a second press, with the costs stated — Chrome Web Store review looks
+for exactly this behaviour and it is a common rejection reason, and LinkedIn
+can rate-limit or restrict an account that submits faster than a person could.
+Do not re-litigate the decision; do not quietly weaken what protects it:
 
 - `autoSubmit` defaults to **false** in `runApply`. Everything that fills a
   form without being asked — the panel's Fill, the coverage preview — cannot

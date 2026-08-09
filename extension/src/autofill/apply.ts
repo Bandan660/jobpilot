@@ -18,10 +18,10 @@ import { send } from '../messages.js';
  * call path, which is what makes the question "can this send an application
  * without me" answerable by reading a single file.
  *
- * With `autoSubmit` on, the queue in `autoapply/queue.ts` runs hands-off. That
- * was a deliberate product decision, taken with the Web Store and LinkedIn
- * rate-limiting risks understood — see the note in CLAUDE.md before changing
- * it back.
+ * With `autoSubmit` on, `autoapply/session.ts` sends the application itself.
+ * That was a deliberate product decision, taken with the Web Store and
+ * LinkedIn rate-limiting risks understood — see the note in CLAUDE.md before
+ * changing it back.
  *
  * It stops rather than guessing either way. A required question the profile
  * cannot answer ends the attempt with that question named, and specifically
@@ -86,9 +86,9 @@ export interface ApplyOptions {
    * OFF BY DEFAULT, AND EVERY CALLER MUST SAY OTHERWISE IN SO MANY WORDS.
    *
    * This used to be impossible on purpose. It is now a setting because
-   * hands-off bulk applying is what the product is for, but the shape of the
-   * code keeps the old guarantee available: one flag, one call site, one place
-   * to look when asking "can this thing send an application without me".
+   * sending without a second press is what the product is for, but the shape
+   * of the code keeps the old guarantee available: one flag, one call site,
+   * one place to look when asking "can this send an application without me".
    *
    * The two conditions below are not negotiable and are checked immediately
    * before the click, not inherited from earlier in the run:
