@@ -42,6 +42,24 @@ export interface PanelJob {
   authenticated: boolean;
   /** Easy Apply is available here, so the auto-apply action is worth showing. */
   canAutoApply: boolean;
+  /** The resume on file, or null when the profile has none. Metadata only. */
+  resume: { fileName: string; sizeBytes: number } | null;
+  /** Whether this page has somewhere to put it. */
+  hasResumeField: boolean;
+  /**
+   * Is there an application form here at all?
+   *
+   * Distinct from a coverage of zero. No form and a form with nothing we
+   * recognise are different situations and the panel says so, because the
+   * combined message counted the host page own controls as fields.
+   */
+  hasForm: boolean;
+  /**
+   * There is an application here this can drive end to end. Elsewhere the
+   * section is hidden rather than disabled — an offer that can never be taken
+   * on this page is just clutter.
+   */
+  canApply: boolean;
 }
 
 export interface PanelHandlers {
@@ -51,8 +69,22 @@ export interface PanelHandlers {
   /** Resolves to an error message, or null on success. */
   onAuth: (mode: 'login' | 'signup', email: string, password: string) => Promise<string | null>;
   /** Runs the Easy Apply sequence, reporting progress as it goes. */
-  onAutoApply: (report: (line: string, tone: 'busy' | 'blocked' | 'ready') => void) => Promise<void>;
+  onAutoApply: (
+    report: (line: string, tone: 'busy' | 'blocked' | 'ready') => void,
+    draftAnswers: boolean
+  ) => Promise<void>;
   onCancelAutoApply: () => void;
+  /** Puts the stored resume in the form's file input. Resolves to a message. */
+  onAttachResume: () => Promise<{ ok: boolean; message: string }>;
+  /** Opens the profile page, for when there is no resume to attach. */
+  onOpenProfile: () => void;
+
+  /* One application at a time. */
+  onStartSession: () => void;
+  /** Called after the user has answered the questions the form demanded. */
+  onContinueSession: () => void;
+  onCancelSession: () => void;
+  onSaveAnswers: (answers: { label: string; answer: string }[]) => void;
 }
 
 /**
@@ -68,6 +100,10 @@ let mounted: {
   repaint: (state: PanelJob, handlers: PanelHandlers) => void;
 } | null = null;
 
+/* Kept so the panel can be reopened without the caller re-supplying them. */
+let lastState: PanelJob | null = null;
+let lastHandlers: PanelHandlers | null = null;
+
 /*
  * Module-level, so it survives a re-render.
  *
@@ -78,9 +114,271 @@ let mounted: {
  */
 let collapsed = true;
 
+/**
+ * Auto-apply run state, module-level for exactly the reason `collapsed` is —
+ * and missed when `collapsed` was fixed.
+ *
+ * The run and the panel have different lifetimes. Opening Easy Apply changes
+ * the form's field count, the field count is part of the tracking signature,
+ * and a changed signature repaints the panel — so the panel is rebuilt roughly
+ * one second into a run, and again on every step it advances. `paint()` clears
+ * the root, which detached the status element the run's `report` callback had
+ * captured. Everything after "Opening Easy Apply…" was then written into a
+ * node that was no longer in the document.
+ *
+ * The visible result was the worst possible one: the modal opens, the run
+ * stops on some step, and the panel says nothing at all — including when what
+ * it had to say was "this step needs you".
+ *
+ * Held here instead, so a repaint restores the line and the button rather than
+ * losing them. `active` lives here too: it was a local, so a repaint reset the
+ * button to "Apply with jobpilot" mid-run and a second click started a second
+ * run over the first.
+ */
+let autoApplyRun: {
+  active: boolean;
+  line: string | null;
+  tone: 'busy' | 'blocked' | 'ready';
+  /** Sticky across repaints and across jobs: a per-session preference. */
+  draftAnswers: boolean;
+} = { active: false, line: null, tone: 'busy', draftAnswers: false };
+
+/** The live status node and button, re-pointed by every paint. */
+let statusEl: HTMLElement | null = null;
+let applyEl: HTMLButtonElement | null = null;
+
+function paintRunState(): void {
+  if (statusEl) {
+    statusEl.hidden = autoApplyRun.line === null;
+    statusEl.dataset.tone = autoApplyRun.tone;
+    statusEl.innerHTML = autoApplyRun.tone === 'busy' ? '<span class="spin"></span>' : '';
+    if (autoApplyRun.line) statusEl.append(document.createTextNode(autoApplyRun.line));
+  }
+  if (applyEl) {
+    applyEl.textContent = autoApplyRun.active ? 'Stop' : 'Apply with jobpilot';
+  }
+}
+
+/** Passed to the run, and safe to hold across any number of repaints. */
+function reportRunProgress(line: string, tone: 'busy' | 'blocked' | 'ready'): void {
+  autoApplyRun.line = line;
+  autoApplyRun.tone = tone;
+  paintRunState();
+}
+
+/** "bandan-pradhan.pdf" -> "PDF". Falls back to a generic mark. */
+function extensionOf(fileName: string): string {
+  const extension = fileName.split('.').pop()?.toUpperCase() ?? '';
+  return extension && extension.length <= 4 ? extension : 'DOC';
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/* ----------------------------- apply session ----------------------------- */
+
+/**
+ * Session state, module-level for the same reason everything else here is.
+ *
+ * An application changes the page repeatedly — the modal opens, each step
+ * re-renders, the posting itself can change underneath — and every one of
+ * those repaints the panel. Anything the session owns has to live outside
+ * `paint()` or it is destroyed mid-application, taking its handlers with it.
+ */
+export interface PanelSession {
+  state: 'idle' | 'running' | 'needs-input' | 'done' | 'error';
+  stage: 'fill' | 'check' | 'submit' | null;
+  message: string;
+  /** Named questions the user has to answer in the page's own form. */
+  questions: { label: string; kind: 'empty' | 'invalid' }[];
+  /** Offered back to the profile after a submit that needed hand-filling. */
+  answersToSave: { label: string; answer: string }[];
+  savingAnswers: boolean;
+  answersSaved: boolean;
+}
+
+const IDLE_SESSION: PanelSession = {
+  state: 'idle',
+  stage: null,
+  message: '',
+  questions: [],
+  answersToSave: [],
+  savingAnswers: false,
+  answersSaved: false,
+};
+
+let session: PanelSession = { ...IDLE_SESSION };
+let sessionRoot: HTMLElement | null = null;
+let sessionActs: PanelHandlers | null = null;
+
+/** Called by the session, from outside any paint. */
+export function updateSession(next: Partial<PanelSession>): void {
+  session = { ...session, ...next };
+  paintSession();
+}
+
+export function resetPanelSession(): void {
+  session = { ...IDLE_SESSION };
+  paintSession();
+}
+
+const STAGES: { key: NonNullable<PanelSession['stage']>; label: string }[] = [
+  { key: 'fill', label: 'Fill' },
+  { key: 'check', label: 'Check' },
+  { key: 'submit', label: 'Submit' },
+];
+
+function paintSession(): void {
+  const root = sessionRoot;
+  const acts = sessionActs;
+  if (!root || !acts) return;
+
+  root.innerHTML = '';
+  root.dataset.state = session.state;
+
+  /* Stage rail, while it is working. */
+  if (session.state === 'running') {
+    const rail = document.createElement('div');
+    rail.className = 'rail';
+    const reached = STAGES.findIndex((stage) => stage.key === session.stage);
+
+    STAGES.forEach((stage, index) => {
+      const dot = document.createElement('div');
+      dot.className = 'stage';
+      dot.dataset.state = index < reached ? 'done' : index === reached ? 'now' : 'todo';
+      const bead = document.createElement('span');
+      bead.className = 'bead';
+      bead.textContent = index < reached ? '✓' : String(index + 1);
+      const name = document.createElement('span');
+      name.className = 'stage-l';
+      name.textContent = stage.label;
+      dot.append(bead, name);
+      rail.append(dot);
+    });
+    root.append(rail);
+  }
+
+  /* The questions the user has to answer. This is the whole point. */
+  if (session.state === 'needs-input') {
+    const head = document.createElement('div');
+    head.className = 'ask-head';
+    head.textContent = session.message;
+    root.append(head);
+
+    const list = document.createElement('ul');
+    list.className = 'asks';
+    for (const question of session.questions) {
+      const item = document.createElement('li');
+      item.dataset.kind = question.kind;
+      item.textContent = question.label;
+      list.append(item);
+    }
+    root.append(list);
+
+    const hint = document.createElement('p');
+    hint.className = 'note';
+    hint.textContent =
+      'Answer them in the application form itself, then press continue — nothing is lost.';
+    root.append(hint);
+  }
+
+  if (session.state !== 'idle' && session.state !== 'needs-input' && session.message) {
+    const line = document.createElement('div');
+    line.className = 'sess-msg';
+    line.dataset.tone = session.state;
+    line.textContent = session.message;
+    root.append(line);
+  }
+
+  /* Offer the hand-typed answers back to the profile. */
+  if (session.state === 'done' && session.answersToSave.length > 0 && !session.answersSaved) {
+    const offer = document.createElement('div');
+    offer.className = 'offer';
+
+    const text = document.createElement('div');
+    text.className = 'offer-t';
+    text.textContent =
+      session.answersToSave.length === 1
+        ? 'Save that answer to your profile so it fills itself next time?'
+        : `Save those ${session.answersToSave.length} answers to your profile?`;
+
+    const save = document.createElement('button');
+    save.className = 'ghost';
+    save.textContent = session.savingAnswers ? 'Saving…' : 'Save to profile';
+    save.disabled = session.savingAnswers;
+    save.addEventListener('click', () => acts.onSaveAnswers(session.answersToSave));
+
+    offer.append(text, save);
+    root.append(offer);
+  }
+
+  if (session.answersSaved) {
+    const saved = document.createElement('p');
+    saved.className = 'note';
+    saved.textContent = 'Saved. Those questions will fill themselves from now on.';
+    root.append(saved);
+  }
+
+  /* The one button, whose label is the state. */
+  const action = document.createElement('button');
+  action.className = 'fill';
+
+  if (session.state === 'running') {
+    action.textContent = 'Stop';
+    action.addEventListener('click', () => acts.onCancelSession());
+  } else if (session.state === 'needs-input') {
+    action.textContent = 'Resume application';
+    action.addEventListener('click', () => acts.onContinueSession());
+  } else {
+    action.textContent = session.state === 'done' ? 'Apply to another' : 'Apply with jobpilot';
+    action.addEventListener('click', () => acts.onStartSession());
+  }
+  root.append(action);
+
+  if (session.state === 'idle') {
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent =
+      'Fills this one application, submits it, and adds it to your tracker. One job per press.';
+    root.append(note);
+  }
+}
+
+/**
+ * Is the panel open, as opposed to collapsed to its edge handle?
+ *
+ * Used to decide whether a notification is worth raising: if the panel is
+ * open the questions are already listed in it, and a banner on top would be
+ * the same message twice, overlapping itself.
+ */
+/**
+ * Open the panel because the run is waiting on the user.
+ *
+ * The panel deliberately never opens by itself — a surface covering a third of
+ * the window before being asked for is what gets extensions removed. This is
+ * the exception, and it is not the same thing: the user started this run, it
+ * cannot finish without them, and the control they need is in here. Opening
+ * unasked is rude; opening because you asked and I got stuck is the answer.
+ */
+export function openPanelForInput(): void {
+  if (!mounted || !lastState || !lastHandlers) return;
+  collapsed = false;
+  mounted.repaint(lastState, lastHandlers);
+}
+
+export function panelIsOpen(): boolean {
+  return !collapsed && mounted !== null;
+}
+
 export function removePanel(): void {
   mounted?.destroy();
   mounted = null;
+  statusEl = null;
+  applyEl = null;
+  sessionRoot = null;
   document.getElementById(HOST_ID)?.remove();
 }
 
@@ -94,11 +392,24 @@ const CSS = `
    * the form, which is exactly the confusion to avoid before someone hits
    * submit.
    */
+  /*
+   * SOLID, NOT GLASS.
+   *
+   * This was translucent with a backdrop blur, and over a light ATS page it
+   * read as washed-out grey rather than as a dark panel — the blur pulls the
+   * page's brightness through no matter how heavy the tint. Every surface here
+   * is opaque now, and the panel reads as its own application again, which was
+   * the whole reason it is dark in the first place.
+   *
+   * The token names still say "glass" so the rules below did not all have to
+   * change. They are ordinary solid colours: a base, one step up for raised
+   * cards, one more for hover, and two line weights.
+   */
   .panel {
-    --ink: #0b1220;
-    --panel: #131d30;
-    --raised: #1a2740;
-    --line: #24334f;
+    --ink: #080d17;
+    --panel: #0f1626;
+    --raised: #182135;
+    --line: #263149;
     --text: #e8edf7;
     --dim: #9fb0cc;
     --signal: #ffb020;
@@ -106,14 +417,20 @@ const CSS = `
     --live: #3fcf8e;
     --warn: #ffb020;
 
+    --glass: #0f1626;
+    --glass-raised: #182135;
+    --glass-hover: #1f2b44;
+    --glass-line: #263149;
+    --glass-edge: #33405e;
+
     position: relative;
     display: flex;
     flex-direction: column;
     height: 100vh;
     width: 100%;
-    background: var(--panel);
-    border-left: 1px solid var(--line);
-    box-shadow: -18px 0 48px rgba(0, 0, 0, 0.34);
+    background: var(--glass);
+    border-left: 1px solid var(--glass-edge);
+    box-shadow: -18px 0 48px rgba(0, 0, 0, 0.45);
     color: var(--text);
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-size: 13px;
@@ -125,13 +442,15 @@ const CSS = `
     align-items: center;
     gap: 8px;
     padding: 14px 16px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--glass-line);
+    background: var(--ink);
     flex-shrink: 0;
   }
 
   .mark {
-    width: 22px; height: 22px; border-radius: 6px;
-    background: var(--ink);
+    width: 22px; height: 22px; border-radius: 7px;
+    background: linear-gradient(145deg, rgba(255,176,32,0.22), rgba(11,18,32,0.9));
+    border: 1px solid rgba(255,176,32,0.28);
     display: grid; place-items: center;
     flex-shrink: 0;
   }
@@ -154,7 +473,7 @@ const CSS = `
     color: var(--dim); padding: 4px; border-radius: 5px;
     display: grid; place-items: center; flex-shrink: 0;
   }
-  .icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .icon-btn:hover { color: var(--text); background: var(--glass-hover); }
   .icon-btn svg { width: 15px; height: 15px; }
 
   /* The only scrolling region: the header and the action stay put. */
@@ -169,10 +488,11 @@ const CSS = `
   }
 
   .card {
-    background: var(--raised);
-    border: 1px solid var(--line);
-    border-radius: 9px;
+    background: var(--glass-raised);
+    border: 1px solid var(--glass-line);
+    border-radius: 12px;
     padding: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   }
 
   .role { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
@@ -181,10 +501,14 @@ const CSS = `
   .lamp-row {
     display: flex; align-items: center; gap: 6px;
     margin-top: 9px; padding-top: 9px;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--glass-line);
     font-size: 11px; color: var(--dim);
   }
-  .lamp { width: 6px; height: 6px; border-radius: 50%; background: var(--live); flex-shrink: 0; }
+  .lamp {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--live); flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(63, 207, 142, 0.14);
+  }
 
   /* Duplicate warning. Amber not red: applying twice is worth knowing about,
      not an error, and red here would read as "something broke". */
@@ -194,34 +518,45 @@ const CSS = `
   }
   .warn .role { color: var(--signal); font-size: 12.5px; }
 
-  .action { padding: 14px 16px; border-top: 1px solid var(--line); flex-shrink: 0; }
+  .action {
+    padding: 14px 16px;
+    border-top: 1px solid var(--glass-line);
+    background: var(--ink);
+    flex-shrink: 0;
+  }
 
   .fill {
     width: 100%;
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    background: var(--signal);
+    background: linear-gradient(180deg, #ffbe45, var(--signal));
     color: var(--on-signal);
-    border: none; border-radius: 8px;
+    border: none; border-radius: 10px;
     padding: 13px 16px;
     font: inherit; font-size: 14px; font-weight: 700;
     cursor: pointer;
-    transition: filter 140ms ease;
+    box-shadow:
+      0 6px 18px rgba(255, 176, 32, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    transition: filter 140ms ease, transform 140ms ease;
   }
-  .fill:hover:not(:disabled) { filter: brightness(1.08); }
+  .fill:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
+  .fill:active:not(:disabled) { transform: translateY(0); }
   .fill:disabled { opacity: 0.5; cursor: default; }
   .fill svg { width: 15px; height: 15px; }
 
   .ghost {
     width: 100%;
-    background: transparent;
+    background: var(--glass-raised);
     color: var(--text);
-    border: 1px solid var(--line);
-    border-radius: 8px;
+    border: 1px solid var(--glass-line);
+    border-radius: 10px;
     padding: 10px 14px;
     font: inherit; font-size: 13px; font-weight: 600;
     cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition: background 140ms ease, border-color 140ms ease;
   }
-  .ghost:hover { background: rgba(255,255,255,0.05); }
+  .ghost:hover:not(:disabled) { background: var(--glass-hover); border-color: var(--glass-edge); }
   .ghost:disabled { opacity: 0.5; cursor: default; }
 
   .toggle {
@@ -233,6 +568,102 @@ const CSS = `
   .toggle input { accent-color: var(--signal); width: 14px; height: 14px; cursor: pointer; }
 
   .note { font-size: 11.5px; color: var(--dim); }
+
+  /* Bulk run -------------------------------------------------------------- */
+
+  /* Not a card: it is the action bar's own content, not something inside it. */
+  .run { display: flex; flex-direction: column; gap: 10px; }
+  .run > .fill { margin-top: 0; }
+
+  /* Stage rail */
+  .rail { display: flex; align-items: center; justify-content: space-between; }
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+  .bead {
+    width: 21px; height: 21px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 10px; font-weight: 700;
+    border: 1px solid var(--glass-line);
+    color: var(--dim);
+  }
+  .stage-l { font-size: 9.5px; color: var(--dim); }
+  .stage[data-state='done'] .bead { background: rgba(63,207,142,0.18); border-color: rgba(63,207,142,0.5); color: var(--live); }
+  .stage[data-state='done'] .stage-l { color: var(--live); }
+  .stage[data-state='now'] .bead {
+    background: var(--signal); border-color: transparent; color: var(--on-signal);
+    box-shadow: 0 0 0 4px rgba(255,176,32,0.16);
+  }
+  .stage[data-state='now'] .stage-l { color: var(--signal); font-weight: 700; }
+
+  /* The questions the form still wants. Amber, not red: nothing is broken. */
+  .ask-head { font-size: 12.5px; font-weight: 650; color: var(--signal); }
+  .asks { list-style: none; margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+  .asks li {
+    font-size: 12px; line-height: 1.35;
+    padding: 7px 9px; border-radius: 8px;
+    background: rgba(255,176,32,0.10);
+    border: 1px solid rgba(255,176,32,0.28);
+  }
+  .asks li[data-kind='invalid'] {
+    background: rgba(239,68,68,0.10);
+    border-color: rgba(239,68,68,0.3);
+  }
+  .asks li[data-kind='invalid']::before { content: '⚠︎  '; opacity: 0.8; }
+
+  .sess-msg { font-size: 12px; line-height: 1.4; color: var(--dim); }
+  .sess-msg[data-tone='done']  { color: var(--live); font-weight: 600; }
+  .sess-msg[data-tone='error'] { color: #ff9b9b; }
+
+  .offer {
+    margin-top: 11px; padding: 10px;
+    border: 1px solid var(--glass-line); border-radius: 10px;
+    background: var(--glass-raised);
+  }
+  .offer-t { font-size: 12px; line-height: 1.4; margin-bottom: 8px; }
+
+  .run .fill { margin-top: 11px; }
+
+  /* Resume ---------------------------------------------------------------- */
+
+  .resume { display: flex; align-items: center; gap: 10px; }
+
+  .doc {
+    width: 30px; height: 34px; border-radius: 5px; flex-shrink: 0;
+    display: grid; place-items: center;
+    background: linear-gradient(160deg, rgba(255,176,32,0.18), rgba(255,255,255,0.04));
+    border: 1px solid rgba(255,176,32,0.26);
+    color: var(--signal);
+    font-size: 8.5px; font-weight: 800; letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* min-width:0 or a long filename pushes the button off the panel. */
+  .resume-meta { min-width: 0; flex: 1; }
+  .resume-name {
+    font-size: 12.5px; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .resume-sub { font-size: 11px; color: var(--dim); margin-top: 1px; }
+
+  .attach {
+    flex-shrink: 0;
+    background: var(--glass-raised);
+    color: var(--text);
+    border: 1px solid var(--glass-line);
+    border-radius: 8px;
+    padding: 7px 11px;
+    font: inherit; font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .attach:hover:not(:disabled) { background: var(--glass-hover); border-color: var(--glass-edge); }
+  .attach:disabled { opacity: 0.55; cursor: default; }
+  .attach[data-done='1'] { color: var(--live); border-color: rgba(63,207,142,0.35); }
+
+  .linkish {
+    background: none; border: none; padding: 0;
+    color: var(--signal); font: inherit; font-size: 12px; font-weight: 600;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+  }
 
   /* Run status ----------------------------------------------------------- */
 
@@ -520,6 +951,9 @@ function buildAuth(
 
 export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Promise<void> {
   // Already on the page: swap the contents and leave the element alone.
+  lastState = state;
+  lastHandlers = handlers;
+
   if (mounted && document.getElementById(HOST_ID)) {
     mounted.repaint(state, handlers);
     return;
@@ -556,6 +990,11 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
   const paint = () => {
     root.innerHTML = '';
+    // Everything below is about to be recreated; nothing may hold a reference
+    // to the nodes this just discarded.
+    statusEl = null;
+    applyEl = null;
+    sessionRoot = null;
 
     if (collapsed) {
       const handle = document.createElement('button');
@@ -662,14 +1101,35 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     meta.textContent = [current.job.company, current.job.location].filter(Boolean).join(' · ');
     jobCard.append(role, meta);
 
+    /*
+     * Three states, three sentences.
+     *
+     * "0 of 28 fields can be filled" was one sentence covering all of them,
+     * and on a posting with no form at all the 28 was the host page's search
+     * box and filters. A count is only meaningful once there is a form to
+     * count within; otherwise say there isn't one.
+     */
     const lampRow = document.createElement('div');
     lampRow.className = 'lamp-row';
+    const status = !current.hasForm
+      ? current.canApply
+        ? { state: 'ready', text: 'Ready to apply — the form opens when you start' }
+        : { state: 'no-form', text: 'No application form on this page' }
+      : current.coverage.fillable === 0
+        ? {
+            state: 'no-match',
+            text: `Nothing here matches your profile (${current.coverage.total} field${
+              current.coverage.total === 1 ? '' : 's'
+            })`,
+          }
+        : {
+            state: 'ready',
+            text: `${current.coverage.fillable} of ${current.coverage.total} fields can be filled`,
+          };
+
+    lampRow.dataset.state = status.state;
     lampRow.innerHTML = '<span class="lamp"></span>';
-    lampRow.append(
-      document.createTextNode(
-        `${current.coverage.fillable} of ${current.coverage.total} fields can be filled`
-      )
-    );
+    lampRow.append(document.createTextNode(status.text));
     jobCard.append(lampRow);
     body.append(jobCard);
 
@@ -701,6 +1161,76 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     });
     body.append(save);
 
+    /*
+     * The resume from the profile.
+     *
+     * Shown whenever there is one, not only when this page can take it —
+     * knowing which resume jobpilot would send is worth as much as being able
+     * to send it, and a card that appears and disappears between postings is
+     * harder to trust than one that is always there saying what it holds.
+     */
+    const resumeCard = document.createElement('div');
+    resumeCard.className = 'card resume';
+
+    const doc = document.createElement('div');
+    doc.className = 'doc';
+
+    const rMeta = document.createElement('div');
+    rMeta.className = 'resume-meta';
+    const rName = document.createElement('div');
+    rName.className = 'resume-name';
+    const sub = document.createElement('div');
+    sub.className = 'resume-sub';
+    rMeta.append(rName, sub);
+
+    if (current.resume) {
+      doc.textContent = extensionOf(current.resume.fileName);
+      rName.textContent = current.resume.fileName;
+      rName.title = current.resume.fileName;
+      sub.textContent = formatBytes(current.resume.sizeBytes);
+      resumeCard.append(doc, rMeta);
+
+      if (current.hasResumeField) {
+        const attach = document.createElement('button');
+        attach.className = 'attach';
+        attach.textContent = 'Attach';
+        attach.addEventListener('click', () => {
+          attach.disabled = true;
+          attach.textContent = 'Attaching…';
+          void acts.onAttachResume().then((result) => {
+            attach.textContent = result.ok ? 'Attached' : 'Failed';
+            attach.dataset.done = result.ok ? '1' : '0';
+            sub.textContent = result.message;
+            // Only a success is final. A failure is worth another try, since
+            // the usual cause is the form not having rendered its field yet.
+            if (!result.ok) {
+              setTimeout(() => {
+                attach.disabled = false;
+                attach.textContent = 'Attach';
+                delete attach.dataset.done;
+              }, 2600);
+            }
+          });
+        });
+        resumeCard.append(attach);
+      } else {
+        sub.textContent = formatBytes(current.resume.sizeBytes);
+      }
+    } else {
+      doc.textContent = '—';
+      rName.textContent = 'No resume saved';
+      sub.textContent = 'Add one to your profile and it attaches itself.';
+      resumeCard.append(doc, rMeta);
+
+      const open = document.createElement('button');
+      open.className = 'linkish';
+      open.textContent = 'Profile';
+      open.addEventListener('click', () => acts.onOpenProfile());
+      resumeCard.append(open);
+    }
+
+    body.append(resumeCard);
+
     const note = document.createElement('p');
     note.className = 'note';
     note.textContent =
@@ -711,6 +1241,27 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     const action = document.createElement('div');
     action.className = 'action';
 
+    /*
+     * The run owns its own subtree. paint() creates the container and nothing
+     * else; everything inside is drawn by paintRun(), which the run calls
+     * directly so its updates do not depend on a repaint happening.
+     */
+    if (current.canApply) {
+      const sessionSection = document.createElement('div');
+      sessionSection.className = 'run';
+      sessionRoot = sessionSection;
+      sessionActs = acts;
+      paintSession();
+      action.append(sessionSection);
+    }
+
+    /*
+      * Shown only when it is the useful thing to press: there is a form here
+      * and no session to run. With a session available the session fills as
+      * its first step; with no form at all there is nothing to fill.
+      */
+    const showFill = current.hasForm && !current.canApply;
+
     const fill = document.createElement('button');
     fill.className = 'fill';
     fill.innerHTML = BOLT;
@@ -718,7 +1269,9 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       document.createTextNode(
         current.coverage.fillable > 0
           ? `Fill ${current.coverage.fillable} field${current.coverage.fillable === 1 ? '' : 's'}`
-          : 'Nothing to fill here'
+          : current.hasForm
+            ? 'Nothing to fill here'
+            : 'No form to fill'
       )
     );
     fill.disabled = current.coverage.fillable === 0;
@@ -745,46 +1298,58 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       });
     });
 
-    action.append(fill, toggle);
+    if (showFill) action.append(fill, toggle);
 
     if (current.canAutoApply) {
       const status = document.createElement('div');
       status.className = 'status';
-      status.hidden = true;
 
       const apply = document.createElement('button');
       apply.className = 'apply';
-      apply.textContent = 'Apply with jobpilot';
 
-      let running = false;
+      /*
+       * Off by default, and stays off. Drafting sends the question and the
+       * user's history to a model, which is a decision they should make per
+       * application rather than one made for them once.
+       */
+      const draftToggle = document.createElement('label');
+      draftToggle.className = 'toggle';
+      const draft = document.createElement('input');
+      draft.type = 'checkbox';
+      draft.checked = autoApplyRun.draftAnswers;
+      draft.addEventListener('change', () => {
+        autoApplyRun.draftAnswers = draft.checked;
+      });
+      draftToggle.append(draft, document.createTextNode('Draft long answers with AI'));
 
-      const report = (line: string, tone: 'busy' | 'blocked' | 'ready') => {
-        status.hidden = false;
-        status.dataset.tone = tone;
-        status.innerHTML = tone === 'busy' ? '<span class="spin"></span>' : '';
-        status.append(document.createTextNode(line));
-      };
+      // Re-point the module-level handles at this paint's nodes, then restore
+      // whatever a run in flight has already reported.
+      statusEl = status;
+      applyEl = apply;
+      paintRunState();
 
       apply.addEventListener('click', () => {
-        if (running) {
+        if (autoApplyRun.active) {
           acts.onCancelAutoApply();
           return;
         }
 
-        running = true;
-        apply.textContent = 'Stop';
-        void acts.onAutoApply(report).finally(() => {
-          running = false;
-          apply.textContent = 'Apply with jobpilot';
+        autoApplyRun = { ...autoApplyRun, active: true, line: null, tone: 'busy' };
+        paintRunState();
+
+        void acts.onAutoApply(reportRunProgress, autoApplyRun.draftAnswers).finally(() => {
+          autoApplyRun.active = false;
+          paintRunState();
         });
       });
 
       /* Says where it stops before it starts, so nobody expects a submit. */
       const caveat = document.createElement('p');
       caveat.className = 'note';
-      caveat.textContent = 'Fills every step and stops at review. You press submit.';
+      caveat.textContent =
+        'Fills the form, attaches your resume, and stops at submit. You press submit.';
 
-      action.append(apply, caveat, status);
+      action.append(apply, draftToggle, caveat, status);
     }
 
     /* Footer */

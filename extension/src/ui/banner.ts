@@ -16,6 +16,14 @@ export interface BannerOptions {
   body?: string;
   /** Auto-dismiss delay. Success messages disappear; warnings stay put. */
   timeoutMs?: number;
+  /**
+   * Distance from the right edge.
+   *
+   * Defaults clear of nothing in particular; the side panel is 372px wide and
+   * sits at the same edge, so a notice raised while it is open has to step
+   * aside or it covers the very control it is telling the user to press.
+   */
+  rightPx?: number;
 }
 
 const TONE_COLORS: Record<BannerTone, { bar: string; bg: string; fg: string }> = {
@@ -39,7 +47,7 @@ export function renderBanner(options: BannerOptions): void {
   host.style.cssText = [
     'position: fixed',
     'top: 16px',
-    'right: 16px',
+    `right: ${options.rightPx ?? 16}px`,
     'z-index: 2147483647',
     'width: 340px',
     'max-width: calc(100vw - 32px)',
@@ -71,12 +79,14 @@ export function renderBanner(options: BannerOptions): void {
     .title { font-size: 13px; font-weight: 600; line-height: 1.35; }
     .body { font-size: 12px; line-height: 1.45; margin-top: 3px; opacity: 0.85; word-break: break-word; }
     .brand { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.6; margin-bottom: 4px; }
-    button {
+    .close {
       background: none; border: none; cursor: pointer;
       color: inherit; opacity: 0.5; font-size: 16px; line-height: 1;
       padding: 2px; align-self: flex-start;
     }
-    button:hover { opacity: 1; }
+    .close:hover { opacity: 1; }
+
+
     @media (prefers-reduced-motion: reduce) { .card { animation: none; } }
   `;
 
@@ -104,6 +114,7 @@ export function renderBanner(options: BannerOptions): void {
   }
 
   const close = document.createElement('button');
+  close.className = 'close';
   close.textContent = '×';
   close.setAttribute('aria-label', 'Dismiss');
   close.addEventListener('click', removeBanner);
@@ -113,6 +124,7 @@ export function renderBanner(options: BannerOptions): void {
   document.documentElement.append(host);
 
   const timeout = options.timeoutMs ?? (options.tone === 'success' ? 6000 : 0);
+
   if (timeout > 0) {
     setTimeout(removeBanner, timeout);
   }

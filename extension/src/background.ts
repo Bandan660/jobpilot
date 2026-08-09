@@ -1,10 +1,12 @@
+import { answerKey } from '@jobpilot/shared';
 import type {
   AuthResponse,
   CaptureResponse,
   DuplicateCheckResponse,
   Profile,
+  Resume,
 } from '@jobpilot/shared';
-import type { Message, Response, SessionState } from './messages.js';
+import type { Message, Response, SessionState, StoredResumePayload } from './messages.js';
 import {
   clearSession,
   getApiBaseUrl,
@@ -50,6 +52,94 @@ async function api<T>(path: string, init: RequestInit = {}, auth = true): Promis
 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+/**
+ * The resume to attach: the most recently uploaded one.
+ *
+ * `GET /api/resumes` already returns them newest first, so "most recent" needs
+ * no extra state and no preference to keep in sync. With the per-account cap
+ * at five there is rarely a choice to make anyway, and picking the newest is
+ * the behaviour someone who just uploaded a tailored resume expects.
+ *
+ * `api()` cannot serve this one: it sets a JSON content type and parses the
+ * body as JSON, and this response is a PDF.
+ */
+async function currentResume(): Promise<StoredResumePayload | null> {
+  const { resumes } = await api<{ resumes: { id: string; fileName: string }[] }>('/api/resumes');
+  const newest = resumes[0];
+  if (!newest) return null;
+
+  const base = await getApiBaseUrl();
+  const token = await getToken();
+  if (!token) throw new ApiError('Not signed in', 401);
+
+  const response = await fetch(`${base}/api/resumes/${newest.id}/file`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Could not download your resume (${response.status})`, response.status);
+  }
+
+  const buffer = await response.arrayBuffer();
+
+  return {
+    fileName: newest.fileName,
+    contentType: response.headers.get('Content-Type') ?? 'application/pdf',
+    data: toBase64(buffer),
+  };
+}
+
+/**
+ * Chunked because `String.fromCharCode(...bytes)` on a multi-megabyte array
+ * blows the argument limit and throws — a failure that only shows up on large
+ * files, which is to say in front of a user and never in a test.
+ */
+function toBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const CHUNK = 0x8000;
+  let binary = '';
+
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+
+  return btoa(binary);
+}
+
+/**
+ * Merge hand-typed answers into the saved profile.
+ *
+ * Read-modify-write, because `PUT /api/profile` replaces the whole document.
+ * Matched on the server's own `answerKey` so an answer stored today is found
+ * by the matcher tomorrow — the endpoint recomputes the key regardless, and
+ * using the same function here means the dedupe below agrees with it.
+ */
+async function saveAnswers(
+  answers: { label: string; answer: string }[]
+): Promise<{ saved: number }> {
+  if (answers.length === 0) return { saved: 0 };
+
+  const { profile } = await api<{ profile: Profile }>('/api/profile');
+
+  const merged = [...profile.savedAnswers];
+  for (const entry of answers) {
+    const key = answerKey(entry.label);
+    if (!key) continue;
+
+    const existing = merged.findIndex((saved) => saved.key === key);
+    const record = { id: existing >= 0 ? merged[existing].id : crypto.randomUUID(), key, ...entry };
+
+    // Overwrite rather than append: the newest answer to a question is the
+    // one the user just gave, and two rows with one key make the lookup a
+    // coin toss.
+    if (existing >= 0) merged[existing] = record;
+    else merged.push(record);
+  }
+
+  await api('/api/profile', { method: 'PUT', body: JSON.stringify({ ...profile, savedAnswers: merged }) });
+  return { saved: answers.length };
 }
 
 async function currentSession(): Promise<SessionState> {
@@ -99,6 +189,21 @@ async function handle(message: WorkerMessage): Promise<unknown> {
 
     case 'GET_PROFILE':
       return api<{ profile: Profile }>('/api/profile');
+
+    case 'GET_RESUMES':
+      return api<{ resumes: Resume[] }>('/api/resumes');
+
+    case 'GET_RESUME':
+      return currentResume();
+
+    case 'SAVE_ANSWERS':
+      return saveAnswers(message.payload.answers);
+
+    case 'DRAFT_ANSWER':
+      return api<{ answer: string }>('/api/analyze/answer', {
+        method: 'POST',
+        body: JSON.stringify(message.payload),
+      });
 
     case 'CHECK_DUPLICATE':
       return api<DuplicateCheckResponse>('/api/capture/check-duplicate', {

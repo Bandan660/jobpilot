@@ -27,10 +27,45 @@ export type Message =
   | { type: 'LOGOUT' }
   | { type: 'SET_API_BASE_URL'; payload: { apiBaseUrl: string } }
   | { type: 'GET_PROFILE' }
+  /**
+   * The stored resume, bytes and all.
+   *
+   * Fetched by the worker because only it holds the token, and returned as
+   * base64 because `chrome.runtime` messaging serialises as JSON — an
+   * ArrayBuffer crosses it as `{}`. Costs a third in size on a file already
+   * capped at 3MB, which is the cheapest part of this.
+   */
+  | { type: 'GET_RESUME' }
+  /** Metadata only. The panel shows a filename; it must not pull 3MB to do it. */
+  | { type: 'GET_RESUMES' }
+  | { type: 'DRAFT_ANSWER'; payload: DraftAnswerRequest }
+  /**
+   * Answers the user typed by hand, merged into the profile by key.
+   *
+   * Merged in the worker rather than here: the profile endpoint replaces the
+   * whole document, so the read-modify-write has to happen somewhere that
+   * already holds a complete one. Doing it from a content script would mean
+   * shipping the entire profile through two message hops to change one field.
+   */
+  | { type: 'SAVE_ANSWERS'; payload: { answers: { label: string; answer: string }[] } }
   // Handled by the content script, not the worker: only it can touch the page.
   | { type: 'GET_PAGE_JOB' }
   | { type: 'AUTOFILL_PAGE'; payload: { overwrite: boolean } }
   | { type: 'GET_FORM_COVERAGE' };
+
+export interface StoredResumePayload {
+  fileName: string;
+  contentType: string;
+  /** base64 */
+  data: string;
+}
+
+export interface DraftAnswerRequest {
+  question: string;
+  title: string | null;
+  company: string | null;
+  jobUrl: string;
+}
 
 export interface SessionState {
   authenticated: boolean;

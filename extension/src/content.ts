@@ -5,15 +5,32 @@ import type {
   CaptureResponse,
   Profile,
 } from '@jobpilot/shared';
+import { clampCapturedJob } from '@jobpilot/shared';
+
 import { findAdapter, type JobAdapter } from './adapters/index.js';
 import { easyApplyModal } from './adapters/linkedin.js';
-import { runAutoApply } from './autofill/autoApply.js';
+import { runApply, type ApplyFlow } from './autofill/apply.js';
+import { findApplicationForm, flowFor, linkedinFlow } from './autofill/flows.js';
 import { extractFromJsonLd } from './adapters/jsonld.js';
 import { autofill, previewCoverage } from './autofill/index.js';
-import { SPA_POLL_INTERVAL_MS, SPA_RENDER_TIMEOUT_MS } from './config.js';
-import { send, type AutofillSummary, type Message } from './messages.js';
+import {
+  APP_BASE_URL,
+  CONFIRMATION_CHECK_MS,
+  SPA_POLL_INTERVAL_MS,
+  SPA_RENDER_TIMEOUT_MS,
+} from './config.js';
+import { send, type AutofillSummary, type Message, type StoredResumePayload } from './messages.js';
+import { attachResume, findResumeInput } from './autofill/resume.js';
 import { renderBanner, removeBanner } from './ui/banner.js';
-import { renderPanel, removePanel } from './ui/panel.js';
+import {
+  renderPanel,
+  removePanel,
+  updateSession,
+  resetPanelSession,
+  panelIsOpen,
+  openPanelForInput,
+} from './ui/panel.js';
+import { runSession, sessionBusy, cancelSession, resetSession } from './autoapply/session.js';
 
 /**
  * Post-submit text that ATSs render on success. Used alongside each adapter's
@@ -44,6 +61,15 @@ function debug(...args: unknown[]): void {
 
 /** Per-page-load guard. The server is idempotent, this just avoids noise. */
 let captured = false;
+/**
+ * Handled once per posting.
+ *
+ * The confirmation detector runs off a MutationObserver, so it re-fires on
+ * every DOM change the confirmation screen makes — dozens of times while the
+ * "application sent" panel animates in. Without this each one would try to
+ * record the same application again.
+ */
+let submitRecorded = false;
 let teardown: (() => void) | null = null;
 let currentJob: CapturedJob | null = null;
 
@@ -80,6 +106,39 @@ function buildJob(adapter: JobAdapter, url: URL): CapturedJob | null {
     compRaw: pick('compRaw'),
     adapterVersion: adapter.version,
   };
+}
+
+/**
+ * Is the DOM still showing the previous posting?
+ *
+ * On a single-page ATS the URL changes the instant a result is clicked and the
+ * detail pane re-renders some frames later. A scrape taken in between reads
+ * the *old* posting and looks entirely valid — right shape, populated fields,
+ * nothing to distinguish it from a good read except that it belongs to a
+ * different job than the URL now names.
+ *
+ * The adapters have declared `expectedExternalId` / `renderedExternalId` for
+ * this since LinkedIn support landed, and nothing called them: the rewrite to
+ * continuous tracking replaced the retry loop they were built for and left
+ * them orphaned. The signature comparison that replaced it cannot cover this
+ * case — the signature is built *from* the stale DOM, so it reads as a
+ * perfectly stable value and gets captured.
+ *
+ * Only blocks when both ids are known and disagree. A null on either side
+ * means "cannot tell", and treating that as stale would stop capture outright
+ * on every posting that does not expose an id.
+ */
+function isStale(adapter: JobAdapter, url: URL): boolean {
+  if (!adapter.expectedExternalId || !adapter.renderedExternalId) return false;
+
+  const expected = adapter.expectedExternalId(url);
+  const rendered = adapter.renderedExternalId(document);
+  if (!expected || !rendered || expected === rendered) return false;
+
+  // Not warn-worthy: mid-navigation is the normal reason to be here, and the
+  // next poll will find the pane settled.
+  debug('DOM still on', rendered, '- URL wants', expected, '- waiting');
+  return true;
 }
 
 /* --------------------------- submit detection --------------------------- */
@@ -119,18 +178,42 @@ function looksLikeApplicationForm(form: HTMLFormElement): boolean {
   );
 }
 
-async function doCapture(job: CapturedJob, applied: boolean): Promise<void> {
-  if (captured && applied) return;
-  if (applied) captured = true;
+/**
+ * True when the row was written.
+ *
+ * `captureInFlight` closes a race the session made reachable: it records the
+ * application itself, and the confirmation screen that submission produces
+ * trips the detector a few hundred milliseconds later — while this request is
+ * still open and `captured` is therefore still false. Without the flag that
+ * is a second write for the same posting.
+ */
+let captureInFlight = false;
+
+async function doCapture(job: CapturedJob, applied: boolean): Promise<boolean> {
+  if (captured && applied) return true;
+  if (applied) captureInFlight = true;
+
+  /*
+   * Clamped to the API's own limits before it goes. The server validates the
+   * same numbers from the same constant, so anything over-length is a value
+   * this scrape produced, not a request the user should be shown a 400 for.
+   */
+  const payload = clampCapturedJob(job);
 
   const message: Message = {
     type: 'CAPTURE',
-    payload: { job, applied, capturedAt: new Date().toISOString() },
+    payload: { job: payload, applied, capturedAt: new Date().toISOString() },
   };
 
   const result = await send<CaptureResponse>(message);
 
   if (!result.ok) {
+    // The banner carries the server's own message, which names the field when
+    // it is a validation failure. Logged as well, with what was actually sent:
+    // the banner is transient and a screenshot of it rarely includes the body.
+    captureInFlight = false;
+    console.warn('[jobpilot] capture failed:', result.error, payload);
+
     // Most likely not signed in. Prompt rather than failing silently, since the
     // user just did the thing we exist to record.
     renderBanner({
@@ -138,16 +221,51 @@ async function doCapture(job: CapturedJob, applied: boolean): Promise<void> {
       title: 'jobpilot could not save this',
       body: result.error,
     });
-    return;
+    return false;
   }
 
+  /*
+   * Set only now, on a confirmed write. It used to be set before the request,
+   * which meant a failed save latched the guard: every retry returned true
+   * immediately without sending anything, and the application was lost with
+   * the UI reporting success. That only became reachable once a human could
+   * press the button again.
+   */
   if (applied) {
+    captured = true;
+    captureInFlight = false;
+
     renderBanner({
       tone: 'success',
       title: 'Application tracked',
       body: `${result.data.application.title} at ${result.data.application.company.name}`,
     });
   }
+
+  return true;
+}
+
+/**
+ * Record a detected submission, without asking.
+ *
+ * There was a confirmation form here. It went, because it fired on top of an
+ * application the session had already recorded a moment earlier: the run
+ * submits, saves the row, and then the confirmation screen it produced trips
+ * this detector — so the user got a dialog asking them to add something that
+ * was already added.
+ *
+ * The old worry that motivated the form still stands: a detected submit is
+ * evidence rather than proof, and `application_events` is append-only. What
+ * changed is that the false-positive cost turned out to be smaller than the
+ * cost of a dialog in front of every application, and a wrong row can be
+ * corrected in the tracker. The guards below keep it to one write per posting.
+ */
+function recordDetectedSubmit(job: CapturedJob): void {
+  if (submitRecorded || captured || captureInFlight) return;
+  submitRecorded = true;
+
+  debug('submit detected, recording:', job.title, '@', job.company);
+  void doCapture(job, true);
 }
 
 function watchForSubmit(adapter: JobAdapter, getJob: () => CapturedJob | null): () => void {
@@ -157,23 +275,42 @@ function watchForSubmit(adapter: JobAdapter, getJob: () => CapturedJob | null): 
     if (!looksLikeApplicationForm(form)) return;
 
     const job = getJob();
-    if (job) doCapture(job, true).catch((e) => console.warn('[jobpilot] capture failed:', e));
+    if (job) recordDetectedSubmit(job);
   };
 
   // Capture phase: some ATSs call preventDefault and submit over XHR, which
   // would stop a bubble-phase listener from ever running.
   document.addEventListener('submit', onSubmit, true);
 
-  const observer = new MutationObserver(() => {
-    if (captured) return;
-    if (!pageLooksConfirmed(adapter)) return;
-    const job = getJob();
-    if (job) void doCapture(job, true);
-  });
+  /*
+   * Throttled, because the check is expensive and the trigger is not rare.
+   *
+   * `pageLooksConfirmed` reads `innerText`, which forces the browser to lay
+   * out the document to answer. Running that straight from the observer meant
+   * one forced reflow per mutation, and LinkedIn mutates its feed and detail
+   * pane continuously — hundreds of times a second while scrolling. The
+   * confirmation screen does not appear and disappear inside 400ms, so the
+   * only thing the unthrottled version bought was jank.
+   */
+  let checkTimer: number | undefined;
 
+  const scheduleCheck = () => {
+    if (captured || submitRecorded || checkTimer !== undefined) return;
+
+    checkTimer = window.setTimeout(() => {
+      checkTimer = undefined;
+      if (captured || submitRecorded) return;
+      if (!pageLooksConfirmed(adapter)) return;
+      const job = getJob();
+      if (job) recordDetectedSubmit(job);
+    }, CONFIRMATION_CHECK_MS);
+  };
+
+  const observer = new MutationObserver(scheduleCheck);
   observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 
   return () => {
+    window.clearTimeout(checkTimer);
     document.removeEventListener('submit', onSubmit, true);
     observer.disconnect();
   };
@@ -195,11 +332,159 @@ async function checkDuplicates(job: CapturedJob): Promise<DuplicateMatch | null>
 
 /* ------------------------------- side panel ------------------------------ */
 
+/**
+ * Is there an application here a session could drive?
+ *
+ * A flow, and either a form already on screen or a way to open one. On
+ * LinkedIn the second half matters: the modal does not exist until the Easy
+ * Apply button is pressed, so requiring a visible form would hide the action
+ * on exactly the postings it is for.
+ */
+function canRunSession(): boolean {
+  const flow = applyFlow ?? (adapterAts === 'LINKEDIN' ? linkedinFlow : null);
+  if (!flow) return false;
+  if (flow.scope() !== null) return true;
+  return adapterAts === 'LINKEDIN' && easyApplyAvailable();
+}
+
+/** LinkedIn's Easy Apply button on the posting itself. */
+function easyApplyAvailable(): boolean {
+  const pane = document.querySelector('.jobs-search__job-details') ?? document;
+  return [...pane.querySelectorAll('button')].some((button) =>
+    /easy apply/i.test(button.getAttribute('aria-label') ?? button.textContent ?? '')
+  );
+}
+
+/**
+ * Tell the user the run is waiting on them.
+ *
+ * The panel is not enough on its own. When the run stops for a question, the
+ * application form is open and covering the middle of the screen — that is
+ * what the user is looking at, and the side panel's list of questions is in
+ * their peripheral vision at best. Worse, the panel may be collapsed to its
+ * edge handle, in which case there is nothing to see at all and the run looks
+ * like it simply stopped.
+ *
+ * Skipped when the panel is open, because then the questions are already on
+ * screen and a banner would be the same message twice, overlapping itself.
+ */
+function notifyIfWaiting(progress: {
+  state: string;
+  questions: { label: string }[];
+  message: string;
+}): void {
+  if (progress.state !== 'needs-input') {
+    // Any other state means the wait is over — clear a stale prompt rather
+    // than leaving "answer this" up after it has been answered.
+    if (progress.state === 'done' || progress.state === 'running') removeBanner();
+    return;
+  }
+
+  /*
+   * Open the panel first. The button the notice tells them to press lives in
+   * it, and pointing at a collapsed handle is not much of an instruction.
+   */
+  openPanelForInput();
+
+  const asked = progress.questions.map((question) => question.label);
+
+  renderBanner({
+    tone: 'warning',
+    title:
+      asked.length === 1
+        ? 'One answer needed to finish this application'
+        : `${asked.length} answers needed to finish this application`,
+    body: `${asked.join(' · ')} — answer in the form, then press "Resume application".`,
+    // Clear of the panel, which is 372px and now open at the same edge.
+    rightPx: panelIsOpen() ? 392 : 16,
+  });
+}
+
+/**
+ * Apply to the posting on screen, once.
+ *
+ * Start and continue are the same call by design: continuing after the user
+ * has answered a question is just another pass over a form that is now more
+ * complete than it was.
+ */
+function runSessionHere(): void {
+  /*
+   * LinkedIn gets its flow even when `flowFor` withholds it. That withholding
+   * is about the *panel* not offering an unproven action automatically; a
+   * session the user explicitly started is a different thing.
+   */
+  const flow = applyFlow ?? (adapterAts === 'LINKEDIN' ? linkedinFlow : null);
+  if (!flow) {
+    updateSession({ state: 'error', message: 'There is no application form on this page.' });
+    return;
+  }
+  if (sessionBusy()) return;
+
+  updateSession({ state: 'running', stage: 'fill', message: 'Starting…', questions: [] });
+
+  void loadProfile({ fresh: true }).then((profile) => {
+    if (!profile) {
+      updateSession({ state: 'error', message: 'Could not load your profile.' });
+      return;
+    }
+
+    void runSession({
+      profile,
+      flow,
+      draftAnswers: false,
+      readCurrentJob: () => currentJob,
+      /*
+       * Recorded as applied because it was: the page confirmed the submission
+       * before this runs. It is the one write in the codebase that does not
+       * wait for a human to confirm, and it is downstream of one who pressed
+       * the button for this specific job.
+       */
+      onApplied: (job) => doCapture(job, true),
+      onProgress: (progress) => {
+        updateSession({
+          state: progress.state,
+          stage: progress.stage,
+          message: progress.message,
+          questions: progress.questions,
+          answersToSave: progress.answersToSave,
+          answersSaved: false,
+        });
+
+        notifyIfWaiting(progress);
+      },
+    });
+  });
+}
+
+
 /** Set once per page by init, so the panel knows which flow it is on. */
 let adapterAts: string | null = null;
+/** Null where there is no form here to drive. */
+let applyFlow: ApplyFlow | null = null;
 
 /** Lets the user stop a run between steps. */
 let autoApplyCancelled = false;
+
+/**
+ * Resume metadata, fetched once per page rather than once per paint.
+ *
+ * `null` means "no resume on file", `undefined` means "not looked yet" — the
+ * distinction matters, because collapsing them would re-request on every paint
+ * for exactly the accounts that have nothing to return.
+ */
+let resumeCache: { fileName: string; sizeBytes: number } | null | undefined;
+
+async function loadResume(): Promise<{ fileName: string; sizeBytes: number } | null> {
+  if (resumeCache !== undefined) return resumeCache;
+
+  const result = await send<{ resumes: { fileName: string; sizeBytes: number }[] }>({
+    type: 'GET_RESUMES',
+  });
+
+  // Newest first, same order the attach path picks from.
+  resumeCache = result.ok ? (result.data.resumes[0] ?? null) : null;
+  return resumeCache;
+}
 
 /**
  * Mount the launcher once there is something worth acting on.
@@ -223,16 +508,35 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   if (authenticated && !profile) return debug('could not load your profile');
 
   /*
-   * Scope to the Easy Apply dialog when it is open. LinkedIn's page carries a
-   * search box and assorted filter inputs, so an unscoped count reports
-   * fillable fields on a posting with no application form in sight.
+   * Metadata only — filename and size. Pulling the bytes here would download
+   * the file on every panel paint, which is every posting and every form step,
+   * for a card that only shows its name. The bytes are fetched on Attach.
+   *
+   * Cached for the page: it cannot change without leaving to the profile.
    */
-  const modal = easyApplyModal();
-  const coverage = profile
-    ? previewCoverage(profile, modal ?? undefined)
-    : { fillable: 0, total: 0 };
+  const resume = authenticated ? await loadResume() : null;
 
-  debug('coverage:', coverage.fillable, 'of', coverage.total, modal ? '(in Easy Apply)' : '');
+  /*
+   * Scoped to an actual application form — a dialog, or a form that collects a
+   * file or an email. Never the whole document.
+   *
+   * The unscoped version counted the host page's own controls. On a LinkedIn
+   * posting with no Easy Apply dialog open that is the search box, the filter
+   * selects, the sort dropdown and the message composer, and the panel
+   * reported "0 of 28 fields can be filled" — true, and the opposite of what
+   * was happening. There were no fields to fill and no form to fill them in.
+   *
+   * `null` here is a distinct state from "a form with nothing we recognise",
+   * and the panel says something different for each.
+   */
+  const formScope = findApplicationForm();
+  const coverage =
+    profile && formScope ? previewCoverage(profile, formScope) : { fillable: 0, total: 0 };
+
+  debug(
+    'coverage:',
+    formScope ? `${coverage.fillable} of ${coverage.total}` : 'no application form on this page'
+  );
 
   await renderPanel(
     {
@@ -241,9 +545,19 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
       email: session.ok ? session.data.email : null,
       duplicate,
       authenticated,
-      // Only where the flow exists: elsewhere applying means leaving for the
-      // company's own site, which the adapters already handle.
-      canAutoApply: adapterAts === 'LINKEDIN',
+      /*
+       * Only where there is a form on this page to drive. On a job board that
+       * links out to the employer's ATS there is nothing here to fill, and on
+       * LinkedIn the flow is deliberately withheld — see flows.ts.
+       */
+      canAutoApply: applyFlow !== null && applyFlow.scope() !== null,
+      hasForm: formScope !== null,
+      // Only where there is a list to work down, and only on LinkedIn: the
+      // queue drives LinkedIn's split view and knows nothing about any other
+      // site's results page.
+      canApply: canRunSession(),
+      resume,
+      hasResumeField: findResumeInput(applyFlow?.scope() ?? document) !== null,
     },
     {
       onFill: async (overwrite) => {
@@ -255,10 +569,13 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
         });
         return { filled: summary.filled, unanswered: summary.unanswered.length };
       },
-      onSave: async () => {
-        await doCapture(job, false);
-        return true;
-      },
+      /*
+       * The real outcome, not an assumption. This returned true whatever
+       * happened, so a failed save showed "Saved to your tracker" in the panel
+       * and "jobpilot could not save this" in a banner at the same time — and
+       * the panel is the one the user is looking at.
+       */
+      onSave: () => doCapture(job, false),
       onSignOut: () => {
         void send({ type: 'LOGOUT' }).then(() => {
           removePanel();
@@ -269,17 +586,77 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
         autoApplyCancelled = true;
       },
 
-      onAutoApply: async (report) => {
+      onAttachResume: async () => {
+        const stored = await send<StoredResumePayload | null>({ type: 'GET_RESUME' });
+        if (!stored.ok) return { ok: false, message: stored.error };
+        if (!stored.data) return { ok: false, message: 'No resume on file.' };
+
+        const outcome = attachResume(stored.data, { scope: applyFlow?.scope() ?? document });
+
+        switch (outcome.status) {
+          case 'attached':
+            return { ok: true, message: `Attached to ${outcome.label}` };
+          case 'already-attached':
+            return { ok: true, message: 'A file is already attached here' };
+          case 'no-field':
+            return { ok: false, message: 'No upload field found on this form' };
+          case 'failed':
+            return { ok: false, message: outcome.reason };
+        }
+      },
+
+      onOpenProfile: () => {
+        window.open(`${APP_BASE_URL}/dashboard/profile`, '_blank', 'noopener');
+      },
+
+      /* --------------------------- apply session --------------------------- */
+
+      onStartSession: () => runSessionHere(),
+      /*
+       * Continue is the same call. `runApply` never overwrites a filled field,
+       * so a second pass fills only what is still empty, re-checks, and — if
+       * the user answered what was asked — submits. The job is never skipped
+       * for want of one dropdown.
+       */
+      onContinueSession: () => runSessionHere(),
+      onCancelSession: () => cancelSession(),
+
+      onSaveAnswers: (answers) => {
+        updateSession({ savingAnswers: true });
+        void send<{ saved: number }>({ type: 'SAVE_ANSWERS', payload: { answers } }).then(
+          (result) => {
+            if (!result.ok) {
+              updateSession({ savingAnswers: false, message: result.error, state: 'error' });
+              return;
+            }
+            // The cached profile is now stale — the next fill must see the
+            // answers that were just stored, or it asks the same questions.
+            profileCache = undefined;
+            updateSession({ savingAnswers: false, answersSaved: true });
+          }
+        );
+      },
+
+      onAutoApply: async (report, draftAnswers) => {
         autoApplyCancelled = false;
 
-        const current = await loadProfile();
+        const flow = applyFlow;
+        if (!flow) {
+          report('There is no application form on this page.', 'blocked');
+          return;
+        }
+
+        const current = await loadProfile({ fresh: true });
         if (!current) {
           report('Could not load your profile.', 'blocked');
           return;
         }
 
-        const outcome = await runAutoApply({
+        const outcome = await runApply({
           profile: current,
+          flow,
+          draftAnswers,
+          job: { title: job.title, company: job.company, jobUrl: job.jobUrl },
           isCancelled: () => autoApplyCancelled,
           onProgress: (progress) => {
             const tone =
@@ -292,8 +669,16 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
           },
         });
 
+        /*
+         * Named, not counted. "3 questions left" sends the user hunting; the
+         * labels tell them which three, and the empty/invalid split tells them
+         * whether to answer something or fix something.
+         */
         if (outcome.blockers?.length) {
-          report(`${outcome.message} ${outcome.blockers.join('; ')}`, 'blocked');
+          const named = outcome.blockers
+            .map((blocker) => (blocker.kind === 'invalid' ? `⚠ ${blocker.label}` : blocker.label))
+            .join(' · ');
+          report(`${outcome.message} ${named}`, 'blocked');
         }
 
         /*
@@ -347,6 +732,18 @@ function startTracking(adapter: JobAdapter): () => void {
 
   const evaluate = async () => {
     if (running) return;
+
+    /*
+     * A run owns the page while it lasts.
+     *
+     * It changes the visible posting every few seconds, and each change would
+     * otherwise fire a duplicate-check request and a full panel repaint —
+     * dozens of API calls across a run, and a panel rebuilt underneath the
+     * controls the user is trying to press. The run paints its own subtree
+     * directly, so standing back costs nothing.
+     */
+    if (sessionBusy()) return;
+
     running = true;
 
     try {
@@ -362,6 +759,8 @@ function startTracking(adapter: JobAdapter): () => void {
         }
         return;
       }
+
+      if (isStale(adapter, url)) return;
 
       const job = buildJob(adapter, url);
       if (!job) return;
@@ -383,6 +782,7 @@ function startTracking(adapter: JobAdapter): () => void {
       currentJob = job;
       if (jobChanged) {
         captured = false;
+        submitRecorded = false;
         debug('job:', job.title, '@', job.company);
       }
 
@@ -425,7 +825,18 @@ async function init(): Promise<void> {
   teardown?.();
   teardown = null;
   removeBanner();
+
+  /*
+   * The session belongs to one posting. Left alone, moving to the next job
+   * would inherit the previous one's "Applied — added to your tracker", or
+   * worse its list of outstanding questions — so continuing would answer the
+   * old job's questions against the new job's form.
+   */
+  resetSession();
+  resetPanelSession();
+
   captured = false;
+  submitRecorded = false;
   currentJob = null;
   lastDuplicate = null;
 
@@ -434,13 +845,19 @@ async function init(): Promise<void> {
   if (!adapter) return debug('no adapter for', url.hostname);
 
   adapterAts = adapter.ats;
-  debug('adapter:', adapter.version);
+  applyFlow = flowFor(adapter.ats, adapter.version);
+  debug('adapter:', adapter.version, '· apply flow:', applyFlow?.name ?? 'none');
 
-  // Landing straight on a confirmation means the ATS redirected after a submit
-  // that happened before this script loaded.
+  /*
+   * Landing straight on a confirmation means the ATS redirected after a submit
+   * that happened before this script loaded. Same rule as a submit detected
+   * live: ask, do not write. This path is the least certain of the three —
+   * a confirmation page reached by back-button or a shared link looks
+   * identical to one reached by submitting.
+   */
   if (adapter.isJobPage(url) && pageLooksConfirmed(adapter)) {
     const job = buildJob(adapter, url);
-    if (job) void doCapture(job, true);
+    if (job) recordDetectedSubmit(job);
   }
 
   const stopTracking = startTracking(adapter);
@@ -489,9 +906,49 @@ function watchNavigation(): void {
 
 /* -------------------------------- autofill ------------------------------- */
 
-async function loadProfile(): Promise<Profile | null> {
-  const result = await send<{ profile: Profile }>({ type: 'GET_PROFILE' });
-  return result.ok ? result.data.profile : null;
+/**
+ * The profile, fetched once per page rather than once per repaint.
+ *
+ * `maybeShowPanel` calls this every time it paints, and it paints whenever the
+ * tracking signature changes — which on LinkedIn is whenever the detail pane
+ * re-renders, several times per posting. Each of those was a real
+ * `GET /api/profile` round trip for a value that cannot have changed in the
+ * 300ms since the last one.
+ *
+ * `fresh` bypasses the cache for the two paths where staleness would actually
+ * cost something: filling a form and running assisted apply both write the
+ * profile into someone's application, so they re-read it at the moment of use.
+ * The passive coverage count does not need that.
+ */
+let profileCache: Profile | null | undefined;
+let profileInFlight: Promise<Profile | null> | null = null;
+
+async function loadProfile(options: { fresh?: boolean } = {}): Promise<Profile | null> {
+  if (!options.fresh && profileCache !== undefined) return profileCache;
+
+  /*
+   * Share one request between concurrent callers. Without this the first paint
+   * fires GET_PROFILE, and every paint before it resolves fires another —
+   * the cache only helps once something has come back.
+   */
+  if (!options.fresh && profileInFlight) return profileInFlight;
+
+  const request = send<{ profile: Profile }>({ type: 'GET_PROFILE' }).then((result) => {
+    const profile = result.ok ? result.data.profile : null;
+    // A failed read is not cached: it is usually a signed-out state that the
+    // user is about to fix from the panel, and caching null would leave the
+    // panel insisting there is no profile until the page reloads.
+    if (result.ok) profileCache = profile;
+    return profile;
+  });
+
+  if (!options.fresh) profileInFlight = request;
+
+  try {
+    return await request;
+  } finally {
+    if (!options.fresh) profileInFlight = null;
+  }
 }
 
 /**
@@ -505,7 +962,7 @@ async function runAutofill(
   overwrite: boolean,
   options: { silent?: boolean; root?: ParentNode } = {}
 ): Promise<AutofillSummary> {
-  const profile = await loadProfile();
+  const profile = await loadProfile({ fresh: true });
   if (!profile) {
     renderBanner({
       tone: 'error',

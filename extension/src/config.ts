@@ -16,6 +16,25 @@
  */
 export const DEFAULT_API_BASE_URL = 'https://jobpilot-api.jobpilot.workers.dev';
 
+/**
+ * The web app, for the few places the panel has to send someone out of the
+ * page — uploading a resume being the only one today.
+ *
+ * Separate from the API origin because they are separate deployments: the
+ * Worker and Cloudflare Pages. Deriving one from the other would break the
+ * moment either moves to a custom domain.
+ */
+export const APP_BASE_URL = 'https://jobpilot-3lg.pages.dev';
+
+/**
+ * How often the confirmation check may run, at most.
+ *
+ * It reads `innerText`, which forces a layout, and it is driven by a
+ * MutationObserver on a page that mutates continuously. A confirmation screen
+ * does not come and go inside this window.
+ */
+export const CONFIRMATION_CHECK_MS = 400;
+
 /** How long the content script waits for a client-rendered posting to appear. */
 export const SPA_RENDER_TIMEOUT_MS = 10_000;
 export const SPA_POLL_INTERVAL_MS = 400;
