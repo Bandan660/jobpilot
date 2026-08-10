@@ -109,6 +109,21 @@ Recorded so the reasoning is not relitigated later.
 
 ---
 
+## 3. Zero-Cost ATS Resume Builder & Job Tailor
+
+**The Goal.** Enable users to generate 100% ATS-compliant PDF resumes and match keywords directly from their master `jobpilot` profile with zero API keys or external paid LLM credits ($0 cost forever).
+
+### Key Components
+1. **Client-Side ATS Template Engine (Pure React + CSS)**:
+   - Automatically formats master profile (`workHistory`, `education`, `skills`, `projects`, `contact`) into clean, single-column ATS-friendly resumes.
+   - Customizer controls: Typography (Geist / Inter / Serif), Accent Color (Amber Gold, Emerald, Tech Blue, Dark Slate), and Spacing toggles.
+2. **Native Browser PDF Exporter**:
+   - Generates high-resolution vector PDF downloads via client-side print rendering — 0 server processing cost.
+3. **Client-Side Keyword Matcher (Zero AI Cost)**:
+   - Uses regex parsing to extract required skills from target job descriptions, displaying an instant ATS Match % score and missing skill tags.
+
+---
+
 ## Blocking work, unrelated to the above
 
 These gate launch regardless of which features land next.
