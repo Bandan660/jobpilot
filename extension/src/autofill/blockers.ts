@@ -226,7 +226,7 @@ export function labelFor(control: Element, scope: ParentNode): string {
    */
   for (const read of candidates) {
     const text = clean(read() ?? '');
-    if (text) return text;
+    if (text && !/^radio-group-/i.test(text)) return text;
   }
 
   return 'A required question';
