@@ -386,15 +386,15 @@ function notifyIfWaiting(progress: {
    */
   openPanelForInput();
 
-  const asked = progress.questions.map((question) => question.label);
+  const count = progress.questions.length;
 
   renderBanner({
     tone: 'warning',
     title:
-      asked.length === 1
-        ? 'One answer needed to finish this application'
-        : `${asked.length} answers needed to finish this application`,
-    body: `${asked.join(' · ')} — answer them here and jobpilot carries on by itself.`,
+      count === 1
+        ? '1 question needs your attention'
+        : `${count} questions need your attention`,
+    body: 'Complete the required questions in the application form — jobpilot will automatically resume once filled.',
     // Clear of the panel, which is 372px and now open at the same edge.
     rightPx: panelIsOpen() ? 392 : 16,
   });

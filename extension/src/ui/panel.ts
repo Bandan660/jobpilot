@@ -416,15 +416,24 @@ function paintSession(): void {
     head.textContent = session.message;
     root.append(head);
 
-    const list = document.createElement('ul');
-    list.className = 'asks';
-    for (const question of session.questions) {
-      const item = document.createElement('li');
-      item.dataset.kind = question.kind;
-      item.textContent = question.label;
-      list.append(item);
+    // Only list clear, human-readable questions. Omit raw machine IDs (like r1n, r2) and generic fallbacks.
+    const displayQuestions = session.questions.filter(
+      (q) =>
+        q.label &&
+        !/^(r\d+|input\d*|field\d*|_.*|\d+|A required question|Required question)$/i.test(q.label.trim())
+    );
+
+    if (displayQuestions.length > 0) {
+      const list = document.createElement('ul');
+      list.className = 'asks';
+      for (const question of displayQuestions) {
+        const item = document.createElement('li');
+        item.dataset.kind = question.kind;
+        item.textContent = question.label;
+        list.append(item);
+      }
+      root.append(list);
     }
-    root.append(list);
 
     const hint = document.createElement('p');
     hint.className = 'note';

@@ -207,7 +207,11 @@ export function labelFor(control: Element, scope: ParentNode): string {
   candidates.push(
     () => control.getAttribute('aria-label'),
     () => control.getAttribute('placeholder'),
-    () => control.getAttribute('name')
+    () => {
+      const name = control.getAttribute('name');
+      if (!name || /^(r\d+|input\d*|field\d*|_.*|\d+)$/i.test(name.trim())) return null;
+      return name;
+    }
   );
 
   /*
