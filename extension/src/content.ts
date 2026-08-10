@@ -549,9 +549,27 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
    * `null` here is a distinct state from "a form with nothing we recognise",
    * and the panel says something different for each.
    */
+function isExternalJobPosting(): boolean {
+  const host = window.location.hostname.toLowerCase();
+  if (host.includes('naukri.com')) {
+    const candidates = document.querySelectorAll('button, a, div[role="button"], [class*="apply"]');
+    for (const el of candidates) {
+      const text = (el.textContent ?? '').trim();
+      if (/apply on (company|corporate|employer|external) (site|website)/i.test(text)) {
+        return true;
+      }
+      if (el.matches('[class*="company-site"], [class*="external-apply"]')) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
   const formScope = findApplicationForm();
   const coverage =
     profile && formScope ? previewCoverage(profile, formScope) : { fillable: 0, total: 0 };
+  const isExternalJob = isExternalJobPosting();
 
   debug(
     'coverage:',
@@ -570,13 +588,14 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
        * links out to the employer's ATS there is nothing here to fill, and on
        * LinkedIn the flow is deliberately withheld — see flows.ts.
        */
-      canAutoApply: applyFlow !== null && applyFlow.scope() !== null,
+      canAutoApply: !isExternalJob && applyFlow !== null && applyFlow.scope() !== null,
       hasForm: formScope !== null,
       // Only where there is a list to work down, and only on LinkedIn: the
       // queue drives LinkedIn's split view and knows nothing about any other
       // site's results page.
       canApply: canRunSession(),
       match,
+      isExternalJob,
     },
     {
       onFill: async (overwrite) => {

@@ -76,6 +76,8 @@ export interface PanelJob {
    */
   canApply: boolean;
   /** Enough posting text on this page to be worth analysing. */
+  /** This posting redirects to an external company website (e.g. Naukri "Apply on company website"). */
+  isExternalJob?: boolean;
 }
 
 export interface PanelHandlers {
@@ -1549,21 +1551,26 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
      */
     const lampRow = document.createElement('div');
     lampRow.className = 'lamp-row';
-    const status = !current.hasForm
-      ? current.canApply
-        ? { state: 'ready', text: 'Ready to apply — the form opens when you start' }
-        : { state: 'no-form', text: 'No application form on this page' }
-      : current.coverage.fillable === 0
-        ? {
-            state: 'no-match',
-            text: `Nothing here matches your profile (${current.coverage.total} field${
-              current.coverage.total === 1 ? '' : 's'
-            })`,
-          }
-        : {
-            state: 'ready',
-            text: `${current.coverage.fillable} of ${current.coverage.total} fields can be filled`,
-          };
+    const status = current.isExternalJob
+      ? {
+          state: 'no-form',
+          text: 'Apply on company website — auto-apply is available for Naukri Easy Apply jobs',
+        }
+      : !current.hasForm
+        ? current.canApply
+          ? { state: 'ready', text: 'Ready to apply — the form opens when you start' }
+          : { state: 'no-form', text: 'No application form on this page' }
+        : current.coverage.fillable === 0
+          ? {
+              state: 'no-match',
+              text: `Nothing here matches your profile (${current.coverage.total} field${
+                current.coverage.total === 1 ? '' : 's'
+              })`,
+            }
+          : {
+              state: 'ready',
+              text: `${current.coverage.fillable} of ${current.coverage.total} fields can be filled`,
+            };
 
     lampRow.dataset.state = status.state;
     lampRow.innerHTML = '<span class="lamp"></span>';
