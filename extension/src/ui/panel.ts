@@ -1,5 +1,6 @@
 import type { CapturedJob, DuplicateMatch } from '@jobpilot/shared';
 import { POPOVER_RESET, promoteToTopLayer, reraise, sealEvents } from './topLayer.js';
+import { DEFAULT_WEB_BASE_URL } from '../config.js';
 
 /**
  * In-page side panel, opened from a button docked to the right edge.
@@ -1317,11 +1318,9 @@ const CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
  */
 function buildAuth(
   state: PanelJob,
-  handlers: PanelHandlers,
+  _handlers: PanelHandlers,
   onCollapse: () => void
 ): HTMLElement {
-  let mode: 'login' | 'signup' = 'login';
-
   const panel = document.createElement('div');
   panel.className = 'panel';
   panel.setAttribute('role', 'complementary');
@@ -1347,7 +1346,7 @@ function buildAuth(
   const body = document.createElement('div');
   body.className = 'body';
 
-  /* Job Posting Card */
+  /* Job Posting Summary Card */
   const job = document.createElement('div');
   job.className = 'card';
   const role = document.createElement('div');
@@ -1362,7 +1361,7 @@ function buildAuth(
   lampRow.className = 'lamp-row';
   lampRow.dataset.state = 'ready';
   lampRow.innerHTML = '<span class="lamp"></span>';
-  lampRow.append(document.createTextNode('Sign in to autofill and auto-apply'));
+  lampRow.append(document.createTextNode('Sign in on jobpilot website to auto-apply'));
   job.append(lampRow);
   body.append(job);
 
@@ -1377,39 +1376,14 @@ function buildAuth(
 
   const authHead = document.createElement('div');
   authHead.className = 'auth-head';
+  authHead.textContent = 'Sign in to Auto Apply';
 
   const intro = document.createElement('p');
   intro.className = 'note';
+  intro.textContent =
+    'Sign in or create your jobpilot account on our web app to autofill applications with one click and track every role in your dashboard.';
 
-  const emailField = document.createElement('div');
-  emailField.className = 'field';
-  const emailLabel = document.createElement('label');
-  emailLabel.textContent = 'Email address';
-  const email = document.createElement('input');
-  email.type = 'email';
-  email.autocomplete = 'username';
-  email.placeholder = 'you@example.com';
-  emailLabel.htmlFor = email.id = 'jp-email';
-  emailField.append(emailLabel, email);
-
-  const passField = document.createElement('div');
-  passField.className = 'field';
-  const passLabel = document.createElement('label');
-  passLabel.textContent = 'Password';
-  const password = document.createElement('input');
-  password.type = 'password';
-  password.placeholder = 'At least 8 characters';
-  passLabel.htmlFor = password.id = 'jp-password';
-  passField.append(passLabel, password);
-
-  const error = document.createElement('div');
-  error.className = 'err';
-  error.hidden = true;
-
-  const switcher = document.createElement('button');
-  switcher.className = 'switch';
-
-  authCard.append(authHead, intro, emailField, passField, error, switcher);
+  authCard.append(authHead, intro);
   body.append(authCard);
 
   const action = document.createElement('div');
@@ -1418,56 +1392,15 @@ function buildAuth(
   submit.className = 'fill';
   submit.innerHTML = BOLT;
   const submitText = document.createElement('span');
+  submitText.textContent = 'Sign in to Auto Apply';
   submit.append(submitText);
-  action.append(submit);
 
-  const applyMode = () => {
-    authHead.textContent = mode === 'login' ? 'Sign in to Auto Apply' : 'Create account to Auto Apply';
-    intro.textContent =
-      mode === 'login'
-        ? 'Sign in to autofill this application with one click and track it in your dashboard.'
-        : 'Create a free jobpilot account to autofill applications and track every role.';
-    submitText.textContent = mode === 'login' ? 'Sign in to Auto Apply' : 'Create account & Apply';
-    switcher.textContent =
-      mode === 'login' ? 'No account? Create one' : 'Already have an account? Sign in';
-    password.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
-  };
-
-  switcher.addEventListener('click', () => {
-    mode = mode === 'login' ? 'signup' : 'login';
-    error.hidden = true;
-    applyMode();
+  submit.addEventListener('click', () => {
+    window.open(`${DEFAULT_WEB_BASE_URL}/login`, '_blank');
   });
 
-  const go = async () => {
-    error.hidden = true;
-    if (!email.value.trim() || !password.value) {
-      error.textContent = 'Enter your email and password.';
-      error.hidden = false;
-      return;
-    }
+  action.append(submit);
 
-    submit.disabled = true;
-    const label = submitText.textContent;
-    submitText.textContent = mode === 'login' ? 'Signing in…' : 'Creating account…';
-
-    const failure = await handlers.onAuth(mode, email.value.trim(), password.value);
-    if (failure) {
-      error.textContent = failure;
-      error.hidden = false;
-      submit.disabled = false;
-      submitText.textContent = label;
-    }
-  };
-
-  submit.addEventListener('click', () => void go());
-  for (const input of [email, password]) {
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') void go();
-    });
-  }
-
-  applyMode();
   panel.append(header, body, action);
   return panel;
 }

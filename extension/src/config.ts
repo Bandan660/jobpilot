@@ -15,6 +15,7 @@
  * before it leaves the browser.
  */
 export const DEFAULT_API_BASE_URL = 'https://jobpilot-api.jobpilot.workers.dev';
+export const DEFAULT_WEB_BASE_URL = 'http://localhost:5173';
 
 /**
  * How often the confirmation check may run, at most.
