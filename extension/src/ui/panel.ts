@@ -667,22 +667,22 @@ const CSS = `
    * cards, one more for hover, and two line weights.
    */
   .panel {
-    --ink: #080d17;
-    --panel: #0f1626;
-    --raised: #182135;
-    --line: #263149;
-    --text: #e8edf7;
-    --dim: #9fb0cc;
+    --ink: #070b13;
+    --panel: #0d1424;
+    --raised: #141e33;
+    --line: #202d48;
+    --text: #edf2fb;
+    --dim: #94a5c4;
     --signal: #ffb020;
-    --on-signal: #1a1204;
-    --live: #3fcf8e;
+    --on-signal: #120c02;
+    --live: #10b981;
     --warn: #ffb020;
 
-    --glass: #0f1626;
-    --glass-raised: #182135;
-    --glass-hover: #1f2b44;
-    --glass-line: #263149;
-    --glass-edge: #33405e;
+    --glass: #0d1424;
+    --glass-raised: #141e33;
+    --glass-hover: #1b2946;
+    --glass-line: #202d48;
+    --glass-edge: #2c3c5d;
 
     position: relative;
     display: flex;
@@ -691,9 +691,9 @@ const CSS = `
     width: 100%;
     background: var(--glass);
     border-left: 1px solid var(--glass-edge);
-    box-shadow: -18px 0 48px rgba(0, 0, 0, 0.45);
+    box-shadow: -20px 0 50px rgba(0, 0, 0, 0.55);
     color: var(--text);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 13px;
     line-height: 1.5;
   }
@@ -701,29 +701,41 @@ const CSS = `
   header {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     padding: 14px 16px;
     border-bottom: 1px solid var(--glass-line);
-    background: var(--ink);
+    background: linear-gradient(180deg, #090d18 0%, #070a12 100%);
     flex-shrink: 0;
   }
 
   .mark {
-    width: 22px; height: 22px; border-radius: 7px;
-    background: linear-gradient(145deg, rgba(255,176,32,0.22), rgba(11,18,32,0.9));
-    border: 1px solid rgba(255,176,32,0.28);
+    width: 24px; height: 24px; border-radius: 7px;
+    background: linear-gradient(135deg, rgba(255,176,32,0.28), rgba(11,18,32,0.95));
+    border: 1px solid rgba(255,176,32,0.4);
+    box-shadow: 0 0 10px rgba(255,176,32,0.2);
     display: grid; place-items: center;
     flex-shrink: 0;
   }
-  .mark svg { width: 13px; height: 13px; }
+  .mark svg { width: 14px; height: 14px; }
 
-  .wordmark { font-weight: 700; letter-spacing: -0.02em; font-size: 14px; }
+  .wordmark {
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    font-size: 14.5px;
+    background: linear-gradient(180deg, #ffffff 0%, #d8e2f3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
 
   .who {
     margin-left: auto;
     font-size: 11px;
-    color: var(--dim);
-    max-width: 150px;
+    color: #93a6c8;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 3px 9px;
+    border-radius: 999px;
+    max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -770,24 +782,25 @@ const CSS = `
   .card {
     background: var(--glass-raised);
     border: 1px solid var(--glass-line);
-    border-radius: 11px;
-    padding: 10px 11px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    padding: 12px 13px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: border-color 160ms ease, background-color 160ms ease;
   }
 
-  .role { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
-  .meta { color: var(--dim); font-size: 12px; margin-top: 3px; }
+  .role { font-size: 14.5px; font-weight: 700; letter-spacing: -0.015em; color: #f3f7fc; line-height: 1.35; }
+  .meta { color: var(--dim); font-size: 12px; margin-top: 4px; }
 
   .lamp-row {
-    display: flex; align-items: center; gap: 6px;
-    margin-top: 7px; padding-top: 7px;
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 9px; padding-top: 9px;
     border-top: 1px solid var(--glass-line);
-    font-size: 11px; color: var(--dim);
+    font-size: 11.5px; color: var(--dim);
   }
   .lamp {
-    width: 6px; height: 6px; border-radius: 50%;
+    width: 7px; height: 7px; border-radius: 50%;
     background: var(--live); flex-shrink: 0;
-    box-shadow: 0 0 0 3px rgba(63, 207, 142, 0.14);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
   }
 
   /* Duplicate warning. Amber not red: applying twice is worth knowing about,
@@ -796,10 +809,10 @@ const CSS = `
     border-color: rgba(255, 176, 32, 0.4);
     background: rgba(255, 176, 32, 0.09);
   }
-  .warn .role { color: var(--signal); font-size: 12.5px; }
+  .warn .role { color: var(--signal); font-size: 13px; }
 
   .action {
-    padding: 12px 14px;
+    padding: 13px 16px;
     border-top: 1px solid var(--glass-line);
     background: var(--ink);
     flex-shrink: 0;
@@ -808,20 +821,24 @@ const CSS = `
   .fill {
     width: 100%;
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    background: linear-gradient(180deg, #ffbe45, var(--signal));
+    background: linear-gradient(135deg, #ffc857 0%, #ffb020 100%);
     color: var(--on-signal);
-    border: none; border-radius: 10px;
-    padding: 13px 16px;
-    font: inherit; font-size: 14px; font-weight: 700;
+    border: none; border-radius: 11px;
+    padding: 13.5px 18px;
+    font: inherit; font-size: 14px; font-weight: 750;
     cursor: pointer;
     box-shadow:
-      0 6px 18px rgba(255, 176, 32, 0.22),
-      inset 0 1px 0 rgba(255, 255, 255, 0.34);
-    transition: filter 140ms ease, transform 140ms ease;
+      0 6px 20px rgba(255, 176, 32, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    transition: filter 140ms ease, transform 140ms ease, box-shadow 140ms ease;
   }
-  .fill:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
+  .fill:hover:not(:disabled) {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(255, 176, 32, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
   .fill:active:not(:disabled) { transform: translateY(0); }
-  .fill:disabled { opacity: 0.5; cursor: default; }
+  .fill:disabled { opacity: 0.55; cursor: default; }
   .fill svg { width: 15px; height: 15px; }
 
   .ghost {
@@ -829,14 +846,18 @@ const CSS = `
     background: var(--glass-raised);
     color: var(--text);
     border: 1px solid var(--glass-line);
-    border-radius: 10px;
-    padding: 10px 14px;
+    border-radius: 11px;
+    padding: 11px 15px;
     font: inherit; font-size: 13px; font-weight: 600;
     cursor: pointer;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    transition: background 140ms ease, border-color 140ms ease;
+    transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
   }
-  .ghost:hover:not(:disabled) { background: var(--glass-hover); border-color: var(--glass-edge); }
+  .ghost:hover:not(:disabled) {
+    background: var(--glass-hover);
+    border-color: var(--glass-edge);
+    transform: translateY(-1px);
+  }
   .ghost:disabled { opacity: 0.5; cursor: default; }
 
   .toggle {
@@ -1178,48 +1199,55 @@ const CSS = `
 
   /* Auth form ------------------------------------------------------------ */
 
-  .field { display: flex; flex-direction: column; gap: 5px; }
+  .auth-card { display: flex; flex-direction: column; gap: 11px; margin-top: 4px; padding: 14px 15px; }
+  .auth-head { font-size: 14px; font-weight: 750; color: #ffffff; letter-spacing: -0.01em; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
   .field label { font-size: 11.5px; color: var(--dim); font-weight: 600; }
   .field input {
     background: var(--ink);
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    padding: 10px 11px;
+    border: 1px solid var(--glass-line);
+    border-radius: 9px;
+    padding: 11px 13px;
     color: var(--text);
     font: inherit; font-size: 13px;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
   }
   .field input:focus-visible {
     outline: 2px solid var(--signal);
     outline-offset: 1px;
     border-color: transparent;
+    box-shadow: 0 0 10px rgba(255,176,32,0.25);
   }
-  .field input::placeholder { color: #6b7d99; }
+  .field input::placeholder { color: #617392; }
 
   .err {
-    background: rgba(255, 107, 94, 0.12);
-    border: 1px solid rgba(255, 107, 94, 0.35);
-    color: #ffb4ac;
-    border-radius: 7px;
-    padding: 9px 11px;
+    background: rgba(239, 68, 68, 0.14);
+    border: 1px solid rgba(239, 68, 68, 0.38);
+    color: #fca5a5;
+    border-radius: 9px;
+    padding: 10px 12px;
     font-size: 12px;
+    line-height: 1.4;
   }
 
   .switch {
     background: none; border: none; padding: 0;
-    color: var(--signal); font: inherit; font-size: 12.5px;
-    cursor: pointer; text-decoration: underline; align-self: center;
+    color: var(--signal); font: inherit; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 2px; align-self: flex-start;
   }
 
   .foot {
-    display: flex; gap: 10px; align-items: center;
-    padding: 10px 16px;
-    border-top: 1px solid var(--line);
+    display: flex; gap: 10px; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-top: 1px solid var(--glass-line);
+    background: var(--ink);
     flex-shrink: 0;
   }
   .link {
     background: none; border: none; padding: 0;
-    color: var(--dim); font: inherit; font-size: 11.5px;
-    cursor: pointer; text-decoration: underline;
+    color: var(--dim); font: inherit; font-size: 11.5px; font-weight: 500;
+    cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
   }
   .link:hover { color: var(--text); }
 
@@ -1306,21 +1334,20 @@ function buildAuth(
   const word = document.createElement('span');
   word.className = 'wordmark';
   word.textContent = 'jobpilot';
-  const spacer = document.createElement('span');
-  spacer.className = 'who';
+  const who = document.createElement('span');
+  who.className = 'who';
+  who.textContent = 'Sign in';
   const collapse = document.createElement('button');
   collapse.className = 'icon-btn';
   collapse.setAttribute('aria-label', 'Collapse');
   collapse.innerHTML = CHEV;
   collapse.addEventListener('click', onCollapse);
-  header.append(mark, word, spacer, collapse);
+  header.append(mark, word, who, collapse);
 
   const body = document.createElement('div');
   body.className = 'body';
 
-  const intro = document.createElement('p');
-  intro.className = 'note';
-
+  /* Job Posting Card */
   const job = document.createElement('div');
   job.className = 'card';
   const role = document.createElement('div');
@@ -1331,10 +1358,33 @@ function buildAuth(
   meta.textContent = [state.job.company, state.job.location].filter(Boolean).join(' · ');
   job.append(role, meta);
 
+  const lampRow = document.createElement('div');
+  lampRow.className = 'lamp-row';
+  lampRow.dataset.state = 'ready';
+  lampRow.innerHTML = '<span class="lamp"></span>';
+  lampRow.append(document.createTextNode('Sign in to autofill and auto-apply'));
+  job.append(lampRow);
+  body.append(job);
+
+  /* Match card preview for 1st-time users if available */
+  if (state.match) {
+    body.append(matchCard(state.match));
+  }
+
+  /* Auth Card */
+  const authCard = document.createElement('div');
+  authCard.className = 'card auth-card';
+
+  const authHead = document.createElement('div');
+  authHead.className = 'auth-head';
+
+  const intro = document.createElement('p');
+  intro.className = 'note';
+
   const emailField = document.createElement('div');
   emailField.className = 'field';
   const emailLabel = document.createElement('label');
-  emailLabel.textContent = 'Email';
+  emailLabel.textContent = 'Email address';
   const email = document.createElement('input');
   email.type = 'email';
   email.autocomplete = 'username';
@@ -1359,18 +1409,25 @@ function buildAuth(
   const switcher = document.createElement('button');
   switcher.className = 'switch';
 
+  authCard.append(authHead, intro, emailField, passField, error, switcher);
+  body.append(authCard);
+
   const action = document.createElement('div');
   action.className = 'action';
   const submit = document.createElement('button');
   submit.className = 'fill';
+  submit.innerHTML = BOLT;
+  const submitText = document.createElement('span');
+  submit.append(submitText);
   action.append(submit);
 
   const applyMode = () => {
+    authHead.textContent = mode === 'login' ? 'Sign in to Auto Apply' : 'Create account to Auto Apply';
     intro.textContent =
       mode === 'login'
-        ? 'Sign in to autofill this application and record it in your tracker.'
-        : 'Create an account to autofill applications and track every one you send.';
-    submit.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+        ? 'Sign in to autofill this application with one click and track it in your dashboard.'
+        : 'Create a free jobpilot account to autofill applications and track every role.';
+    submitText.textContent = mode === 'login' ? 'Sign in to Auto Apply' : 'Create account & Apply';
     switcher.textContent =
       mode === 'login' ? 'No account? Create one' : 'Already have an account? Sign in';
     password.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
@@ -1391,21 +1448,19 @@ function buildAuth(
     }
 
     submit.disabled = true;
-    const label = submit.textContent;
-    submit.textContent = mode === 'login' ? 'Signing in…' : 'Creating…';
+    const label = submitText.textContent;
+    submitText.textContent = mode === 'login' ? 'Signing in…' : 'Creating account…';
 
     const failure = await handlers.onAuth(mode, email.value.trim(), password.value);
     if (failure) {
       error.textContent = failure;
       error.hidden = false;
       submit.disabled = false;
-      submit.textContent = label;
+      submitText.textContent = label;
     }
-    // On success the caller re-renders the panel, so this element goes away.
   };
 
   submit.addEventListener('click', () => void go());
-  // Enter submits from either field, which is what a two-field form implies.
   for (const input of [email, password]) {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') void go();
@@ -1413,7 +1468,6 @@ function buildAuth(
   }
 
   applyMode();
-  body.append(intro, job, emailField, passField, error, switcher);
   panel.append(header, body, action);
   return panel;
 }
