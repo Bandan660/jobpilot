@@ -148,7 +148,7 @@ export function DashboardHome() {
         </div>
 
         <div className="dash-col">
-          <Activity events={activity} />
+          <ApplicationAnalytics applications={applications} stats={stats} />
         </div>
       </div>
 
@@ -383,50 +383,276 @@ function ThisWeek({ thisWeek, lastWeek }: { thisWeek: number; lastWeek: number }
   );
 }
 
-/** Reads from the append-only event log, so it shows things nobody typed. */
-function Activity({ events }: { events: ActivityEvent[] }) {
-  const describe = (e: ActivityEvent): string => {
-    switch (e.type) {
-      case 'CREATED':
-        return e.actor === 'EXTENSION' ? 'Captured on submit' : 'Added by hand';
-      case 'STATUS_CHANGED':
-        return `${e.fromStatus?.toLowerCase() ?? 'new'} → ${e.toStatus?.toLowerCase() ?? ''}`;
-      case 'POSTING_CHECKED':
-        return 'Posting came down';
-      case 'DUPLICATE_FLAGGED':
-        return 'Flagged as a possible duplicate';
-      case 'NOTE_ADDED':
-        return 'Note added';
-      default:
-        return e.type.toLowerCase().replace(/_/g, ' ');
-    }
+function ApplicationAnalytics({
+  applications,
+  stats,
+}: {
+  applications: Application[];
+  stats: FunnelStats | null;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  // Compute last 14 days application count
+  const days: { dateStr: string; label: string; count: number }[] = [];
+  const now = new Date();
+
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    const count = applications.filter((a) => {
+      const raw = a.appliedAt || a.createdAt;
+      if (!raw) return false;
+      const appDate = new Date(raw).toISOString().split('T')[0];
+      return appDate === dateStr;
+    }).length;
+
+    days.push({ dateStr, label, count });
+  }
+
+  const maxCount = Math.max(1, ...days.map((d) => d.count));
+  const totalCount = applications.length;
+  const avgCount = (days.reduce((acc, d) => acc + d.count, 0) / 14).toFixed(1);
+  const peakCount = Math.max(...days.map((d) => d.count));
+
+  // Chart dimensions
+  const width = 380;
+  const height = 135;
+  const paddingX = 22;
+  const paddingY = 18;
+  const chartW = width - paddingX * 2;
+  const chartH = height - paddingY * 2;
+
+  // Compute bar positions and bezier trendline path
+  const barWidth = 14;
+  const points = days.map((d, index) => {
+    const x = paddingX + (index / (days.length - 1)) * chartW;
+    const y = height - paddingY - (d.count / maxCount) * chartH;
+    return { x, y, ...d, index };
+  });
+
+  // SVG Smooth Path generator
+  const linePath = points.reduce((acc, point, i, arr) => {
+    if (i === 0) return `M ${point.x} ${point.y}`;
+    const prev = arr[i - 1];
+    const cx = (prev.x + point.x) / 2;
+    return `${acc} C ${cx} ${prev.y}, ${cx} ${point.y}, ${point.x} ${point.y}`;
+  }, '');
+
+  const areaPath = points.length > 0
+    ? `${linePath} L ${points[points.length - 1].x} ${height - paddingY} L ${points[0].x} ${height - paddingY} Z`
+    : '';
+
+  // Status breakdown for Donut Chart
+  const statusColors: Record<string, string> = {
+    APPLIED: '#ffb020',
+    SAVED: '#3b82f6',
+    SCREEN: '#10b981',
+    INTERVIEW: '#10b981',
+    OFFER: '#8b5cf6',
+    REJECTED: '#64748b',
   };
 
-  return (
-    <section className="panel activity">
-      <Head title="Activity" tone="c" Icon={PulseIcon} />
+  const statusLabels: Record<string, string> = {
+    APPLIED: 'Applied',
+    SAVED: 'Saved',
+    SCREEN: 'Screen',
+    INTERVIEW: 'Interview',
+    OFFER: 'Offer',
+    REJECTED: 'Rejected',
+  };
 
-      {events.length === 0 ? (
-        <p className="muted">
-          Everything that happens to an application shows up here — including the parts you did not
-          do, like a posting being taken down.
-        </p>
-      ) : (
-        <ol className="activity-list">
-          {events.map((event) => (
-            <li key={event.id}>
-              <span className="activity-dot" aria-hidden="true" />
-              <div>
-                <strong>{event.title}</strong>
-                <p className="muted">
-                  {describe(event)} · {event.companyName}
-                </p>
+  const donutData = stats
+    ? Object.entries(stats.byStatus)
+        .map(([status, count]) => ({
+          status,
+          label: statusLabels[status] || status,
+          count,
+          color: statusColors[status] || '#94a5c4',
+          pct: totalCount > 0 ? Math.round((count / totalCount) * 100) : 0,
+        }))
+        .filter((d) => d.count > 0)
+    : [];
+
+  return (
+    <section className="panel analytics-panel">
+      <Head title="Application Velocity & Analytics" tone="a" Icon={ChartIcon} />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
+        {/* 14-Day Application Volume Bar & Line Graph */}
+        <div style={{ background: 'var(--panel-alt, rgba(0,0,0,0.22))', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-dim)' }}>
+              Submissions (Last 14 Days)
+            </span>
+            <span style={{ fontSize: '11px', color: '#ffb020', background: 'rgba(255,176,32,0.14)', padding: '2px 9px', borderRadius: '999px', fontWeight: 700 }}>
+              Peak: {peakCount}/day
+            </span>
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
+              <defs>
+                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ffc857" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="#ffb020" stopOpacity="0.45" />
+                </linearGradient>
+                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ffb020" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#ffb020" stopOpacity="0" />
+                </linearGradient>
+                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="2.5" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+
+              {/* Horizontal Background Grid Lines */}
+              <line x1={paddingX} y1={paddingY} x2={width - paddingX} y2={paddingY} stroke="var(--line)" strokeDasharray="3 3" opacity="0.4" />
+              <line x1={paddingX} y1={paddingY + chartH / 2} x2={width - paddingX} y2={paddingY + chartH / 2} stroke="var(--line)" strokeDasharray="3 3" opacity="0.4" />
+              <line x1={paddingX} y1={height - paddingY} x2={width - paddingX} y2={height - paddingY} stroke="var(--line)" opacity="0.7" />
+
+              {/* Shaded Area under Trendline */}
+              <path d={areaPath} fill="url(#areaGrad)" />
+
+              {/* Bars */}
+              {points.map((pt) => {
+                const bHeight = Math.max(4, (pt.count / maxCount) * chartH);
+                const bY = height - paddingY - bHeight;
+                const isHovered = hoveredIndex === pt.index;
+
+                return (
+                  <g key={pt.dateStr} onMouseEnter={() => setHoveredIndex(pt.index)} onMouseLeave={() => setHoveredIndex(null)}>
+                    <rect
+                      x={pt.x - barWidth / 2}
+                      y={bY}
+                      width={barWidth}
+                      height={bHeight}
+                      rx="3.5"
+                      fill={isHovered ? '#ffffff' : 'url(#barGrad)'}
+                      style={{ transition: 'all 140ms ease', cursor: 'pointer' }}
+                    />
+                  </g>
+                );
+              })}
+
+              {/* Bezier Trend Line */}
+              <path d={linePath} fill="none" stroke="#ffb020" strokeWidth="2.5" filter="url(#glow)" />
+
+              {/* Data Points on Line */}
+              {points.map((pt) => (
+                <circle
+                  key={`pt-${pt.dateStr}`}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={hoveredIndex === pt.index ? '5' : '3'}
+                  fill="#ffffff"
+                  stroke="#ffb020"
+                  strokeWidth="2"
+                  style={{ transition: 'all 140ms ease' }}
+                />
+              ))}
+
+              {/* X-Axis Labels */}
+              <text x={points[0].x} y={height - 2} fill="var(--text-dim)" fontSize="10" textAnchor="start">
+                {points[0].label}
+              </text>
+              <text x={points[Math.floor(points.length / 2)].x} y={height - 2} fill="var(--text-dim)" fontSize="10" textAnchor="middle">
+                {points[Math.floor(points.length / 2)].label}
+              </text>
+              <text x={points[points.length - 1].x} y={height - 2} fill="var(--text-dim)" fontSize="10" textAnchor="end">
+                {points[points.length - 1].label}
+              </text>
+            </svg>
+
+            {/* Hover Tooltip Overlay */}
+            {hoveredIndex !== null && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '0px',
+                  left: `${(hoveredIndex / 13) * 78 + 11}%`,
+                  transform: 'translateX(-50%)',
+                  background: '#080d17',
+                  border: '1px solid #ffb020',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  color: '#ffffff',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.6)',
+                  pointerEvents: 'none',
+                  zIndex: 10,
+                }}
+              >
+                <strong>{days[hoveredIndex].label}</strong>: {days[hoveredIndex].count} applied
               </div>
-              <span className="cell-dim">{formatDate(event.occurredAt)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
+            )}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--line)', fontSize: '11.5px', color: 'var(--text-dim)' }}>
+            <span>Avg: <strong style={{ color: 'var(--text)' }}>{avgCount}</strong> / day</span>
+            <span>Total Tracked: <strong style={{ color: 'var(--text)' }}>{totalCount}</strong></span>
+            <span>Active Days: <strong style={{ color: '#10b981' }}>{days.filter(d => d.count > 0).length}d</strong></span>
+          </div>
+        </div>
+
+        {/* Stage Breakdown Donut & Legend */}
+        {donutData.length > 0 && (
+          <div style={{ background: 'var(--panel-alt, rgba(0,0,0,0.22))', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--line)' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '12px' }}>
+              Stage Distribution
+            </div>
+            <div style={{ display: 'flex', gap: '18px', alignItems: 'center' }}>
+              {/* Donut Chart SVG */}
+              <div style={{ position: 'relative', width: '84px', height: '84px', flexShrink: 0 }}>
+                <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                  {(() => {
+                    let cumulativeAngle = 0;
+                    return donutData.map((d) => {
+                      const strokeDasharray = `${d.pct * 2.83} ${283 - d.pct * 2.83}`;
+                      const strokeDashoffset = -cumulativeAngle * 2.83;
+                      cumulativeAngle += d.pct;
+                      return (
+                        <circle
+                          key={d.status}
+                          cx="50"
+                          cy="50"
+                          r="40"
+                          fill="transparent"
+                          stroke={d.color}
+                          strokeWidth="13"
+                          strokeDasharray={strokeDasharray}
+                          strokeDashoffset={strokeDashoffset}
+                          style={{ transition: 'all 300ms ease' }}
+                        />
+                      );
+                    });
+                  })()}
+                </svg>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '16px', fontWeight: 800, lineHeight: 1 }}>{totalCount}</span>
+                  <span style={{ fontSize: '9px', color: 'var(--text-dim)' }}>Jobs</span>
+                </div>
+              </div>
+
+              {/* Legend List */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', flex: 1 }}>
+                {donutData.map((d) => (
+                  <div key={d.status} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                    <span style={{ color: 'var(--text-dim)' }}>{d.label}:</span>
+                    <strong style={{ marginLeft: 'auto', color: 'var(--text)' }}>{d.count}</strong>
+                    <span style={{ fontSize: '10px', opacity: 0.65 }}>({d.pct}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
