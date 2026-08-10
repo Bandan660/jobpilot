@@ -132,9 +132,13 @@ export function DashboardHome() {
 
       {error && <p className="banner-error">{error}</p>}
 
+      <TimeSavedAndGoal applications={applications} thisWeek={thisWeek} />
+
       <Setup profile={profile} readiness={readiness} hasApplications={applications.length > 0} />
 
       {stats && <Readouts stats={stats} />}
+
+      <QuickActions />
 
       <NeedsAttention alerts={alerts} stale={stale} />
 
@@ -154,6 +158,355 @@ export function DashboardHome() {
 
       <RecentApplications applications={applications} />
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+function TimeSavedAndGoal({
+  applications,
+  thisWeek,
+}: {
+  applications: Application[];
+  thisWeek: number;
+}) {
+  const [weeklyGoal, setWeeklyGoal] = useState(() => {
+    return Number(localStorage.getItem('jp_weekly_goal') || 25);
+  });
+  const [editingGoal, setEditingGoal] = useState(false);
+
+  // Time saved estimate: ~30 mins saved per job applied/tracked
+  const minutesSaved = applications.length * 30;
+  const hoursSaved = (minutesSaved / 60).toFixed(1);
+  const goalProgress = Math.min(100, Math.round((thisWeek / Math.max(1, weeklyGoal)) * 100));
+
+  // Compute active streak (consecutive days with applications)
+  const streakDays = (() => {
+    let streak = 0;
+    const now = new Date();
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const hasApp = applications.some((a) => {
+        const raw = a.appliedAt || a.createdAt;
+        return raw && new Date(raw).toISOString().split('T')[0] === dateStr;
+      });
+      if (hasApp) streak++;
+      else if (i > 0) break; // streak broken
+    }
+    return streak;
+  })();
+
+  const handleGoalChange = (newGoal: number) => {
+    setWeeklyGoal(newGoal);
+    localStorage.setItem('jp_weekly_goal', String(newGoal));
+    setEditingGoal(false);
+  };
+
+  return (
+    <section
+      className="panel time-goal-panel"
+      style={{
+        background:
+          'linear-gradient(135deg, rgba(255,176,32,0.08) 0%, rgba(13,20,36,0.95) 100%)',
+        border: '1px solid rgba(255,176,32,0.3)',
+        padding: '16px 20px',
+        borderRadius: '14px',
+        marginBottom: '20px',
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '20px',
+          alignItems: 'center',
+        }}
+      >
+        {/* Time Saved ROI Metric */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
+              color: '#120c02',
+              display: 'grid',
+              placeItems: 'center',
+              fontWeight: 800,
+              fontSize: '22px',
+              boxShadow: '0 6px 18px rgba(255,176,32,0.35)',
+              flexShrink: 0,
+            }}
+          >
+            🔥
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span
+                style={{
+                  fontSize: '22px',
+                  fontWeight: 800,
+                  color: '#ffffff',
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {hoursSaved} Hours Saved
+              </span>
+              <span
+                style={{
+                  fontSize: '11px',
+                  color: '#ffb020',
+                  background: 'rgba(255,176,32,0.15)',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  fontWeight: 700,
+                }}
+              >
+                ROI Boost
+              </span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '2px' }}>
+              By autofilling forms and auto-capturing {applications.length} applications with
+              jobpilot.
+            </p>
+          </div>
+        </div>
+
+        {/* Weekly Target Goal & Streak */}
+        <div
+          style={{
+            background: 'rgba(0,0,0,0.25)',
+            padding: '12px 16px',
+            borderRadius: '12px',
+            border: '1px solid var(--line)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '8px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '13px',
+                fontWeight: 700,
+              }}
+            >
+              <span>⚡ {streakDays} Day Streak</span>
+              <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>· Weekly Goal:</span>
+              <strong style={{ color: '#ffb020' }}>
+                {thisWeek}/{weeklyGoal}
+              </strong>
+            </div>
+
+            <button
+              onClick={() => setEditingGoal(!editingGoal)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--signal)',
+                fontSize: '11px',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              {editingGoal ? 'Done' : 'Set target'}
+            </button>
+          </div>
+
+          {/* Goal Progress Bar */}
+          <div
+            style={{
+              height: '8px',
+              background: 'rgba(255,255,255,0.08)',
+              borderRadius: '999px',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            <div
+              style={{
+                width: `${goalProgress}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #ffb020 0%, #10b981 100%)',
+                borderRadius: '999px',
+                transition: 'width 400ms ease',
+              }}
+            />
+          </div>
+
+          {editingGoal && (
+            <div style={{ display: 'flex', gap: '6px', marginTop: '10px', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Weekly target:</span>
+              {[15, 25, 40, 60].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => handleGoalChange(val)}
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--line)',
+                    background: weeklyGoal === val ? 'var(--signal)' : 'rgba(255,255,255,0.05)',
+                    color: weeklyGoal === val ? '#120c02' : 'var(--text)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  {val}/wk
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function QuickActions() {
+  return (
+    <section
+      className="panel quick-actions-panel"
+      style={{ padding: '16px 20px', borderRadius: '14px', marginBottom: '20px' }}
+    >
+      <Head title="Quick AI Tools & Workflows" tone="b" Icon={PuzzleIcon} />
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '12px',
+          marginTop: '12px',
+        }}
+      >
+        <Link
+          to="/dashboard/profile"
+          className="quick-card"
+          style={{
+            background: 'var(--panel-alt, rgba(0,0,0,0.22))',
+            border: '1px solid var(--line)',
+            borderRadius: '12px',
+            padding: '14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            textDecoration: 'none',
+            transition: 'all 160ms ease',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#ffb020',
+              fontWeight: 700,
+              fontSize: '13px',
+            }}
+          >
+            <span>⚡ Saved Answers Bank</span>
+          </div>
+          <p
+            style={{
+              fontSize: '11.5px',
+              color: 'var(--text-dim)',
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+          >
+            Manage reusable answers auto-filled across job applications.
+          </p>
+        </Link>
+
+        <Link
+          to="/copilot"
+          className="quick-card"
+          style={{
+            background: 'var(--panel-alt, rgba(0,0,0,0.22))',
+            border: '1px solid var(--line)',
+            borderRadius: '12px',
+            padding: '14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            textDecoration: 'none',
+            transition: 'all 160ms ease',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#10b981',
+              fontWeight: 700,
+              fontSize: '13px',
+            }}
+          >
+            <span>🤖 AI Response Writer</span>
+          </div>
+          <p
+            style={{
+              fontSize: '11.5px',
+              color: 'var(--text-dim)',
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+          >
+            Draft long-form responses like &quot;Why join us?&quot; with 1-click AI.
+          </p>
+        </Link>
+
+        <Link
+          to="/dashboard/applications"
+          className="quick-card"
+          style={{
+            background: 'var(--panel-alt, rgba(0,0,0,0.22))',
+            border: '1px solid var(--line)',
+            borderRadius: '12px',
+            padding: '14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            textDecoration: 'none',
+            transition: 'all 160ms ease',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#3b82f6',
+              fontWeight: 700,
+              fontSize: '13px',
+            }}
+          >
+            <span>🎯 Skill Match Analysis</span>
+          </div>
+          <p
+            style={{
+              fontSize: '11.5px',
+              color: 'var(--text-dim)',
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+          >
+            Compare your profile skills against target postings instantly.
+          </p>
+        </Link>
+      </div>
+    </section>
   );
 }
 
