@@ -462,6 +462,38 @@ function paintSession(): void {
       dump.append(item);
     }
     root.append(dump);
+
+    /*
+     * Copy, because a photograph of this is not a bug report.
+     *
+     * Every diagnosis this session came from a screenshot, which meant reading
+     * truncated labels off an image and guessing at the rest. Text can be
+     * pasted whole. Safe to click here in a way the run's own buttons are not:
+     * this only appears once the run has already failed, so if the click
+     * reaches the host page's modal, there is no application left to lose.
+     */
+    const copy = document.createElement('button');
+    copy.className = 'ghost';
+    copy.textContent = 'Copy report';
+    copy.addEventListener('click', () => {
+      const text = [`jobpilot ${session.message}`, ...(session.diagnostic ?? [])].join('\n');
+      void navigator.clipboard.writeText(text).then(
+        () => {
+          copy.textContent = 'Copied';
+        },
+        () => {
+          // Clipboard refused — usually focus. Select it instead so Ctrl+C
+          // still works rather than leaving a button that does nothing.
+          copy.textContent = 'Select the text above and copy';
+          const range = document.createRange();
+          range.selectNodeContents(dump);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+      );
+    });
+    root.append(copy);
   }
 
   /* Offer the hand-typed answers back to the profile. */

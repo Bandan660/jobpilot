@@ -203,6 +203,24 @@ export function findButton(root: ParentNode, patterns: RegExp[]): HTMLButtonElem
 }
 
 /**
+ * Dispatch the full user event interaction sequence on an element.
+ *
+ * Modern component frameworks (like LinkedIn's Artdeco) listen to pointer and
+ * mouse events in addition to click. Calling `el.click()` alone bypasses
+ * `pointerdown`/`mousedown` event listeners, which leaves form step transition
+ * state uncommitted.
+ */
+export function clickElement(el: HTMLElement): void {
+  el.focus();
+  el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true }));
+  el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, detail: 1, view: window }));
+  el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true }));
+  el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, detail: 1, view: window }));
+  el.click();
+}
+
+
+/**
  * Empty free-text questions worth drafting an answer to.
  *
  * Textareas only. A long question in a single-line input is a mislabelled
@@ -534,7 +552,7 @@ export async function runApply({
       snapshotAnswers?.(now);
       report({ status: 'submitting', step, message: 'Sending the application…' });
 
-      submitButton.click();
+      clickElement(submitButton);
       submitClicked = true;
       ticksSinceSubmit = 0;
 
@@ -593,7 +611,7 @@ export async function runApply({
     // that ends in a fieldless review screen this is the only chance to read
     // what the user typed by hand.
     snapshotAnswers?.(now);
-    next.click();
+    clickElement(next);
 
     await sleep(TICK_MS);
   }
@@ -618,12 +636,39 @@ export async function runApply({
 function describeStep(scope: ParentNode): string[] {
   const lines: string[] = [];
 
+  /*
+   * What the container itself is, first.
+   *
+   * The single most useful fact when a run stalls, and the one nothing was
+   * reporting. Whether Easy Apply is a `<dialog>`, whether it is `:modal`, and
+   * what hooks it carries decides which selectors can see it at all — and
+   * every wrong guess this session came from not knowing.
+   */
+  const host = scope instanceof Element ? scope : null;
+  if (host) {
+    const attrs = ['role', 'aria-modal', 'data-test-modal', 'aria-labelledby']
+      .map((name) => (host.hasAttribute(name) ? `${name}=${host.getAttribute(name)}` : ''))
+      .filter(Boolean)
+      .join(' ');
+
+    let modal = '?';
+    try {
+      modal = host.matches(':modal') ? 'top-layer' : 'in-page';
+    } catch {
+      /* :modal is not understood here; the label stays unknown. */
+    }
+
+    lines.push(`<${host.tagName.toLowerCase()}> ${modal} ${attrs}`.trim());
+    lines.push(`class=${(host.className || '(none)').toString().slice(0, 90)}`);
+  }
+
   for (const el of scope.querySelectorAll<HTMLElement>('input, select, textarea')) {
     const control = el as HTMLInputElement;
     const type = control.type || el.tagName.toLowerCase();
     if (type === 'hidden') continue;
 
     const required =
+      type === 'radio' ||
       control.required ||
       el.getAttribute('aria-required') === 'true' ||
       el.closest('[aria-required="true"]') !== null;

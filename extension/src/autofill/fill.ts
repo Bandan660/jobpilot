@@ -106,6 +106,10 @@ function fillRadioGroup(control: HTMLInputElement, value: string): boolean {
       if (radio.checked) return true;
       radio.checked = true;
       notify(radio);
+      radio.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true }));
+      radio.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      radio.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true }));
+      radio.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       radio.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       return true;
     }

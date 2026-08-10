@@ -1,6 +1,6 @@
 import type { AtsProvider } from '@jobpilot/shared';
 import { findDialog, hasFormControls } from '../dialogs.js';
-import { findButton, type ApplyFlow } from './apply.js';
+import { clickElement, findButton, type ApplyFlow } from './apply.js';
 
 /**
  * Per-platform configuration for the assisted-apply driver.
@@ -146,7 +146,7 @@ export const linkedinFlow: ApplyFlow = {
     const scope = document.querySelector('.jobs-search__job-details') ?? document;
     const trigger = findButton(scope, [/easy apply/i]);
     if (!trigger) return false;
-    trigger.click();
+    clickElement(trigger);
     return true;
   },
   multiStep: true,

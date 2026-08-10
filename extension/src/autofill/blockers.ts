@@ -61,6 +61,12 @@ type Control = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
  */
 function requiredControls(scope: ParentNode): Control[] {
   return [...scope.querySelectorAll<Control>('input, select, textarea')].filter((control) => {
+    const type = (control as HTMLInputElement).type?.toLowerCase();
+
+    // Radio groups on application steps are required inputs — if no radio in the group is checked,
+    // it is an unanswered required question.
+    if (type === 'radio') return true;
+
     if (control.required || control.getAttribute('aria-required') === 'true') return true;
 
     /*
@@ -96,7 +102,11 @@ function requiredControls(scope: ParentNode): Control[] {
      * region that happens to carry the attribute.
      */
     const wrapper = control.closest(FIELD_WRAPPERS);
-    return wrapper?.getAttribute('aria-required') === 'true' || wrapper?.hasAttribute('required') === true;
+    return (
+      wrapper?.getAttribute('aria-required') === 'true' ||
+      wrapper?.hasAttribute('required') === true ||
+      wrapper?.getAttribute('data-required') === 'true'
+    );
   });
 }
 
@@ -109,6 +119,9 @@ const FIELD_WRAPPERS = [
   '[data-test-single-typeahead-entity-form-component]',
   '[data-automation-id]',
   '.fb-dash-form-element',
+  '[class*="form-element"]',
+  '[class*="form-component"]',
+  '[class*="form-group"]',
   '.field',
   '.form-group',
 ].join(', ');
@@ -177,7 +190,10 @@ export function labelFor(control: Element, scope: ParentNode): string {
   const own = [() => labelledBy(control), () => ownLabel(control, scope)];
   const group = [
     () => wrapper?.querySelector('legend')?.textContent,
-    () => wrapper?.querySelector('.fb-dash-form-element__label, .label, legend, label')?.textContent,
+    () =>
+      wrapper?.querySelector(
+        '[class*="form-element__label"], [class*="form-component__label"], [data-test-form-element-label], .fb-dash-form-element__label, .label, legend'
+      )?.textContent,
   ];
 
   /*

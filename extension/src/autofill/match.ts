@@ -44,9 +44,14 @@ export function labelFor(control: Control): string {
   const ariaLabel = control.getAttribute('aria-label');
   if (ariaLabel) return ariaLabel.trim();
 
-  // Radio and checkbox groups put the real question on the fieldset legend,
+  // Radio and checkbox groups put the real question on the fieldset legend or group label,
   // and each control's own label is just the option ("Yes", "No").
-  const legend = control.closest('fieldset')?.querySelector('legend');
+  const groupContainer = control.closest(
+    'fieldset, [role="radiogroup"], [role="group"], [class*="form-element"], [class*="form-component"]'
+  );
+  const legend = groupContainer?.querySelector(
+    'legend, [class*="form-element__label"], [class*="form-component__label"], [data-test-form-element-label]'
+  );
   if (legend) return text(legend);
 
   // Last resort: the nearest preceding block of text in the same container.
