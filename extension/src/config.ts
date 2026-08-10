@@ -25,6 +25,7 @@ export const DEFAULT_API_BASE_URL = 'https://jobpilot-api.jobpilot.workers.dev';
  */
 export const CONFIRMATION_CHECK_MS = 400;
 
+
 /** How long the content script waits for a client-rendered posting to appear. */
 export const SPA_RENDER_TIMEOUT_MS = 10_000;
 export const SPA_POLL_INTERVAL_MS = 400;

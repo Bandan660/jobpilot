@@ -6,6 +6,8 @@
  * isolation this banner is unreadable on roughly half of them.
  */
 
+import { POPOVER_RESET, promoteToTopLayer, sealEvents } from './topLayer.js';
+
 const HOST_ID = 'jobpilot-banner-host';
 
 export type BannerTone = 'info' | 'success' | 'warning' | 'error';
@@ -48,9 +50,14 @@ export function renderBanner(options: BannerOptions): void {
     'position: fixed',
     'top: 16px',
     `right: ${options.rightPx ?? 16}px`,
+    // Fallback for anywhere the top layer is unavailable; see topLayer.ts for
+    // why it is not sufficient on its own.
     'z-index: 2147483647',
     'width: 340px',
     'max-width: calc(100vw - 32px)',
+    // See the note by `card.append` — this notice must never take a click.
+    'pointer-events: none',
+    ...POPOVER_RESET,
   ].join(';');
 
   const shadow = host.attachShadow({ mode: 'closed' });
@@ -79,12 +86,6 @@ export function renderBanner(options: BannerOptions): void {
     .title { font-size: 13px; font-weight: 600; line-height: 1.35; }
     .body { font-size: 12px; line-height: 1.45; margin-top: 3px; opacity: 0.85; word-break: break-word; }
     .brand { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.6; margin-bottom: 4px; }
-    .close {
-      background: none; border: none; cursor: pointer;
-      color: inherit; opacity: 0.5; font-size: 16px; line-height: 1;
-      padding: 2px; align-self: flex-start;
-    }
-    .close:hover { opacity: 1; }
 
 
     @media (prefers-reduced-motion: reduce) { .card { animation: none; } }
@@ -113,17 +114,40 @@ export function renderBanner(options: BannerOptions): void {
     content.append(body);
   }
 
-  const close = document.createElement('button');
-  close.className = 'close';
-  close.textContent = '×';
-  close.setAttribute('aria-label', 'Dismiss');
-  close.addEventListener('click', removeBanner);
-
-  card.append(content, close);
+  /*
+   * No dismiss button, and nothing else clickable either.
+   *
+   * The whole banner is `pointer-events: none`. A modal dismisses itself on
+   * any click outside it, LinkedIn registers that in the capture phase on
+   * `document` — before the event reaches us, so nothing we do at our own
+   * element can stop it — and this notice sits over a half-filled
+   * application. A ✕ that throws away the user's application is not a dismiss
+   * button, so there is no dismiss button.
+   *
+   * Nothing is stranded by that: the warning clears the moment the run moves
+   * on, and every other tone carries a timeout.
+   */
+  card.append(content);
   shadow.append(style, card);
   document.documentElement.append(host);
 
-  const timeout = options.timeoutMs ?? (options.tone === 'success' ? 6000 : 0);
+  /*
+   * The whole point of this banner is to be seen over an application form, and
+   * that form is now a top-layer `<dialog>` — so without this it was painted
+   * underneath the very modal it exists to talk over. It is raised after the
+   * dialog opens, which is also after the panel is promoted, so it lands on
+   * top of both. Sealed for the same reason the panel is: dismissing this
+   * notice must not dismiss the user's application behind it.
+   */
+  promoteToTopLayer(host);
+  sealEvents(host);
+
+  /*
+   * Warnings stay: one is up precisely because a run is waiting on the user,
+   * and it is removed when that stops being true. Everything else times out,
+   * because without a dismiss button nothing else would ever clear it.
+   */
+  const timeout = options.timeoutMs ?? (options.tone === 'warning' ? 0 : 8000);
 
   if (timeout > 0) {
     setTimeout(removeBanner, timeout);

@@ -1,4 +1,5 @@
 import type { CapturedJob, DuplicateMatch } from '@jobpilot/shared';
+import { POPOVER_RESET, promoteToTopLayer, reraise, sealEvents } from './topLayer.js';
 
 /**
  * In-page side panel, opened from a button docked to the right edge.
@@ -91,7 +92,17 @@ export interface PanelHandlers {
 
   /* One application at a time. */
   onStartSession: () => void;
-  /** Called after the user has answered the questions the form demanded. */
+  /**
+   * Called after the user has answered the questions the form demanded.
+   *
+   * CURRENTLY UNWIRED, on purpose — noted here because an orphaned hook has
+   * cost this project a debugging session before. The button that called it is
+   * disabled during `needs-input`: pressing it on LinkedIn dismisses the
+   * application, and the run resumes itself when the answers appear, so there
+   * is nothing left for it to do. It loses nothing either way — `runApply`
+   * re-runs `findBlockers` on entry, so pressing continue while a blocker
+   * stands would report the same blocker straight back.
+   */
   onContinueSession: () => void;
   onCancelSession: () => void;
   onSaveAnswers: (answers: { label: string; answer: string }[]) => void;
@@ -324,6 +335,11 @@ export interface PanelSession {
   answersToSave: { label: string; answer: string }[];
   savingAnswers: boolean;
   answersSaved: boolean;
+  /**
+   * Every control on the step, when the run stalled without being able to name
+   * a cause. Shown so a screenshot of the panel is a complete bug report.
+   */
+  diagnostic?: string[];
 }
 
 const IDLE_SESSION: PanelSession = {
@@ -358,6 +374,11 @@ const STAGES: { key: NonNullable<PanelSession['stage']>; label: string }[] = [
 ];
 
 function paintSession(): void {
+  // The run opens the host page's modal partway through, which lands above the
+  // panel in the top layer. This is the only paint that happens while that is
+  // going on, so it is the only place that can put the panel back on top.
+  if (hostEl) raiseAboveModal(hostEl);
+
   const root = sessionRoot;
   const acts = sessionActs;
   if (!root || !acts) return;
@@ -406,8 +427,13 @@ function paintSession(): void {
 
     const hint = document.createElement('p');
     hint.className = 'note';
+    /*
+     * The button below is a fallback, not the route. LinkedIn dismisses its
+     * modal on any click outside it — including ours — so the ordinary path is
+     * that answering the questions is itself the signal to carry on.
+     */
     hint.textContent =
-      'Answer them in the application form itself, then press continue — nothing is lost.';
+      'Answer them in the application form and jobpilot carries on by itself. Nothing is lost.';
     root.append(hint);
   }
 
@@ -417,6 +443,25 @@ function paintSession(): void {
     line.dataset.tone = session.state;
     line.textContent = session.message;
     root.append(line);
+  }
+
+  /*
+   * The step, verbatim, when the run could not explain itself.
+   *
+   * Ugly on purpose and only ever on screen when something has already gone
+   * wrong. It exists because every stall this session was diagnosed from a
+   * photograph of this panel, and asking someone mid-application to open
+   * devtools and copy three console tables is not a diagnosis you get back.
+   */
+  if (session.diagnostic?.length) {
+    const dump = document.createElement('ul');
+    dump.className = 'dump';
+    for (const line of session.diagnostic) {
+      const item = document.createElement('li');
+      item.textContent = line;
+      dump.append(item);
+    }
+    root.append(dump);
   }
 
   /* Offer the hand-typed answers back to the profile. */
@@ -448,16 +493,45 @@ function paintSession(): void {
     root.append(saved);
   }
 
+  /*
+   * While a run is live the panel stops accepting clicks. All of it, except
+   * Stop.
+   *
+   * A click anywhere outside the host page's modal dismisses it, and the panel
+   * is outside it. LinkedIn registers that in the capture phase on `document`,
+   * which fires before the event reaches our element — so it cannot be stopped
+   * from here, and every attempt to has failed. The observed cost is not
+   * theoretical: clicking the panel mid-application raised "Save this
+   * application? Discard / Save" over a form the user had spent minutes
+   * filling in.
+   *
+   * There is nothing here worth that risk during a run. Continuing no longer
+   * needs a press — the run resumes itself once the questions are answered —
+   * so the buttons this disables are ones the user has no reason to reach for.
+   *
+   * Stop stays live, because stop must stop. If pressing it does dismiss the
+   * dialog, that is the outcome it was asked for.
+   */
+  const live = session.state === 'running' || session.state === 'needs-input';
+  root.style.pointerEvents = live ? 'none' : '';
+
   /* The one button, whose label is the state. */
   const action = document.createElement('button');
   action.className = 'fill';
 
   if (session.state === 'running') {
     action.textContent = 'Stop';
+    action.style.pointerEvents = 'auto';
     action.addEventListener('click', () => acts.onCancelSession());
   } else if (session.state === 'needs-input') {
-    action.textContent = 'Resume application';
-    action.addEventListener('click', () => acts.onContinueSession());
+    /*
+     * A fallback, and on LinkedIn a harmful one — pressing it is what raises
+     * the discard prompt. Kept enabled on platforms without that behaviour by
+     * the `pointer-events` rule above, which the run's own resume does not
+     * need: answering the questions is the signal.
+     */
+    action.textContent = 'Waiting for your answers…';
+    action.disabled = true;
   } else {
     action.textContent = session.state === 'done' ? 'Apply to another' : 'Apply with jobpilot';
     action.addEventListener('click', () => acts.onStartSession());
@@ -505,7 +579,36 @@ export function removePanel(): void {
   statusEl = null;
   applyEl = null;
   sessionRoot = null;
+  hostEl = null;
+  raisedOver = undefined;
   document.getElementById(HOST_ID)?.remove();
+}
+
+/**
+ * The panel host, kept so anything painting outside `renderPanel` can still
+ * reach it — `paintSession` in particular, which runs throughout a run while
+ * the tracking loop is deliberately standing back and not repainting.
+ */
+let hostEl: HTMLElement | null = null;
+
+/** The open dialog the panel was last promoted above. */
+let raisedOver: Element | null | undefined;
+
+/**
+ * Keep the panel above the host page's modal, as that modal comes and goes.
+ *
+ * The mechanics live in `topLayer.ts`; what belongs here is *when*. The panel
+ * outlives any number of dialogs, and during an apply run jobpilot opens one
+ * itself — so a single promotion at mount puts it straight back underneath.
+ * The `<dialog>` migration behind all this is also why `flows.ts` had to learn
+ * `dialog[open]`.
+ */
+function raiseAboveModal(host: HTMLElement): void {
+  const modal = document.querySelector('dialog[open]');
+  if (modal === raisedOver) return;
+  raisedOver = modal;
+
+  if (modal) reraise(host);
 }
 
 const CSS = `
@@ -812,6 +915,19 @@ const CSS = `
   }
   .asks li[data-kind='invalid']::before { content: '⚠︎  '; opacity: 0.8; }
 
+  /* Diagnostic dump: only rendered when a run stalled without a cause. */
+  .dump {
+    list-style: none; margin-top: 8px;
+    max-height: 260px; overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+    padding: 6px 8px;
+  }
+  .dump li {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 10.5px; line-height: 1.45;
+    word-break: break-word; opacity: 0.85;
+  }
+
   .sess-msg { font-size: 12px; line-height: 1.4; color: var(--dim); }
   .sess-msg[data-tone='done']  { color: var(--live); font-weight: 600; }
   .sess-msg[data-tone='error'] { color: #ff9b9b; }
@@ -916,6 +1032,19 @@ const CSS = `
     border-color: rgba(239,68,68,0.3);
   }
   .asks li[data-kind='invalid']::before { content: '⚠︎  '; opacity: 0.8; }
+
+  /* Diagnostic dump: only rendered when a run stalled without a cause. */
+  .dump {
+    list-style: none; margin-top: 8px;
+    max-height: 260px; overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+    padding: 6px 8px;
+  }
+  .dump li {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: 10.5px; line-height: 1.45;
+    word-break: break-word; opacity: 0.85;
+  }
 
   .sess-msg { font-size: 12px; line-height: 1.4; color: var(--dim); }
   .sess-msg[data-tone='done']  { color: var(--live); font-weight: 600; }
@@ -1278,9 +1407,11 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     'height: 100vh',
     'width: 372px',
     'max-width: 100vw',
+    // Kept as the fallback for anywhere the top layer is unavailable.
     'z-index: 2147483647',
     // The host must not eat clicks on the page around the collapsed handle.
     'pointer-events: none',
+    ...POPOVER_RESET,
   ].join(';');
 
   const shadow = host.attachShadow({ mode: 'closed' });
@@ -1469,7 +1600,16 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     });
     body.append(save);
 
-    if (current.match) body.append(matchCard(current.match));
+    /*
+     * The match card is for deciding whether to apply, so it goes away once
+     * that decision is made. It is by some distance the tallest thing in the
+     * panel — a dial, two headings and up to twelve chips — and leaving it up
+     * during a run squeezed everything that matters into a clipped strip: the
+     * chip list cut off mid-heading and the run's own status was pushed to the
+     * bottom edge. Nothing is lost by hiding it; it is unchanged when the run
+     * ends, and the posting is the same posting.
+     */
+    if (current.match && session.state === 'idle') body.append(matchCard(current.match));
 
     /* Primary action */
     const action = document.createElement('div');
@@ -1605,6 +1745,11 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
   requestAnimationFrame(() => root.removeAttribute('data-first'));
   document.documentElement.append(host);
 
+  hostEl = host;
+  promoteToTopLayer(host);
+  sealEvents(host);
+  raisedOver = document.querySelector('dialog[open]');
+
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       collapsed = true;
@@ -1619,6 +1764,8 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       current = next;
       acts = nextHandlers;
       paint();
+      // Covers the modal being opened by hand rather than by a run.
+      raiseAboveModal(host);
     },
   };
 }

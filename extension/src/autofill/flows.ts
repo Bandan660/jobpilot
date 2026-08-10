@@ -1,4 +1,5 @@
 import type { AtsProvider } from '@jobpilot/shared';
+import { findDialog, hasFormControls } from '../dialogs.js';
 import { findButton, type ApplyFlow } from './apply.js';
 
 /**
@@ -12,6 +13,49 @@ import { findButton, type ApplyFlow } from './apply.js';
  * submit button reachable by `.click()`, that is the bug — see the note at the
  * top of apply.ts.
  */
+
+/**
+ * The dialog a *run* works in. The scan itself lives in `dialogs.ts`.
+ *
+ * Looser than `findApplicationForm` by one case, and that case is the last
+ * page of every paginated flow: a review screen has no `input`, `select` or
+ * `textarea` anywhere in it. It is a summary and a Submit button.
+ *
+ * Requiring controls therefore made the driver blind at exactly the step that
+ * sends the application. `runApply` only accepts an advance when `flow.scope()`
+ * comes back non-null, so clicking through to the review page looked like a
+ * click the form had rejected: it waited the full six seconds and reported
+ * "The form did not move on — something on this step needs your attention",
+ * having in fact moved on correctly to the one page it needed to reach. The
+ * application was filled, complete, one click from sent, and abandoned.
+ *
+ * So a dialog also counts when it carries the button that finishes or advances
+ * an application. That is looser, and deliberately not extended to the panel's
+ * passive coverage below — a dialog with a "Continue" button in it is not
+ * evidence of an application form, it is evidence of a dialog.
+ */
+function applicationDialog(): HTMLElement | null {
+  return findDialog(
+    (el) => hasFormControls(el) || findButton(el, [...SUBMIT, ...ADVANCE]) !== null
+  );
+}
+
+/**
+ * A `<form>` that collects a file or an email address.
+ *
+ * The same test capture uses, and for the same reason: a newsletter signup in
+ * the footer is a form too, and filling one is both useless and alarming.
+ */
+function applicationFormElement(): HTMLFormElement | null {
+  return (
+    [...document.querySelectorAll('form')].find(
+      (candidate) =>
+        candidate.querySelector('input[type="file"]') ||
+        candidate.querySelector('input[type="email"]') ||
+        candidate.querySelector('input[name*="resume" i], input[name*="email" i]')
+    ) ?? null
+  );
+}
 
 /**
  * An actual application form, or null.
@@ -28,24 +72,7 @@ import { findButton, type ApplyFlow } from './apply.js';
  * fields. There is no form.
  */
 export function findApplicationForm(): ParentNode | null {
-  const dialog = document.querySelector<HTMLElement>(
-    'div[role="dialog"], [aria-modal="true"], .jobs-easy-apply-modal'
-  );
-  if (dialog?.querySelector('input, select, textarea')) return dialog;
-
-  /*
-   * A form with a file input or an email field. The same test capture uses,
-   * and for the same reason: a newsletter signup in the footer is a form too,
-   * and filling one is both useless and alarming.
-   */
-  const form = [...document.querySelectorAll('form')].find(
-    (candidate) =>
-      candidate.querySelector('input[type="file"]') ||
-      candidate.querySelector('input[type="email"]') ||
-      candidate.querySelector('input[name*="resume" i], input[name*="email" i]')
-  );
-
-  return form ?? null;
+  return findDialog(hasFormControls) ?? applicationFormElement();
 }
 
 /**
@@ -58,10 +85,11 @@ export function findApplicationForm(): ParentNode | null {
  * count in the panel, which is why the two are not the same function.
  */
 function dialogOrPage(): ParentNode | null {
-  const form = findApplicationForm();
-  if (form) return form;
-
-  return document.querySelector('input, select, textarea') ? document : null;
+  return (
+    applicationDialog() ??
+    applicationFormElement() ??
+    (document.querySelector('input, select, textarea') ? document : null)
+  );
 }
 
 const SUBMIT = [
@@ -111,12 +139,9 @@ const paginated: ApplyFlow = {
  */
 export const linkedinFlow: ApplyFlow = {
   name: 'linkedin-easy-apply',
-  scope() {
-    const dialog =
-      document.querySelector<HTMLElement>('.jobs-easy-apply-modal') ??
-      document.querySelector<HTMLElement>('div[role="dialog"]');
-    return dialog?.querySelector('input, select, textarea') ? dialog : null;
-  },
+  // Includes the review step, which has no fields — only the button that
+  // sends the application. See `applicationDialog`.
+  scope: applicationDialog,
   async open() {
     const scope = document.querySelector('.jobs-search__job-details') ?? document;
     const trigger = findButton(scope, [/easy apply/i]);

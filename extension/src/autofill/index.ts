@@ -6,7 +6,13 @@ import {
   type ProfileField,
 } from '@jobpilot/shared';
 import { scanForm, type FieldMatch } from './match.js';
-import { fillControl, highlight, type FillOutcome } from './fill.js';
+import {
+  commitCombobox,
+  fillControl,
+  highlight,
+  isCombobox,
+  type FillOutcome,
+} from './fill.js';
 
 export { scanForm, matchControl } from './match.js';
 
@@ -90,6 +96,46 @@ export function autofill(profile: Profile, options: AutofillOptions = {}): Autof
   return result;
 }
 
+/**
+ * Second pass, for the fields that cannot be answered by writing text.
+ *
+ * Separate from `autofill` and asynchronous because committing a typeahead
+ * means typing, waiting for the widget to fetch its options, and clicking one
+ * — seconds, not microseconds. Keeping `autofill` synchronous keeps every
+ * other caller, and the coverage preview, unchanged.
+ *
+ * Returns how many were answered. Anything it could not answer is left empty
+ * on purpose, so `findBlockers` reports it as a question rather than the run
+ * carrying an uncommitted value into a submit.
+ */
+export async function fillComboboxes(
+  profile: Profile,
+  options: AutofillOptions = {}
+): Promise<{ filled: number; failed: { label: string }[] }> {
+  const { overwrite = false, showHighlights = true, root } = options;
+  const result = { filled: 0, failed: [] as { label: string }[] };
+
+  for (const match of scanForm(root)) {
+    const control = match.control;
+    if (!isCombobox(control)) continue;
+    if (!(control instanceof HTMLInputElement)) continue;
+    if (control.disabled || control.readOnly) continue;
+    if (!overwrite && control.value.trim() !== '') continue;
+
+    const value = resolveValue(profile, match);
+    if (value === null) continue;
+
+    if (await commitCombobox(control, value)) {
+      result.filled += 1;
+      if (showHighlights) highlight(control);
+    } else {
+      result.failed.push({ label: match.label });
+    }
+  }
+
+  return result;
+}
+
 function resolveValue(profile: Profile, match: FieldMatch): string | null {
   if (match.field) {
     // The demographics group is opt-in; profileValue already returns null when
@@ -118,6 +164,8 @@ export function previewCoverage(profile: Profile, root?: ParentNode): { fillable
     (match) => match.control.type !== 'hidden' && !match.control.disabled
   );
 
+  // Comboboxes count: `fillComboboxes` answers them in its own pass, so the
+  // profile having the value is still the right test for "we can fill this".
   const fillable = relevant.filter((match) => resolveValue(profile, match) !== null).length;
   return { fillable, total: relevant.length };
 }

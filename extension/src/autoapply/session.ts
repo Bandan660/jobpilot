@@ -43,6 +43,8 @@ export interface SessionProgress {
   questions: Blocker[];
   /** Offered after a submit that needed hand-filled answers. */
   answersToSave: { label: string; answer: string }[];
+  /** What the step looked like, when the run could not say what was wrong. */
+  diagnostic?: string[];
 }
 
 export interface SessionOptions {
@@ -81,6 +83,10 @@ export function cancelSession(): void {
 
 export function resetSession(): void {
   pendingQuestions = [];
+  // Accumulates across the resumes of one application, so it has to be cleared
+  // when the posting changes — otherwise the next job is offered answers typed
+  // into the last one.
+  capturedAnswers = [];
   active = false;
   cancelled = false;
 }
@@ -167,6 +173,29 @@ export async function runSession(options: SessionOptions): Promise<SessionProgre
         return job ? { title: job.title, company: job.company, jobUrl: job.jobUrl } : undefined;
       })(),
       onProgress: (p) => {
+        /*
+         * `waiting` is a pause inside a live run, not the end of one.
+         *
+         * The panel shows it exactly as it always showed needs-input — the
+         * questions named, the form left open — but nothing here has to
+         * arrange the resumption. The driver is still ticking and picks it up
+         * itself the moment the answers appear.
+         */
+        if (p.status === 'waiting') {
+          // Remembered so the answers can be offered back to the profile once
+          // the application goes through.
+          pendingQuestions = (p.blockers ?? []).map((b) => b.label);
+
+          report({
+            state: 'needs-input',
+            stage: 'check',
+            message: p.message,
+            questions: p.blockers ?? [],
+            answersToSave: [],
+          });
+          return;
+        }
+
         report({
           state: 'running',
           stage: p.status === 'submitting' ? 'submit' : p.status === 'filling' ? 'fill' : 'check',
@@ -176,12 +205,18 @@ export async function runSession(options: SessionOptions): Promise<SessionProgre
         });
       },
       /*
-       * Snapshot the hand-filled answers immediately before the click. This is
-       * the last moment the form exists — after a successful submit LinkedIn
-       * replaces the whole dialog.
+       * Snapshot the hand-filled answers as each step is left behind.
+       *
+       * Merged, never replaced: the questions the user answered are spread
+       * across the steps, and each step's fields are gone once the form moves
+       * off it. Reading only at submit-time collected nothing at all on
+       * LinkedIn, whose last step is a review screen with no fields in it.
        */
-      beforeSubmit: (scope) => {
-        capturedAnswers = readAnswers(scope, pendingQuestions);
+      snapshotAnswers: (scope) => {
+        for (const answer of readAnswers(scope, pendingQuestions)) {
+          if (capturedAnswers.some((seen) => seen.label === answer.label)) continue;
+          capturedAnswers.push(answer);
+        }
       },
     });
 
@@ -205,23 +240,26 @@ export async function runSession(options: SessionOptions): Promise<SessionProgre
       });
     }
 
-    if (outcome.status === 'blocked' && outcome.blockers?.length) {
-      /*
-       * Remembered, not discarded. These are exactly the questions the user is
-       * about to answer by hand, and knowing which they were is what lets us
-       * offer to save them afterwards.
-       */
-      pendingQuestions = outcome.blockers.map((b) => b.label);
-
+    /*
+     * `blocked` is terminal now, and only means the driver is genuinely stuck
+     * — a form that would not advance after several presses, or a submit the
+     * page ignored. A question the user has to answer no longer arrives here:
+     * it is reported as `waiting` while the run stays alive, and resolves
+     * without anything in this file being involved.
+     *
+     * The distinction matters because these need opposite treatment. A pause
+     * should keep the form open and say what to type; a dead end should stop
+     * and show what it could see. Conflating them is why answering a question
+     * sometimes did nothing at all — the run had already ended.
+     */
+    if (outcome.status === 'blocked') {
       return finish({
-        state: 'needs-input',
-        stage: 'check',
-        message:
-          outcome.blockers.length === 1
-            ? 'One question needs you. Answer it in the form, then continue.'
-            : `${outcome.blockers.length} questions need you. Answer them in the form, then continue.`,
-        questions: outcome.blockers,
+        state: 'error',
+        stage: null,
+        message: outcome.message,
+        questions: outcome.blockers ?? [],
         answersToSave: [],
+        diagnostic: outcome.diagnostic,
       });
     }
 
@@ -235,6 +273,8 @@ export async function runSession(options: SessionOptions): Promise<SessionProgre
       message: outcome.message,
       questions: [],
       answersToSave: [],
+      // Survives to the panel so a screenshot carries the diagnosis.
+      diagnostic: outcome.diagnostic,
     });
   } catch (error) {
     return finish({
@@ -247,7 +287,7 @@ export async function runSession(options: SessionOptions): Promise<SessionProgre
   }
 }
 
-/** Set by the beforeSubmit hook, read once the submit is confirmed. */
+/** Accumulated by the snapshotAnswers hook, read once the submit is confirmed. */
 let capturedAnswers: { label: string; answer: string }[] = [];
 
 /**

@@ -13,7 +13,7 @@ import { runApply, type ApplyFlow } from './autofill/apply.js';
 import { findApplicationForm, flowFor, linkedinFlow } from './autofill/flows.js';
 import { jobDescription } from './adapters/description.js';
 import { extractFromJsonLd } from './adapters/jsonld.js';
-import { autofill, previewCoverage } from './autofill/index.js';
+import { autofill, fillComboboxes, previewCoverage } from './autofill/index.js';
 import {
   CONFIRMATION_CHECK_MS,
   SPA_POLL_INTERVAL_MS,
@@ -364,8 +364,9 @@ function easyApplyAvailable(): boolean {
  * edge handle, in which case there is nothing to see at all and the run looks
  * like it simply stopped.
  *
- * Skipped when the panel is open, because then the questions are already on
- * screen and a banner would be the same message twice, overlapping itself.
+ * Raised whether or not the panel is open — it is not skipped, whatever an
+ * earlier version of this comment claimed. The panel is opened first and the
+ * banner steps aside to clear it, which is what `rightPx` is for.
  */
 function notifyIfWaiting(progress: {
   state: string;
@@ -393,11 +394,13 @@ function notifyIfWaiting(progress: {
       asked.length === 1
         ? 'One answer needed to finish this application'
         : `${asked.length} answers needed to finish this application`,
-    body: `${asked.join(' · ')} — answer in the form, then press "Resume application".`,
+    body: `${asked.join(' · ')} — answer them here and jobpilot carries on by itself.`,
     // Clear of the panel, which is 372px and now open at the same edge.
     rightPx: panelIsOpen() ? 392 : 16,
   });
 }
+
+
 
 /**
  * Apply to the posting on screen, once.
@@ -447,6 +450,7 @@ function runSessionHere(): void {
           questions: progress.questions,
           answersToSave: progress.answersToSave,
           answersSaved: false,
+          diagnostic: progress.diagnostic,
         });
 
         notifyIfWaiting(progress);
@@ -968,6 +972,11 @@ async function runAutofill(
   }
 
   const result = autofill(profile, { overwrite, root: options.root });
+
+  // Typeaheads need their own pass — see `fillComboboxes`. Run here too, so
+  // the panel's Fill leaves the form in the same state a run would.
+  const combos = await fillComboboxes(profile, { overwrite, root: options.root });
+  result.filled += combos.filled;
 
   const parts = [`${result.filled} field${result.filled === 1 ? '' : 's'} filled`];
   if (result.skipped > 0) parts.push(`${result.skipped} already had a value`);

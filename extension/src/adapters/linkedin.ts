@@ -1,4 +1,5 @@
 import type { CapturedJob } from '@jobpilot/shared';
+import { findDialog, hasFormControls } from '../dialogs.js';
 import { textFrom, type JobAdapter } from './types.js';
 
 /**
@@ -31,21 +32,22 @@ import { textFrom, type JobAdapter } from './types.js';
  * is what `easyApplyModal` is for.
  */
 
-/** The Easy Apply dialog, if it is currently open. */
+/**
+ * The Easy Apply dialog, if it is currently open.
+ *
+ * Every selector this used to carry named a `div` or demanded an explicit
+ * `role="dialog"`, and Easy Apply is now a native `<dialog>` — so this
+ * returned null with the form open on screen. Two things downstream took the
+ * null as fact: the tracking signature counts this dialog's fields to know
+ * which step is showing, so the panel stopped repainting as the form advanced,
+ * and the panel's Fill passes this as its root, so it fell back to the whole
+ * document and autofilled LinkedIn's own search box and message composer.
+ *
+ * A dialog with no controls is a confirmation or a share sheet, not the form,
+ * which is what `hasFormControls` is doing here.
+ */
 export function easyApplyModal(): HTMLElement | null {
-  const candidates = [
-    '.jobs-easy-apply-modal',
-    '[data-test-modal][role="dialog"]',
-    'div[role="dialog"][aria-labelledby*="easy-apply"]',
-    'div[role="dialog"]',
-  ];
-
-  for (const selector of candidates) {
-    const el = document.querySelector<HTMLElement>(selector);
-    // A dialog with no inputs is a confirmation or a share sheet, not the form.
-    if (el && el.querySelector('input, select, textarea')) return el;
-  }
-  return null;
+  return findDialog(hasFormControls);
 }
 
 function jobIdFrom(url: URL): string | null {
@@ -220,13 +222,22 @@ export const linkedinAdapter: JobAdapter = {
     '[data-test-modal] h2[id*="post-apply"]',
   ],
 
+  /*
+   * Only the dialog counts. Outside it, "Application submitted" is a status
+   * label on some other posting in the list.
+   *
+   * No `hasFormControls` here, and that distinction is the point: by the time
+   * there is something to confirm, the form has been replaced by the success
+   * panel and there are no controls left. Requiring them would mean a
+   * confirmation is only ever recognised while the thing it confirms is still
+   * on screen.
+   *
+   * This returning null is not a soft failure — `looksConfirmed` treats a
+   * declared-but-absent scope as "not confirmed" and stops. So while these
+   * selectors could not match a native `<dialog>`, a submitted application was
+   * never detected and never written to the tracker.
+   */
   confirmationScope() {
-    // Only the dialog counts. Outside it, "Application submitted" is a status
-    // label on some other posting in the list.
-    return (
-      document.querySelector('.jobs-easy-apply-modal') ??
-      document.querySelector('div[role="dialog"]') ??
-      document.querySelector('.post-apply-timeline')
-    );
+    return findDialog() ?? document.querySelector('.post-apply-timeline');
   },
 };
