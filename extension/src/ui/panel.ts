@@ -1754,16 +1754,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       action.append(apply, draftToggle, caveat, status);
     }
 
-    /* Footer */
-    const foot = document.createElement('div');
-    foot.className = 'foot';
-    const out = document.createElement('button');
-    out.className = 'link';
-    out.textContent = 'Sign out';
-    out.addEventListener('click', acts.onSignOut);
-    foot.append(out);
-
-    panel.append(header, body, action, foot);
+    panel.append(header, body, action);
     root.append(panel);
   };
 
