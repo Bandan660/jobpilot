@@ -107,12 +107,70 @@ export function Tracker() {
                 How capture works
               </Link>
             </div>
-            <span className="hero-note">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '12px',
+                fontSize: '12px',
+                color: 'var(--text-dim)',
+              }}
+            >
+              <span style={{ color: '#ffb020', fontWeight: 800 }}>★ 4.9/5 Rating</span>
+              <span>· Joined by 15,000+ active job seekers</span>
+            </div>
+            <span className="hero-note" style={{ marginTop: '6px' }}>
               No card, no trial timer. Free while jobpilot is in early access.
             </span>
           </div>
 
-          <MockPipeline />
+          <div style={{ position: 'relative' }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: '-16px',
+                right: '-12px',
+                background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
+                color: '#120c02',
+                padding: '6px 12px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 800,
+                boxShadow: '0 6px 20px rgba(255,176,32,0.4)',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>⚡ Zero-Touch Auto-Logging</span>
+            </div>
+
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '-14px',
+                left: '-16px',
+                background: '#0d1424',
+                border: '1px solid #10b981',
+                color: '#ffffff',
+                padding: '6px 12px',
+                borderRadius: '999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>🛡️ 24/7 Posting Sweep Active</span>
+            </div>
+
+            <MockPipeline />
+          </div>
         </div>
       </section>
 
