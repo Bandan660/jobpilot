@@ -1673,7 +1673,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
     if (showFill) action.append(fill, toggle);
 
-    if (current.canAutoApply) {
+    if (current.canAutoApply && !current.canApply) {
       const status = document.createElement('div');
       status.className = 'status';
 
