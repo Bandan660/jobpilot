@@ -1621,12 +1621,20 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     const action = document.createElement('div');
     action.className = 'action';
 
-    /*
-     * The run owns its own subtree. paint() creates the container and nothing
-     * else; everything inside is drawn by paintRun(), which the run calls
-     * directly so its updates do not depend on a repaint happening.
-     */
-    if (current.canApply) {
+    if (current.isExternalJob) {
+      const disabledBtn = document.createElement('button');
+      disabledBtn.className = 'fill';
+      disabledBtn.disabled = true;
+      disabledBtn.textContent = 'Apply on Company Site (Unsupported)';
+
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.style.marginTop = '8px';
+      note.textContent =
+        'Auto-apply is available for Naukri Easy Apply jobs. Save this job to track your application.';
+
+      action.append(disabledBtn, note);
+    } else if (current.canApply) {
       const sessionSection = document.createElement('div');
       sessionSection.className = 'run';
       sessionRoot = sessionSection;

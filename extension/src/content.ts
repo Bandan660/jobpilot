@@ -339,7 +339,31 @@ async function checkDuplicates(job: CapturedJob): Promise<DuplicateMatch | null>
  * Apply button is pressed, so requiring a visible form would hide the action
  * on exactly the postings it is for.
  */
+function isExternalJobPosting(): boolean {
+  const host = window.location.hostname.toLowerCase();
+  if (host.includes('naukri.com')) {
+    const candidates = document.querySelectorAll(
+      'button, a, div[role="button"], [class*="apply"], [class*="comp-site"]'
+    );
+    for (const el of candidates) {
+      const text = (el.textContent ?? '').trim();
+      if (
+        /apply on (company|corporate|employer|external) (site|website)/i.test(text) ||
+        /company site/i.test(text) ||
+        /company website/i.test(text)
+      ) {
+        return true;
+      }
+      if (el.matches('[class*="company-site"], [class*="external-apply"], [class*="comp-site"]')) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function canRunSession(): boolean {
+  if (isExternalJobPosting()) return false;
   const flow = applyFlow ?? (adapterAts === 'LINKEDIN' ? linkedinFlow : null);
   if (!flow) return false;
   if (flow.scope() !== null) return true;
@@ -549,23 +573,6 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
    * `null` here is a distinct state from "a form with nothing we recognise",
    * and the panel says something different for each.
    */
-function isExternalJobPosting(): boolean {
-  const host = window.location.hostname.toLowerCase();
-  if (host.includes('naukri.com')) {
-    const candidates = document.querySelectorAll('button, a, div[role="button"], [class*="apply"]');
-    for (const el of candidates) {
-      const text = (el.textContent ?? '').trim();
-      if (/apply on (company|corporate|employer|external) (site|website)/i.test(text)) {
-        return true;
-      }
-      if (el.matches('[class*="company-site"], [class*="external-apply"]')) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
   const formScope = findApplicationForm();
   const coverage =
     profile && formScope ? previewCoverage(profile, formScope) : { fillable: 0, total: 0 };
