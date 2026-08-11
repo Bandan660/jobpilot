@@ -102,15 +102,13 @@ export function sealEvents(host: HTMLElement): void {
     'focusout',
   ];
 
-  const handler = (event: Event) => {
+  const stop = (event: Event) => {
     event.stopPropagation();
-    event.stopImmediatePropagation();
   };
 
   for (const type of types) {
-    // Registered in both capture phase (to beat LinkedIn/Workday document-level capture listeners)
-    // and bubble phase.
-    host.addEventListener(type, handler, true);
-    host.addEventListener(type, handler, false);
+    // Bubble phase on host: allows shadow root children (like floating handle button)
+    // to receive events, but stops events from bubbling out to host document/window.
+    host.addEventListener(type, stop, false);
   }
 }
