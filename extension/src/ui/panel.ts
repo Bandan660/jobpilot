@@ -75,9 +75,10 @@ export interface PanelJob {
    * on this page is just clutter.
    */
   canApply: boolean;
-  /** Enough posting text on this page to be worth analysing. */
   /** This posting redirects to an external company website (e.g. Naukri "Apply on company website"). */
   isExternalJob?: boolean;
+  /** Match calculation is in-flight / settling. */
+  isAnalyzingMatch?: boolean;
 }
 
 export interface PanelHandlers {
@@ -320,6 +321,45 @@ function matchCard(match: SkillSummary): HTMLElement {
 
   chips(match.matched, 'has', 'You have');
   chips(match.missing, 'gap', 'Not in your profile');
+
+  return card;
+}
+
+function analyzingMatchCard(): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'card match match-analyzing';
+  card.style.cssText = 'padding: 14px; position: relative; overflow: hidden;';
+
+  const top = document.createElement('div');
+  top.className = 'match-top';
+
+  const spinner = document.createElement('div');
+  spinner.className = 'match-spinner';
+
+  const verdict = document.createElement('div');
+  verdict.className = 'match-verdict';
+
+  const head = document.createElement('div');
+  head.className = 'match-analyzing-head';
+  head.textContent = '✨ ANALYZING SKILLS...';
+
+  const sub = document.createElement('div');
+  sub.className = 'match-line';
+  sub.style.cssText = 'color: var(--dim); font-size: 11.5px;';
+  sub.textContent = 'Calculating shortlist match & keyword breakdown...';
+
+  verdict.append(head, sub);
+  top.append(spinner, verdict);
+  card.append(top);
+
+  const skeletonRow = document.createElement('div');
+  skeletonRow.className = 'chips-skeleton';
+  for (let i = 0; i < 3; i++) {
+    const chip = document.createElement('span');
+    chip.className = 'chip-skeleton';
+    skeletonRow.append(chip);
+  }
+  card.append(skeletonRow);
 
   return card;
 }
@@ -1033,6 +1073,48 @@ const CSS = `
   .chip[data-kind='has'] { background: rgba(63,207,142,0.12); border-color: rgba(63,207,142,0.32); color: #9fe6c4; }
   .chip[data-kind='gap'] { background: rgba(255,176,32,0.10); border-color: rgba(255,176,32,0.30); color: #ffd08a; }
 
+  @keyframes jpSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes jpPulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+  }
+  @keyframes jpShimmer {
+    0% { background-position: -150px 0; }
+    100% { background-position: 150px 0; }
+  }
+
+  .match-spinner {
+    width: 44px; height: 44px; border-radius: 50%;
+    flex-shrink: 0;
+    border: 3px solid rgba(255, 176, 32, 0.15);
+    border-top-color: #ffb020;
+    border-right-color: #10b981;
+    animation: jpSpin 0.9s linear infinite;
+  }
+
+  .match-analyzing-head {
+    font-size: 11px; font-weight: 800;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: #ffb020;
+    animation: jpPulse 1.4s ease-in-out infinite;
+  }
+
+  .chips-skeleton {
+    display: flex; gap: 6px; margin-top: 10px;
+  }
+
+  .chip-skeleton {
+    height: 20px; width: 60px; border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.05) 100%);
+    background-size: 300px 100%;
+    animation: jpShimmer 1.4s infinite;
+  }
+  .chip-skeleton:nth-child(2) { width: 80px; }
+  .chip-skeleton:nth-child(3) { width: 55px; }
+
   .match .note { margin-top: 10px; }
 
   /* Bulk run -------------------------------------------------------------- */
@@ -1636,6 +1718,8 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
      */
     if (current.match && session.state === 'idle') {
       body.append(matchCard(current.match));
+    } else if (current.isAnalyzingMatch && session.state === 'idle') {
+      body.append(analyzingMatchCard());
     } else if (!current.match && session.state === 'idle') {
       const fallbackCard = document.createElement('div');
       fallbackCard.className = 'card match';
@@ -1648,8 +1732,9 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
       const msg = document.createElement('p');
       msg.style.cssText = 'font-size: 11.5px; color: var(--dim); line-height: 1.4;';
-      msg.textContent =
-        'Add your skills in your jobpilot web profile to calculate instant shortlist probability & keyword breakdown for this posting.';
+      msg.textContent = current.authenticated
+        ? 'No skills named in this posting that jobpilot recognises.'
+        : 'Add your skills in your jobpilot web profile to calculate instant shortlist probability & keyword breakdown for this posting.';
 
       fallbackCard.append(head, msg);
       body.append(fallbackCard);

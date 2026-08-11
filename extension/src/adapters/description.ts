@@ -23,7 +23,7 @@ import { squish, type JobAdapter } from './types.js';
  */
 
 /** Below this it is a teaser or a cookie notice, not a job description. */
-const MIN_USEFUL_LENGTH = 200;
+const MIN_USEFUL_LENGTH = 50;
 
 /**
  * The API caps this at 12,000 and truncating here rather than being rejected
@@ -34,21 +34,30 @@ const MAX_LENGTH = 12_000;
 
 /** Containers a posting's body plausibly lives in, most specific first. */
 const GENERIC_SELECTORS = [
+  '#job-details',
+  '.jobs-description__content',
+  '.jobs-box__html-content',
+  '.jobs-description-content',
+  '.jobs-description',
   '#jobDescriptionText',
   '[data-testid="jobDescriptionText"]',
   '[class*="JobDescriptionText"]',
   '.jobsearch-JobComponent-description',
   '[class*="job-description"]',
   '[class*="jobDescription"]',
-  '#job-details',
-  '.jobs-description',
   '[data-automation-id="jobPostingDescription"]',
   '[class*="job-details"] [class*="description"]',
   '[class*="posting-description"]',
   '[itemprop="description"]',
-  'article',
-  'main',
 ];
+
+function isSearchSidebar(el: Element): boolean {
+  return Boolean(
+    el.closest(
+      '.jobs-search-results-list, .jobs-search-results, [class*="search-results-list"], [class*="job-card-list"]'
+    )
+  );
+}
 
 function readable(node: Element | null): string | null {
   if (!node) return null;
@@ -70,30 +79,37 @@ function readable(node: Element | null): string | null {
 }
 
 export function jobDescription(doc: Document, adapter: JobAdapter): string | null {
-  const candidates: (string | null)[] = [];
+  const detailsPane =
+    doc.querySelector('.jobs-search__job-details') ??
+    doc.querySelector('.jobs-search-two-pane__details') ??
+    doc.querySelector('.jobs-details__main-content') ??
+    doc.querySelector('.job-view-layout') ??
+    doc.querySelector('[class*="job-details"]') ??
+    doc;
 
-  for (const selector of adapter.descriptionSelectors ?? []) {
-    candidates.push(readable(doc.querySelector(selector)));
+  const selectors = [
+    ...(adapter.descriptionSelectors ?? []),
+    ...GENERIC_SELECTORS,
+  ];
+
+  for (const selector of selectors) {
+    const candidates = Array.from(detailsPane.querySelectorAll(selector))
+      .concat(Array.from(doc.querySelectorAll(selector)))
+      .filter((el) => !isSearchSidebar(el));
+
+    for (const el of candidates) {
+      const text = readable(el);
+      if (text && text.length >= MIN_USEFUL_LENGTH) {
+        return text.length > MAX_LENGTH ? `${text.slice(0, MAX_LENGTH - 1)}…` : text;
+      }
+    }
   }
 
-  candidates.push(descriptionFromJsonLd(doc));
-
-  for (const selector of GENERIC_SELECTORS) {
-    candidates.push(readable(doc.querySelector(selector)));
+  // Fallback to structured JSON-LD data
+  const jsonLd = descriptionFromJsonLd(doc);
+  if (jsonLd && jsonLd.length >= MIN_USEFUL_LENGTH) {
+    return jsonLd.length > MAX_LENGTH ? `${jsonLd.slice(0, MAX_LENGTH - 1)}…` : jsonLd;
   }
 
-  /*
-   * The longest of whatever cleared the floor, not the first.
-   *
-   * A selector matching a summary block and one matching the full posting both
-   * pass the length check, and the difference between them is most of the
-   * requirements. Length is a crude proxy for completeness, and it is the only
-   * one available without understanding the content.
-   */
-  const best = candidates
-    .filter((value): value is string => value !== null && value.length >= MIN_USEFUL_LENGTH)
-    .sort((a, b) => b.length - a.length)[0];
-
-  if (!best) return null;
-  return best.length > MAX_LENGTH ? `${best.slice(0, MAX_LENGTH - 1)}…` : best;
+  return null;
 }

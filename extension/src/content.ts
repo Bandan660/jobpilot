@@ -628,6 +628,7 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
       // site's results page.
       canApply: canRunSession(),
       match,
+      isAnalyzingMatch: authenticated && match === null && matchCache === undefined,
       isExternalJob,
     },
     {
