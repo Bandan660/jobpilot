@@ -176,6 +176,21 @@ export const linkedinFlow: ApplyFlow = {
   submit: SUBMIT,
 };
 
+export const indeedFlow: ApplyFlow = {
+  name: 'indeed-apply',
+  scope: dialogOrPage,
+  async open() {
+    const scope = document.querySelector('.jobsearch-JobInfoHeader-buttonContainer') ?? document;
+    const trigger = findButton(scope, [/apply with indeed/i, /apply now/i]);
+    if (!trigger) return false;
+    clickElement(trigger);
+    return true;
+  },
+  multiStep: true,
+  advance: ADVANCE,
+  submit: SUBMIT,
+};
+
 /**
  * Which flow an ATS uses.
  *
@@ -195,7 +210,7 @@ export function flowFor(ats: AtsProvider | null, adapterVersion?: string): Apply
 
   // Version carries the real platform for everything mapped to GENERIC.
   const platform = adapterVersion?.split('@')[0] ?? '';
-  if (['taleo', 'successfactors', 'workable'].includes(platform)) return paginated;
+  if (['indeed', 'taleo', 'successfactors', 'workable'].includes(platform)) return paginated;
   if (platform === 'generic') return null;
 
   return singlePage;
