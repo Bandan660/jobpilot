@@ -59,12 +59,27 @@ type Control = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
  * question came back a blocker. Filter to real controls first, then ask
  * whether they are required.
  */
+import { isSearchOrHeaderControl } from './match.js';
+
 function requiredControls(scope: ParentNode): Control[] {
   return [...scope.querySelectorAll<Control>('input, select, textarea')].filter((control) => {
+    if (control.disabled) return false;
     const type = (control as HTMLInputElement).type?.toLowerCase();
+    if (type === 'hidden') return false;
 
-    // Radio groups on application steps are required inputs — if no radio in the group is checked,
-    // it is an unanswered required question.
+    if (isSearchOrHeaderControl(control)) return false;
+
+    const id = (control.id || '').toLowerCase();
+    const name = (control.name || '').toLowerCase();
+    const ariaLabel = (control.getAttribute('aria-label') || '').toLowerCase();
+    if (
+      /save-icon|bookmark|share|search|jobalert|alert-body|report/i.test(id) ||
+      /save-icon|bookmark|share|search|jobalert|alert-body|report/i.test(name) ||
+      /save-icon|save job|bookmark|share/i.test(ariaLabel)
+    ) {
+      return false;
+    }
+
     if (type === 'radio') return true;
 
     if (control.required || control.getAttribute('aria-required') === 'true') return true;
