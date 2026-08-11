@@ -1235,42 +1235,55 @@ const CSS = `
   .link:hover { color: var(--text); }
 
   /*
-   * The resting state: a launcher docked to the right edge. This is what the
-   * panel is by default — it opens only when asked, rather than taking a third
-   * of the window uninvited.
-   *
-   * Amber fill rather than the panel's dark surface, because at this size on
-   * an unknown page it has to be findable without being hunted for.
+   * The resting state: a launcher docked flush to the right edge.
+   * Premium dark glow styling matching jobpilot website palette (#0d1424 / #ffb020).
    */
   .handle {
     position: absolute;
-    top: 50%; right: 14px;
+    top: 35%; right: 0;
     transform: translateY(-50%);
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 11px 13px;
-    background: var(--signal);
-    color: var(--on-signal);
-    border: none;
-    border-radius: 999px;
+    gap: 8px;
+    padding: 10px 16px 10px 14px;
+    background: linear-gradient(135deg, #0d1424 0%, #141e33 100%);
+    color: #ffffff;
+    border: 1px solid rgba(255, 176, 32, 0.45);
+    border-right: none;
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
     cursor: pointer;
     font: inherit;
     font-size: 13px;
-    font-weight: 700;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), filter 160ms ease;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+    box-shadow: 0 4px 20px rgba(255, 176, 32, 0.4), -4px 0 15px rgba(0, 0, 0, 0.5);
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms ease, filter 160ms ease;
   }
-  .handle:hover { transform: translateY(-50%) scale(1.04); filter: brightness(1.06); }
-  .handle:active { transform: translateY(-50%) scale(0.98); }
-  .handle svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .handle:hover {
+    transform: translateY(-50%) translateX(-2px);
+    box-shadow: 0 6px 25px rgba(255, 176, 32, 0.6), -6px 0 20px rgba(0, 0, 0, 0.6);
+    filter: brightness(1.1);
+  }
+  .handle:active { transform: translateY(-50%) translateX(0); }
+  .handle svg {
+    width: 17px; height: 17px;
+    flex-shrink: 0;
+    color: #ffb020;
+    filter: drop-shadow(0 0 6px rgba(255, 176, 32, 0.8));
+  }
 
-  /* Count of fillable fields — the one fact worth showing before opening. */
+  /* Count of fillable fields — highlighted badge. */
   .handle .count {
-    background: rgba(0, 0, 0, 0.18);
+    background: rgba(255, 176, 32, 0.2);
+    border: 1px solid rgba(255, 176, 32, 0.4);
+    color: #ffb020;
     border-radius: 999px;
-    padding: 1px 7px;
-    font-size: 11.5px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
   }
 
@@ -1279,7 +1292,7 @@ const CSS = `
   @media (prefers-reduced-motion: no-preference) {
     [data-first] .handle { animation: pop 260ms cubic-bezier(0.22, 1, 0.36, 1); }
     @keyframes pop {
-      from { opacity: 0; transform: translateY(-50%) translateX(14px); }
+      from { opacity: 0; transform: translateY(-50%) translateX(20px); }
     }
   }
 
