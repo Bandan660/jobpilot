@@ -203,35 +203,10 @@ export const linkedinFlow: ApplyFlow = {
   // sends the application. See `applicationDialog`.
   scope: applicationDialog,
   async open() {
-    const detailsPane =
-      document.querySelector('.jobs-search-two-pane__details') ??
-      document.querySelector('.jobs-search__job-details') ??
-      document.querySelector('.jobs-details__main-content') ??
-      document.querySelector('.jobs-details') ??
-      document.querySelector('.job-view-layout') ??
-      document.querySelector('[class*="job-details"]');
-
-    const scope = detailsPane ?? document;
-
-    const candidates = [
-      ...scope.querySelectorAll<HTMLElement>(
-        'button.jobs-apply-button, button[aria-label*="Easy Apply" i], [class*="jobs-apply-button"] button, button, [role="button"]'
-      ),
-    ].filter((b) => {
-      if (!visible(b)) return false;
-      // Exclude buttons inside the left-hand search results list so we always trigger the active job in details pane
-      if (b.closest('.jobs-search-results-list, .jobs-search-results, [class*="search-results-list"]')) {
-        return false;
-      }
-      return true;
-    });
-
-    const trigger = candidates.find((b) =>
-      /easy apply/i.test(b.getAttribute('aria-label') ?? b.textContent ?? '')
-    );
-
+    const scope = document.querySelector('.jobs-search__job-details') ?? document;
+    const trigger = findButton(scope, [/easy apply/i]);
     if (!trigger) return false;
-    trigger.click();
+    clickElement(trigger);
     return true;
   },
   multiStep: true,
