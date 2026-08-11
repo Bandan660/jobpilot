@@ -119,10 +119,37 @@ function fillRadioGroup(control: HTMLInputElement, value: string): boolean {
 }
 
 function fillCheckbox(control: HTMLInputElement, value: string): boolean {
-  const wanted = /^(yes|true|1)$/i.test(value.trim());
+  const text = value.trim().toLowerCase();
+  const wanted =
+    /^(yes|true|1|consent|i consent|agree|accept|read and understand|i agree)$/i.test(text) ||
+    text.includes('consent') ||
+    text.includes('agree') ||
+    text.includes('accept');
+
   if (control.checked === wanted) return true;
   control.checked = wanted;
   notify(control);
+
+  // Dispatch mouse and pointer events for framework state binding (LinkedIn Ember/React)
+  control.dispatchEvent(
+    new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true })
+  );
+  control.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  control.dispatchEvent(
+    new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true })
+  );
+  control.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  control.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+  const label = control.closest('label') ?? document.querySelector(`label[for="${control.id}"]`);
+  if (label && label instanceof HTMLElement) {
+    try {
+      label.click();
+    } catch {
+      // Ignore click errors on synthetic labels
+    }
+  }
+
   return true;
 }
 
