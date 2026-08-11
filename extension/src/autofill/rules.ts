@@ -175,6 +175,24 @@ export const FIELD_RULES: FieldRule[] = [
     inputTypes: ['tel', 'text'],
     weight: 15,
   },
+  {
+    /*
+     * "Phone country code" select — e.g. LinkedIn Easy Apply's "India (+91)".
+     *
+     * The phone rule explicitly rejects this via its `country.code` negative,
+     * but that leaves the select with no matching rule. On forms where the
+     * placeholder option has value="" the field is empty, and `findBlockers`
+     * correctly reports it as a required unanswered question that stalls step 1
+     * forever.
+     *
+     * We map it back to `phone` here — `profileValue` for phone returns the
+     * stored phone string (e.g. "+917077407660"), and `fillSelect` will pick
+     * the option whose text contains "+91" or "India" by substring match.
+     */
+    field: 'phone',
+    patterns: [/phone.?country.?code/, /country.?code.*phone/, /dial.?code/, /country.?dial/],
+    weight: 20,
+  },
 
   {
     field: 'addressLine1',

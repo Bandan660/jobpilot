@@ -318,20 +318,51 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
   control.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }));
   control.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'ArrowDown' }));
 
+  // Also fire a Change event — some ATSs listen only to that.
+  control.dispatchEvent(new Event('change', { bubbles: true }));
+
   const deadline = Date.now() + LISTBOX_TIMEOUT_MS;
   let choice: HTMLElement | null = null;
 
   while (Date.now() < deadline && !choice) {
     await sleep(120);
     const listbox = listboxFor(control);
-    const options = [...(listbox?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])].filter(
-      (option) => (option.innerText || option.textContent || '').trim() !== ''
-    );
-    if (options.length > 0) choice = pickOption(options, value);
+
+    // Broad option selector: covers [role="option"], li, plain div/span rows used by many ATSs.
+    const optionEls = [
+      ...(listbox?.querySelectorAll<HTMLElement>(
+        '[role="option"], [data-value], [data-option], li[id*="option"], li[class*="option"], li[class*="suggestion"], li[class*="item"], .ac-menu-item, .suggestion-item, .dropdown-item'
+      ) ?? []),
+    ].filter((el) => (el.innerText || el.textContent || '').trim() !== '');
+
+    if (optionEls.length > 0) choice = pickOption(optionEls, value);
+
+    // Fallback: scan for any listbox anywhere in the document if none found locally.
+    if (!choice && optionEls.length === 0) {
+      const anyListbox = control.ownerDocument.querySelector('[role="listbox"], .suggestions, .autocomplete-dropdown, .dropdown-menu');
+      if (anyListbox) {
+        const anyOptions = [
+          ...anyListbox.querySelectorAll<HTMLElement>(
+            '[role="option"], li, [data-value], [class*="option"], [class*="item"]'
+          ),
+        ].filter((el) => (el.innerText || el.textContent || '').trim() !== '');
+        if (anyOptions.length > 0) choice = pickOption(anyOptions, value);
+      }
+    }
   }
 
   if (!choice) {
-    clearControl(control);
+    /*
+     * Timeout: no matching option appeared.
+     *
+     * Leave the typed text in the box — the user can see what was attempted
+     * and click to pick the right suggestion themselves. Clearing it here
+     * causes the field to appear blank and triggers a spurious blocker that
+     * pins the run at step 1 forever even when the field visually looks fine.
+     *
+     * The form's own validation will catch an uncommitted combobox when the
+     * user (or the advance click) tries to move on.
+     */
     return false;
   }
 
@@ -341,10 +372,12 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
   choice.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   choice.click();
 
-  await sleep(200);
+  // Give the widget time to settle its internal state.
+  await sleep(400);
 
-  // The widget owns the final text. Empty means the click was not taken, and
-  // leaving it that way is the honest outcome — it becomes a named question.
+  // If the widget cleared the value after our click the commit wasn't taken.
+  // Leave whatever text is there — don't wipe it — and let the advance
+  // attempt surface the error naturally.
   if (control.value.trim() === '') return false;
   return true;
 }
