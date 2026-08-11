@@ -1,5 +1,5 @@
 import type { AtsProvider } from '@jobpilot/shared';
-import { findDialog, hasFormControls } from '../dialogs.js';
+import { findDialog, hasFormControls, visible } from '../dialogs.js';
 import { clickElement, findButton, type ApplyFlow } from './apply.js';
 
 /**
@@ -227,12 +227,41 @@ function indeedScope(): ParentNode | null {
   );
 }
 
+function findIndeedApplyButton(): HTMLElement | null {
+  const explicit =
+    document.querySelector<HTMLElement>('#indeedApplyButton') ??
+    document.querySelector<HTMLElement>('[data-indeed-apply-button]') ??
+    document.querySelector<HTMLElement>('.jobsearch-IndeedApplyButton-button') ??
+    document.querySelector<HTMLElement>('[class*="IndeedApplyButton"]') ??
+    document.querySelector<HTMLElement>('button[id*="indeed"]') ??
+    document.querySelector<HTMLElement>('a[href*="indeedapply"]');
+
+  if (explicit && visible(explicit)) return explicit;
+
+  const scope = document.querySelector('.jobsearch-JobInfoHeader-buttonContainer') ?? document;
+  const candidates = [...scope.querySelectorAll<HTMLElement>('button, a, [role="button"], div, span')].filter(
+    visible
+  );
+
+  for (const candidate of candidates) {
+    const text = (candidate.textContent || '').trim().toLowerCase();
+    if (text === 'apply with indeed' || text === 'apply now' || /^apply with indeed$/i.test(text)) {
+      return (
+        (candidate.closest(
+          'button, a, [role="button"], #indeedApplyButton, [class*="IndeedApplyButton"]'
+        ) as HTMLElement) ?? candidate
+      );
+    }
+  }
+
+  return findButton(scope, [/apply with indeed/i, /apply now/i]);
+}
+
 export const indeedFlow: ApplyFlow = {
   name: 'indeed-apply',
   scope: indeedScope,
   async open() {
-    const scope = document.querySelector('.jobsearch-JobInfoHeader-buttonContainer') ?? document;
-    const trigger = findButton(scope, [/apply with indeed/i, /apply now/i]);
+    const trigger = findIndeedApplyButton();
     if (!trigger) return false;
     clickElement(trigger);
     return true;
