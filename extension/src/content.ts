@@ -10,7 +10,7 @@ import { clampCapturedJob, matchSkills, type SkillMatch } from '@jobpilot/shared
 import { findAdapter, type JobAdapter } from './adapters/index.js';
 import { easyApplyModal } from './adapters/linkedin.js';
 import { runApply, type ApplyFlow } from './autofill/apply.js';
-import { findApplicationForm, flowFor, linkedinFlow } from './autofill/flows.js';
+import { findApplicationForm, flowFor, linkedinFlow, isNonApplicationForm } from './autofill/flows.js';
 import { jobDescription } from './adapters/description.js';
 import { extractFromJsonLd } from './adapters/jsonld.js';
 import { autofill, fillComboboxes, previewCoverage } from './autofill/index.js';
@@ -170,6 +170,7 @@ function pageLooksConfirmed(adapter: JobAdapter): boolean {
  * because it silently pollutes the user's tracker.
  */
 function looksLikeApplicationForm(form: HTMLFormElement): boolean {
+  if (isNonApplicationForm(form)) return false;
   return Boolean(
     form.querySelector('input[type="file"]') ||
       form.querySelector('input[type="email"]') ||

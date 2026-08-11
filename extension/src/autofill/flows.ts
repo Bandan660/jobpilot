@@ -40,20 +40,58 @@ function applicationDialog(): HTMLElement | null {
   );
 }
 
+export function isNonApplicationForm(element: Element): boolean {
+  const className = (element.className || '').toString().toLowerCase();
+  const id = (element.id || '').toLowerCase();
+  const action = element.getAttribute('action')?.toLowerCase() ?? '';
+
+  const nonAppPattern =
+    /jobalert|job-alert|newsletter|subscription|subscribe|alert-body|email-alert|search|login|signin|password/i;
+  if (nonAppPattern.test(className) || nonAppPattern.test(id) || nonAppPattern.test(action)) {
+    if (!element.querySelector('input[type="file"]')) {
+      return true;
+    }
+  }
+
+  if (element.querySelector('input[type="password"]')) {
+    return true;
+  }
+
+  const buttonText = (
+    element.querySelector('button, input[type="submit"]')?.textContent ?? ''
+  )
+    .trim()
+    .toLowerCase();
+  if (/^(activate|subscribe|set alert|create alert|search)$/i.test(buttonText)) {
+    if (
+      !element.querySelector(
+        'input[type="file"], input[name*="resume" i], input[name*="name" i], input[id*="name" i]'
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * A `<form>` that collects a file or an email address.
  *
- * The same test capture uses, and for the same reason: a newsletter signup in
- * the footer is a form too, and filling one is both useless and alarming.
+ * Excludes job alert subscription boxes, newsletter signups, search boxes,
+ * and login forms so they do not trigger application auto-capture or autofill.
  */
 function applicationFormElement(): HTMLFormElement | null {
   return (
-    [...document.querySelectorAll('form')].find(
-      (candidate) =>
+    [...document.querySelectorAll('form')].find((candidate) => {
+      if (isNonApplicationForm(candidate)) return false;
+
+      return Boolean(
         candidate.querySelector('input[type="file"]') ||
-        candidate.querySelector('input[type="email"]') ||
-        candidate.querySelector('input[name*="resume" i], input[name*="email" i]')
-    ) ?? null
+          candidate.querySelector('input[type="email"]') ||
+          candidate.querySelector('input[name*="resume" i], input[name*="email" i]')
+      );
+    }) ?? null
   );
 }
 
@@ -176,9 +214,22 @@ export const linkedinFlow: ApplyFlow = {
   submit: SUBMIT,
 };
 
+function indeedScope(): ParentNode | null {
+  const host = window.location.hostname.toLowerCase();
+  if (host.includes('smartapply')) {
+    return document;
+  }
+  return (
+    findDialog(hasFormControls) ??
+    document.querySelector('[class*="indeed-apply-popup"]') ??
+    document.querySelector('iframe[title*="Indeed"]') ??
+    document.querySelector('#indeed-apply-iframe')
+  );
+}
+
 export const indeedFlow: ApplyFlow = {
   name: 'indeed-apply',
-  scope: dialogOrPage,
+  scope: indeedScope,
   async open() {
     const scope = document.querySelector('.jobsearch-JobInfoHeader-buttonContainer') ?? document;
     const trigger = findButton(scope, [/apply with indeed/i, /apply now/i]);
