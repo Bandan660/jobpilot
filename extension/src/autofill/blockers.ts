@@ -63,19 +63,32 @@ import { isSearchOrHeaderControl } from './match.js';
 
 function requiredControls(scope: ParentNode): Control[] {
   return [...scope.querySelectorAll<Control>('input, select, textarea')].filter((control) => {
+    const tagName = control.tagName?.toLowerCase();
+    if (tagName !== 'input' && tagName !== 'select' && tagName !== 'textarea') return false;
+
     if (control.disabled) return false;
     const type = (control as HTMLInputElement).type?.toLowerCase();
-    if (type === 'hidden') return false;
+    if (
+      type === 'hidden' ||
+      type === 'submit' ||
+      type === 'button' ||
+      type === 'image' ||
+      type === 'reset'
+    )
+      return false;
 
     if (isSearchOrHeaderControl(control)) return false;
 
     const id = (control.id || '').toLowerCase();
     const name = (control.name || '').toLowerCase();
     const ariaLabel = (control.getAttribute('aria-label') || '').toLowerCase();
+    const className = (control.className || '').toString().toLowerCase();
+
     if (
-      /save-icon|bookmark|share|search|jobalert|alert-body|report/i.test(id) ||
-      /save-icon|bookmark|share|search|jobalert|alert-body|report/i.test(name) ||
-      /save-icon|save job|bookmark|share/i.test(ariaLabel)
+      /save-icon|savejob|bookmark|share|search|jobalert|alert-body|report|icon-/i.test(id) ||
+      /save-icon|savejob|bookmark|share|search|jobalert|alert-body|report|icon-/i.test(name) ||
+      /save-icon|savejob|save job|bookmark|share/i.test(ariaLabel) ||
+      /save-icon|savejob|bookmark/i.test(className)
     ) {
       return false;
     }
@@ -84,44 +97,25 @@ function requiredControls(scope: ParentNode): Control[] {
 
     if (control.required || control.getAttribute('aria-required') === 'true') return true;
 
-    /*
-     * The other half of the same problem, and the one the fix above created.
-     *
-     * Requiredness frequently lives on the field's wrapper rather than on the
-     * control. For a radio group it has nowhere else to live — there is no
-     * sense in which the "Yes" input is individually mandatory, so the
-     * attribute goes on the fieldset and the members stay bare. LinkedIn does
-     * the same for its ordinary fields, on `.fb-dash-form-element`. Filtering
-     * to real controls and then asking each one whether it is required
-     * therefore answers "no" for a form full of asterisks.
-     *
-     * Two live failures, one on each half:
-     *
-     *   - "Are you comfortable working in an onsite setting?" sat unanswered
-     *     and unreported beside three text questions that were reported, so
-     *     the panel said three when the form wanted four. The user answers the
-     *     named three and the submit is refused by a question nothing
-     *     mentioned.
-     *   - "Location (city)" is a combobox, which autofill now leaves empty
-     *     because text alone does not answer one. Unless its requiredness is
-     *     found here, the run advances into a refusal it cannot explain.
-     *
-     * Consulting the wrapper is safe in a way the original bug was not. That
-     * bug cast the wrapper itself to a control and read `.value` off a `div`,
-     * so `undefined` meant every answered question looked empty. This decides
-     * only *requiredness* from the ancestor and still reads emptiness off the
-     * real control, so a filled field is never reported however its wrapper is
-     * marked.
-     *
-     * `closest` matters: it finds the field's own container, not some ancestor
-     * region that happens to carry the attribute.
-     */
     const wrapper = control.closest(FIELD_WRAPPERS);
-    return (
-      wrapper?.getAttribute('aria-required') === 'true' ||
-      wrapper?.hasAttribute('required') === true ||
-      wrapper?.getAttribute('data-required') === 'true'
-    );
+    if (wrapper) {
+      const wrapperId = (wrapper.id || '').toLowerCase();
+      const wrapperClass = (wrapper.className || '').toString().toLowerCase();
+      if (
+        /save-icon|savejob|bookmark|share|search|header/i.test(wrapperId) ||
+        /save-icon|savejob|bookmark|share/i.test(wrapperClass)
+      ) {
+        return false;
+      }
+
+      return (
+        wrapper.getAttribute('aria-required') === 'true' ||
+        wrapper.hasAttribute('required') === true ||
+        wrapper.getAttribute('data-required') === 'true'
+      );
+    }
+
+    return false;
   });
 }
 
@@ -241,7 +235,13 @@ export function labelFor(control: Element, scope: ParentNode): string {
    */
   for (const read of candidates) {
     const text = clean(read() ?? '');
-    if (text && !/^radio-group-/i.test(text)) return text;
+    if (
+      text &&
+      !/^radio-group-/i.test(text) &&
+      !/save-icon|savejob|bookmark|share-icon|close-icon|report/i.test(text)
+    ) {
+      return text;
+    }
   }
 
   return 'A required question';
