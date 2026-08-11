@@ -60,6 +60,7 @@ export interface AdapterSpec {
   extra?: (doc: Document, url: URL) => Partial<CapturedJob>;
 
   confirmationSelectors?: string[];
+  descriptionSelectors?: string[];
 }
 
 /**
@@ -167,6 +168,7 @@ export function defineAdapter(spec: AdapterSpec): JobAdapter {
     },
 
     confirmationSelectors: spec.confirmationSelectors ?? [],
+    descriptionSelectors: spec.descriptionSelectors ?? [],
   };
 }
 

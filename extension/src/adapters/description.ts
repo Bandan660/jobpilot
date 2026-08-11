@@ -34,8 +34,14 @@ const MAX_LENGTH = 12_000;
 
 /** Containers a posting's body plausibly lives in, most specific first. */
 const GENERIC_SELECTORS = [
+  '#jobDescriptionText',
+  '[data-testid="jobDescriptionText"]',
+  '[class*="JobDescriptionText"]',
+  '.jobsearch-JobComponent-description',
   '[class*="job-description"]',
   '[class*="jobDescription"]',
+  '#job-details',
+  '.jobs-description',
   '[data-automation-id="jobPostingDescription"]',
   '[class*="job-details"] [class*="description"]',
   '[class*="posting-description"]',

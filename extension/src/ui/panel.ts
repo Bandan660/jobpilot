@@ -1634,7 +1634,26 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
      * bottom edge. Nothing is lost by hiding it; it is unchanged when the run
      * ends, and the posting is the same posting.
      */
-    if (current.match && session.state === 'idle') body.append(matchCard(current.match));
+    if (current.match && session.state === 'idle') {
+      body.append(matchCard(current.match));
+    } else if (!current.match && session.state === 'idle') {
+      const fallbackCard = document.createElement('div');
+      fallbackCard.className = 'card match';
+      fallbackCard.style.cssText = 'padding: 12px 14px;';
+
+      const head = document.createElement('div');
+      head.style.cssText =
+        'font-size: 11px; font-weight: 800; color: var(--dim); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px;';
+      head.textContent = '🎯 SKILLS MATCHING';
+
+      const msg = document.createElement('p');
+      msg.style.cssText = 'font-size: 11.5px; color: var(--dim); line-height: 1.4;';
+      msg.textContent =
+        'Add your skills in your jobpilot web profile to calculate instant shortlist probability & keyword breakdown for this posting.';
+
+      fallbackCard.append(head, msg);
+      body.append(fallbackCard);
+    }
 
     /* Primary action */
     const action = document.createElement('div');

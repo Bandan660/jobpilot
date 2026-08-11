@@ -95,6 +95,13 @@ const indeed = defineAdapter({
     '[class*="companyLocation"]',
   ],
   comp: ['#salaryInfoAndJobType', '[data-testid="jobMetaData"]', '[class*="salary"]'],
+  descriptionSelectors: [
+    '#jobDescriptionText',
+    '[data-testid="jobDescriptionText"]',
+    '.jobsearch-JobComponent-description',
+    '.jobsearch-jobDescriptionText',
+    '[class*="JobDescriptionText"]',
+  ],
   confirmationSelectors: [
     '[data-testid="post-apply-container"]',
     '[data-testid="ia-PostApplyContainer"]',
