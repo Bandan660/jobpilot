@@ -57,22 +57,46 @@ function applicationFormElement(): HTMLFormElement | null {
   );
 }
 
+function isAtsPageWithoutFormElement(): boolean {
+  const host = window.location.hostname.toLowerCase();
+  const isAtsHost =
+    host.includes('workday') ||
+    host.includes('ashbyhq') ||
+    host.includes('icims') ||
+    host.includes('taleo') ||
+    host.includes('successfactors') ||
+    host.includes('smartrecruiters') ||
+    host.includes('workable') ||
+    host.includes('teamtailor') ||
+    host.includes('bamboohr') ||
+    host.includes('zohorecruit') ||
+    host.includes('darwinbox') ||
+    host.includes('keka') ||
+    document.querySelector('[data-automation-id]') !== null;
+
+  const controls = document.querySelectorAll('input:not([type="hidden"]), select, textarea');
+  if (controls.length >= 1 && isAtsHost) return true;
+
+  if (controls.length >= 2) {
+    const hasAdvanceBtn = findButton(document, [...SUBMIT, ...ADVANCE]) !== null;
+    if (hasAdvanceBtn) return true;
+  }
+
+  return false;
+}
+
 /**
  * An actual application form, or null.
  *
- * Strict on purpose, and separate from `dialogOrPage` below for one reason:
- * this answers "is there something to fill here", and the honest answer on a
- * job listing is no.
- *
- * Defaulting to the document instead reported the host page's own controls as
- * application fields. On a LinkedIn posting with no Easy Apply dialog open
- * that is the search box, the filter selects, the sort dropdown and the
- * message composer — the panel read "0 of 28 fields can be filled", which is
- * arithmetically true and says the opposite of what is happening. There are no
- * fields. There is no form.
+ * Checks dialogs, form elements, and non-form ATS page containers (such as
+ * Workday and Ashby which post over XHR without wrapping steps in a <form>).
  */
 export function findApplicationForm(): ParentNode | null {
-  return findDialog(hasFormControls) ?? applicationFormElement();
+  return (
+    findDialog(hasFormControls) ??
+    applicationFormElement() ??
+    (isAtsPageWithoutFormElement() ? document : null)
+  );
 }
 
 /**
@@ -81,8 +105,6 @@ export function findApplicationForm(): ParentNode | null {
  * Looser than `findApplicationForm`: some ATSs do not wrap the application in
  * a `<form>` at all — Workday and Ashby both post over XHR from a plain div —
  * so once a run has been asked for, the whole document is a reasonable scope.
- * That fallback is right for a deliberate action and wrong for the passive
- * count in the panel, which is why the two are not the same function.
  */
 function dialogOrPage(): ParentNode | null {
   return (
