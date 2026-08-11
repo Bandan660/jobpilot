@@ -1,6 +1,7 @@
 import { EMPTY_PROFILE } from '@jobpilot/shared';
 import type { ImportRow } from './csv.js';
 import type {
+  AdminMetrics,
   Application,
   ApplicationEvent,
   ApplicationStatus,
@@ -157,6 +158,19 @@ const liveApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  /** Trade a Firebase ID token for a jobpilot session token. */
+  firebaseExchange: (idToken: string) =>
+    request<AuthResponse>('/api/auth/firebase', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    }),
+
+  /** Who the caller is and whether the admin surface is open to them. */
+  session: () => request<{ userId: string; isAdmin: boolean }>('/api/auth/session'),
+
+  /** Service-wide aggregates. 403s for anyone not on the admin allowlist. */
+  adminMetrics: () => request<AdminMetrics>('/api/admin/metrics'),
 
   getProfile: () => request<{ profile: Profile }>('/api/profile'),
 
@@ -326,6 +340,9 @@ function buildDemoApi(): typeof liveApi {
 
     deadPostings: () => delay({ alerts: DEMO_DEAD_POSTINGS }),
     activity: () => delay({ events: [] as ActivityEvent[] }),
+    // Demo mode has no server and no admin. False keeps the link hidden
+    // rather than routing to a page that cannot load.
+    session: () => delay({ userId: 'demo', isAdmin: false }),
     listResumes: () => delay({ resumes: [] as Resume[] }),
   };
 }

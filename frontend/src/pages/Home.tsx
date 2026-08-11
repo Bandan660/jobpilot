@@ -33,13 +33,13 @@ function TrackerMock() {
           position: 'absolute',
           top: '-16px',
           right: '-12px',
-          background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
-          color: '#120c02',
+          background: 'linear-gradient(135deg, var(--signal-bright) 0%, var(--signal) 100%)',
+          color: 'var(--on-signal)',
           padding: '6px 12px',
           borderRadius: '999px',
           fontSize: '11px',
           fontWeight: 800,
-          boxShadow: '0 6px 20px rgba(255,176,32,0.4)',
+          boxShadow: '0 6px 20px var(--hero-glow)',
           zIndex: 10,
           display: 'flex',
           alignItems: 'center',
@@ -54,14 +54,14 @@ function TrackerMock() {
           position: 'absolute',
           bottom: '-14px',
           left: '-16px',
-          background: '#0d1424',
-          border: '1px solid #10b981',
-          color: '#ffffff',
+          background: 'var(--panel-raised)',
+          border: '1px solid var(--live)',
+          color: 'var(--text)',
           padding: '6px 12px',
           borderRadius: '999px',
           fontSize: '11px',
           fontWeight: 700,
-          boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+          boxShadow: '0 6px 20px var(--shadow)',
           zIndex: 10,
           display: 'flex',
           alignItems: 'center',
@@ -147,20 +147,7 @@ export function Home() {
                 See the tracker
               </Link>
             </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginTop: '12px',
-                fontSize: '12px',
-                color: 'var(--text-dim)',
-              }}
-            >
-              <span style={{ color: '#ffb020', fontWeight: 800 }}>★ 4.9/5 Rating</span>
-              <span>· Joined by 15,000+ active job seekers</span>
-            </div>
-            <span className="hero-note" style={{ marginTop: '6px' }}>
+            <span className="hero-note">
               No card, no trial timer. Free while jobpilot is in early access.
             </span>
           </div>
@@ -303,11 +290,9 @@ export function Home() {
             </Reveal>
           </Waypoint>
 
-          <TestimonialsSection />
-
           {/* id lets the footer link straight to this section now that there is
               no standalone FAQ page. */}
-          <Waypoint index="07">
+          <Waypoint index="06">
             <div id="faq" style={{ scrollMarginTop: '84px' }}>
               <Reveal className="waypoint-head" as="header">
                 <h2>Questions worth answering directly</h2>
@@ -387,8 +372,8 @@ function ComparisonSection() {
           {/* Traditional Manual Search */}
           <div
             style={{
-              background: 'rgba(239, 68, 68, 0.04)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
+              background: 'var(--down-wash)',
+              border: '1px solid var(--down)',
               borderRadius: '16px',
               padding: '24px',
             }}
@@ -399,7 +384,7 @@ function ComparisonSection() {
                 alignItems: 'center',
                 gap: '10px',
                 marginBottom: '16px',
-                color: '#ef4444',
+                color: 'var(--down)',
                 fontWeight: 700,
                 fontSize: '16px',
               }}
@@ -421,19 +406,19 @@ function ComparisonSection() {
               }}
             >
               <li style={{ display: 'flex', gap: '10px' }}>
-                <span style={{ color: '#ef4444' }}>•</span>
+                <span style={{ color: 'var(--down)' }}>•</span>
                 <span>Spend 15+ minutes retyping work history &amp; contact info on every form</span>
               </li>
               <li style={{ display: 'flex', gap: '10px' }}>
-                <span style={{ color: '#ef4444' }}>•</span>
+                <span style={{ color: 'var(--down)' }}>•</span>
                 <span>Manually update spreadsheets that get outdated in days</span>
               </li>
               <li style={{ display: 'flex', gap: '10px' }}>
-                <span style={{ color: '#ef4444' }}>•</span>
+                <span style={{ color: 'var(--down)' }}>•</span>
                 <span>Accidentally apply twice to the same job across different boards</span>
               </li>
               <li style={{ display: 'flex', gap: '10px' }}>
-                <span style={{ color: '#ef4444' }}>•</span>
+                <span style={{ color: 'var(--down)' }}>•</span>
                 <span>Never know when a job posting has been removed or closed</span>
               </li>
             </ul>
@@ -443,11 +428,11 @@ function ComparisonSection() {
           <div
             style={{
               background:
-                'linear-gradient(135deg, rgba(255,176,32,0.08) 0%, rgba(16,185,129,0.05) 100%)',
-              border: '1px solid rgba(255,176,32,0.4)',
+                'linear-gradient(135deg, var(--signal-wash) 0%, var(--live-wash) 100%)',
+              border: '1px solid var(--signal-dim)',
               borderRadius: '16px',
               padding: '24px',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+              boxShadow: '0 8px 30px var(--shadow)',
             }}
           >
             <div
@@ -456,7 +441,7 @@ function ComparisonSection() {
                 alignItems: 'center',
                 gap: '10px',
                 marginBottom: '16px',
-                color: '#ffb020',
+                color: 'var(--signal-text)',
                 fontWeight: 700,
                 fontSize: '16px',
               }}
@@ -478,127 +463,31 @@ function ComparisonSection() {
               }}
             >
               <li style={{ display: 'flex', gap: '10px' }}>
-                <span style={{ color: '#ffb020', fontWeight: 800 }}>✓</span>
+                <span style={{ color: 'var(--signal-text)', fontWeight: 800 }}>✓</span>
                 <span>
                   <strong>5-second 1-click autofill</strong> mapped automatically from 1 profile
                 </span>
               </li>
               <li style={{ display: 'flex', gap: '10px' }}>
-                <span style={{ color: '#ffb020', fontWeight: 800 }}>✓</span>
+                <span style={{ color: 'var(--signal-text)', fontWeight: 800 }}>✓</span>
                 <span>
                   <strong>Zero-touch auto-logging</strong> straight from your browser on submit
                 </span>
               </li>
               <li style={{ display: 'flex', gap: '10px' }}>
-                <span style={{ color: '#ffb020', fontWeight: 800 }}>✓</span>
+                <span style={{ color: 'var(--signal-text)', fontWeight: 800 }}>✓</span>
                 <span>
                   <strong>Smart Duplicate Guard</strong> warns before you apply to duplicate URLs
                 </span>
               </li>
               <li style={{ display: 'flex', gap: '10px' }}>
-                <span style={{ color: '#ffb020', fontWeight: 800 }}>✓</span>
+                <span style={{ color: 'var(--signal-text)', fontWeight: 800 }}>✓</span>
                 <span>
                   <strong>24/7 Posting Sweep</strong> alerts you when a listing dies or 404s
                 </span>
               </li>
             </ul>
           </div>
-        </div>
-      </Reveal>
-    </Waypoint>
-  );
-}
-
-function TestimonialsSection() {
-  const reviews = [
-    {
-      quote:
-        'jobpilot completely changed my job hunt. I applied to 40+ roles in 2 days without retyping my work history once. Landed my Senior Frontend role in 3 weeks!',
-      author: 'Alex Morgan',
-      title: 'Senior Frontend Engineer',
-      company: 'Hired at Vercel',
-      avatar: '👨‍💻',
-    },
-    {
-      quote:
-        'The posting sweep feature is a lifesaver. It alerted me the moment a position was taken down, so I reached out directly to the recruiter on LinkedIn.',
-      author: 'Priya Sharma',
-      title: 'Product Designer',
-      company: 'Hired at Stripe',
-      avatar: '👩‍🎨',
-    },
-    {
-      quote:
-        'Zero auto-submits, 100% control over my application data. The duplicate guard saved me from applying twice to the same company under different agency links.',
-      author: 'David Chen',
-      title: 'Software Engineer',
-      company: 'Hired at Linear',
-      avatar: '👨‍🔬',
-    },
-  ];
-
-  return (
-    <Waypoint index="06">
-      <Reveal className="waypoint-head" as="header">
-        <div className="chip-head">
-          <span className="icon-chip">★</span>
-          <span className="chip-label">Testimonials</span>
-        </div>
-        <h2>Loved by Job Seekers at Top Tech Companies</h2>
-        <p>
-          Here is how jobpilot is helping developers, designers, and managers land their dream
-          roles faster.
-        </p>
-      </Reveal>
-
-      <Reveal>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: '16px',
-            marginTop: '24px',
-          }}
-        >
-          {reviews.map((rev) => (
-            <div
-              key={rev.author}
-              style={{
-                background: 'var(--panel-alt, rgba(0,0,0,0.25))',
-                border: '1px solid var(--line)',
-                borderRadius: '14px',
-                padding: '20px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                gap: '14px',
-              }}
-            >
-              <p style={{ fontSize: '13.5px', color: 'var(--text)', lineHeight: 1.5, margin: 0 }}>
-                &ldquo;{rev.quote}&rdquo;
-              </p>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  paddingTop: '10px',
-                  borderTop: '1px solid var(--line)',
-                }}
-              >
-                <span style={{ fontSize: '24px' }}>{rev.avatar}</span>
-                <div>
-                  <strong style={{ fontSize: '13px', display: 'block', color: 'var(--text)' }}>
-                    {rev.author}
-                  </strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                    {rev.title} ·{' '}
-                    <span style={{ color: '#ffb020', fontWeight: 600 }}>{rev.company}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
       </Reveal>
     </Waypoint>

@@ -6,3 +6,8 @@ DATABASE_URL="postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/jobpilot
 # Generate with:
 #   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 JWT_SECRET="change-me"
+
+# Comma-separated emails allowed to read /api/admin/*. Optional.
+# Absent or empty grants NOBODY — the admin surface is closed by default, so a
+# misconfigured deploy locks you out rather than opening it to every account.
+ADMIN_EMAILS="you@example.com"

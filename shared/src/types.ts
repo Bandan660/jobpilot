@@ -446,3 +446,26 @@ export interface ApiError {
   message: string;
   details?: unknown;
 }
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Service-wide aggregates for the admin dashboard.
+ *
+ * Counts only, deliberately. Nothing here identifies a person — no email, no
+ * job title, no company, no id — which is what keeps the privacy policy true
+ * and keeps a compromised admin session from being a breach of anyone's job
+ * search. Adding "just one" identifying field turns a metrics page into a user
+ * directory; that would be a different feature with a different disclosure.
+ */
+export interface AdminMetrics {
+  users: { total: number; last7: number; last30: number };
+  applications: { total: number; last7: number; last30: number; withResume: number };
+  /** Signups per day for the last 30 days, oldest first. Empty days included as zero. */
+  signups: { date: string; count: number }[];
+  platforms: { ats: string; count: number }[];
+  statuses: { status: string; count: number }[];
+  postings: { status: string; count: number }[];
+  /** Accounts with at least one application. */
+  activatedUsers: number;
+}

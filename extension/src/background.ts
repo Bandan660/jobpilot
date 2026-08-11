@@ -6,6 +6,7 @@ import type {
   Profile,
 } from '@jobpilot/shared';
 import type { Message, Response, SessionState, StoredResumePayload } from './messages.js';
+import { syncContentScripts } from './platforms.js';
 import {
   clearSession,
   getApiBaseUrl,
@@ -182,6 +183,24 @@ async function handle(message: WorkerMessage): Promise<unknown> {
       await clearSession();
       return currentSession();
 
+    /*
+     * A session the website handed over after signing in there.
+     *
+     * Trusted because of where it can come from, not because of what it says.
+     * The only sender is the content script, and that script only runs on
+     * jobpilot's own origin — the manifest's `matches` decides that, and it is
+     * the actual security boundary here. The content script additionally
+     * refuses messages that did not originate from its own window, so a framed
+     * third-party page cannot post one through it.
+     *
+     * The token is not verified here. It does not need to be: an invalid one
+     * simply 401s on the first API call and the session is cleared, which is
+     * the same path an expired token already takes.
+     */
+    case 'ADOPT_SESSION':
+      await setSession(message.payload.token, message.payload.email);
+      return currentSession();
+
     case 'SET_API_BASE_URL':
       await setApiBaseUrl(message.payload.apiBaseUrl);
       return currentSession();
@@ -234,3 +253,24 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
   // the sender's promise resolves to undefined immediately.
   return true;
 });
+
+/* ------------------------- optional platform sites ------------------------ */
+
+/*
+ * Keep the dynamic content-script registrations matching what Chrome has
+ * actually granted.
+ *
+ * Driven off `chrome.permissions` events rather than off the popup, because
+ * the popup is not the only way a permission changes: a user can revoke a site
+ * from Chrome's own extension settings, and an extension that kept a stale
+ * registration would be trying to run somewhere it no longer may.
+ *
+ * `onStartup` and `onInstalled` both re-sync. Registrations are declared
+ * `persistAcrossSessions`, so this is belt-and-braces — but the case it covers
+ * is an update that changes the script filename or the platform list, where
+ * what was persisted no longer describes what should be running.
+ */
+chrome.runtime.onStartup.addListener(() => void syncContentScripts());
+chrome.runtime.onInstalled.addListener(() => void syncContentScripts());
+chrome.permissions.onAdded.addListener(() => void syncContentScripts());
+chrome.permissions.onRemoved.addListener(() => void syncContentScripts());

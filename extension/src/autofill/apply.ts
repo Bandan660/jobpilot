@@ -311,6 +311,10 @@ export async function runApply({
   let submitClicked = false;
   let ticksSinceSubmit = 0;
 
+  /** Field values as of the last refusal to advance, and whether it was said. */
+  let heldValues = '';
+  let heldAnnounced = false;
+
   /** The last set of questions reported, so waiting is not announced 120×/min. */
   let announced = '';
   /** Anything that counts as the run getting somewhere. */
@@ -346,6 +350,10 @@ export async function runApply({
     if (stepSignature(now) !== seen) {
       step += 1;
       advanceAttempts = 0;
+      // A real step change retires the hold: the fields it was watching are
+      // gone, so their values mean nothing on the step that replaced them.
+      heldValues = '';
+      heldAnnounced = false;
       active();
 
       // A step that changed after the submit, with the submit button gone, is
@@ -586,14 +594,56 @@ export async function runApply({
       });
     }
 
+    /*
+     * The form will not move and nothing on it says why.
+     *
+     * This used to end the run. It was the wrong shape for the commonest
+     * cause: an answer the page rejects. The user types something the form
+     * dislikes, the step refuses, the cap is reached, and the run is over —
+     * so correcting the field afterwards achieves nothing, because there is
+     * no longer anything watching it. That is the same dead end the blocker
+     * refactor removed everywhere else, left behind in the one branch that
+     * reaches it when `findBlockers` cannot name the problem.
+     *
+     * So it holds instead of ending: stop pressing a button that is not
+     * working, say so, and keep watching. `advanceAttempts` cannot reset off
+     * `stepSignature` here — that ignores values by design, and a corrected
+     * field changes nothing else — so the retry is keyed to the values
+     * themselves. Touch the form and it tries again; leave it alone and it
+     * sits quietly rather than hammering a form that has already said no.
+     *
+     * The outer idle timeout is still the backstop. Ten minutes of no edits
+     * and no movement ends the run the way it always did.
+     */
     if (advanceAttempts >= MAX_ADVANCE_ATTEMPTS) {
-      return report({
-        status: 'blocked',
-        step,
-        filled: totalFilled,
-        diagnostic: describeStep(now),
-        message: `The form would not move on after ${advanceAttempts} tries. Here is everything on this step:`,
-      });
+      const values = valueSignature(now);
+
+      if (values !== heldValues) {
+        // Either the hold has just started, or the user has changed something
+        // since it did. Both are worth another press.
+        heldValues = values;
+        advanceAttempts = 0;
+        heldAnnounced = false;
+        active();
+      } else {
+        if (!heldAnnounced) {
+          heldAnnounced = true;
+          trace('form refused to advance; holding for a correction', describeStep(now));
+
+          report({
+            status: 'waiting',
+            step,
+            filled: totalFilled,
+            blockers: [{ label: 'This step will not continue — check the fields for an error', kind: 'invalid' }],
+            diagnostic: describeStep(now),
+            message:
+              'The form would not move on and did not say why. Check this step for a field it is rejecting — correcting it picks the run back up.',
+          });
+        }
+
+        await sleep(TICK_MS);
+        continue;
+      }
     }
 
     advanceAttempts += 1;
@@ -760,5 +810,28 @@ function stepSignature(scope: ParentNode): string {
     .slice(0, 60);
 
   return `${heading}#${controls}#${buttons}`;
+}
+
+/**
+ * What the step currently *contains*, as opposed to what it is made of.
+ *
+ * `stepSignature` deliberately ignores values — it answers "did the form move
+ * to a different step", and a signature that changed every keystroke could not
+ * do that. But it means editing a field is invisible to the loop, and the one
+ * place that matters is the hold below: a run parked because the form refused
+ * to advance has to notice the user fixing the field, and fixing a field
+ * changes nothing else. Values are the only evidence there is.
+ */
+function valueSignature(scope: ParentNode): string {
+  return [...scope.querySelectorAll<HTMLElement>('input, select, textarea')]
+    .filter((el) => visible(el))
+    .map((el) => {
+      const control = el as HTMLInputElement;
+      const type = control.type?.toLowerCase();
+      if (type === 'checkbox' || type === 'radio') return control.checked ? '1' : '0';
+      if (type === 'file') return String(control.files?.length ?? 0);
+      return control.value ?? '';
+    })
+    .join('|');
 }
 

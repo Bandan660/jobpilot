@@ -26,6 +26,15 @@ import { squish, type JobAdapter } from './types.js';
 const MIN_USEFUL_LENGTH = 50;
 
 /**
+ * The bar for text found by shape rather than by name.
+ *
+ * A named container is evidence in itself — someone called it the description.
+ * An unnamed block is a guess, and a guess has to look like a posting before it
+ * is believed.
+ */
+const MIN_GUESS_LENGTH = 400;
+
+/**
  * The API caps this at 12,000 and truncating here rather than being rejected
  * keeps the failure quiet — job descriptions run to pages of boilerplate about
  * company values, and the requirements are near the top.
@@ -78,13 +87,53 @@ function readable(node: Element | null): string | null {
   return cleaned.length >= MIN_USEFUL_LENGTH ? cleaned : null;
 }
 
+/**
+ * The content node inside a wrapper, found by shape rather than by name.
+ *
+ * Descends while a single child holds almost all of the text. Layout wrappers
+ * have exactly that property — one meaningful child and nothing else — so this
+ * walks past however many of them a framework has stacked up and stops at the
+ * node where the content actually branches into paragraphs and bullets.
+ *
+ * It is the answer to a class of failure that keeps recurring here: every
+ * selector in this file is a name LinkedIn chose, LinkedIn rotates its names
+ * without notice, and when they all miss the scrape returns null and the panel
+ * has nothing to compare. Shape survives a rename.
+ */
+function contentNode(root: Element): Element {
+  let node = root;
+
+  for (let depth = 0; depth < 12; depth += 1) {
+    const total = node.textContent?.length ?? 0;
+    if (total === 0) return node;
+
+    const dominant = [...node.children].find(
+      (child) => (child.textContent?.length ?? 0) >= total * 0.9
+    );
+
+    if (!dominant) return node;
+    node = dominant;
+  }
+
+  return node;
+}
+
 export function jobDescription(doc: Document, adapter: JobAdapter): string | null {
+  /*
+   * `main` is last before giving up, and it is the one entry here that is not
+   * a name someone can rename. `extract()` in the LinkedIn adapter already
+   * falls back to it for the same reason. Without it, a rotation of the hashed
+   * pane classes leaves `detailsPane` as the whole document — which also
+   * disables the structural fallback at the bottom of this function, since that
+   * refuses to guess across an entire page.
+   */
   const detailsPane =
     doc.querySelector('.jobs-search__job-details') ??
     doc.querySelector('.jobs-search-two-pane__details') ??
     doc.querySelector('.jobs-details__main-content') ??
     doc.querySelector('.job-view-layout') ??
     doc.querySelector('[class*="job-details"]') ??
+    doc.querySelector('main') ??
     doc;
 
   const selectors = [
@@ -109,6 +158,41 @@ export function jobDescription(doc: Document, adapter: JobAdapter): string | nul
   const jsonLd = descriptionFromJsonLd(doc);
   if (jsonLd && jsonLd.length >= MIN_USEFUL_LENGTH) {
     return jsonLd.length > MAX_LENGTH ? `${jsonLd.slice(0, MAX_LENGTH - 1)}…` : jsonLd;
+  }
+
+  /*
+   * Every name missed and there is no structured data. Read the pane by shape.
+   *
+   * Reached only when the alternative is returning null, so it cannot make
+   * anything worse: the caller's other option at this point is no comparison
+   * at all. It can over-collect — on a details pane whose top card and body are
+   * siblings this returns both — and that is an acceptable trade, because the
+   * top card is a job title and a company name, which cost the match a couple
+   * of stray skill names at worst.
+   *
+   * The threshold is higher than MIN_USEFUL_LENGTH deliberately. A guess needs
+   * to clear a bar a teaser cannot: 50 characters of unidentified text is as
+   * likely to be a cookie banner as a posting.
+   */
+  if (detailsPane !== doc && !isSearchSidebar(detailsPane as Element)) {
+    const node = contentNode(detailsPane as Element);
+
+    /*
+     * A node still containing the results list is the search page, not a
+     * posting. Reachable because the pane chain now ends at `main`, which on
+     * a two-pane layout wraps both columns — and forty other postings' skills
+     * would produce a confident comparison against nothing the user is looking
+     * at. Refusing here just means the card says it could not read the page,
+     * which is true and harmless.
+     */
+    const swallowedList = node.querySelector(
+      '.jobs-search-results-list, .jobs-search-results, [class*="job-card-list"]'
+    );
+
+    const guess = swallowedList ? null : readable(node);
+    if (guess && guess.length >= MIN_GUESS_LENGTH) {
+      return guess.length > MAX_LENGTH ? `${guess.slice(0, MAX_LENGTH - 1)}…` : guess;
+    }
   }
 
   return null;

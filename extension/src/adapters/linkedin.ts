@@ -54,17 +54,39 @@ function jobIdFrom(url: URL): string | null {
   const fromQuery = url.searchParams.get('currentJobId');
   if (fromQuery) return fromQuery;
 
-  // /jobs/view/4012345678/ — the id is the segment after "view".
-  const match = url.pathname.match(/\/jobs\/view\/(\d+)/);
-  return match?.[1] ?? null;
+  /*
+   * Two shapes of /jobs/view/, and only one of them used to work.
+   *
+   * In-app navigation produces the bare id — /jobs/view/4012345678. Every link
+   * that leaves LinkedIn produces a slug with the id on the end instead:
+   * /jobs/view/senior-full-stack-developer-at-getrosoft-4012345678. That is
+   * what a shared link, an emailed posting and a search-engine result all look
+   * like, and it is the first URL a new user is likely to arrive on.
+   *
+   * The old pattern demanded digits immediately after "view", so the slug form
+   * returned null — `isJobPage` then said no, and the extension did nothing at
+   * all on a perfectly ordinary posting. Taking the trailing digits of the
+   * segment covers both, and the id is always last in the slug.
+   */
+  const segment = url.pathname.match(/\/jobs\/view\/([^/?#]+)/)?.[1];
+  return segment?.match(/(\d+)$/)?.[1] ?? null;
 }
 
 export const linkedinAdapter: JobAdapter = {
   ats: 'LINKEDIN',
   version: 'linkedin@1',
 
+  /*
+   * Any LinkedIn host, not just `www`.
+   *
+   * Public postings are served from country subdomains — in.linkedin.com,
+   * uk.linkedin.com — and those are exactly the pages a signed-out visitor or
+   * a search-engine click lands on. The manifest grants `*.linkedin.com` to
+   * match; the two must agree, because an adapter claiming a host the manifest
+   * does not declare is an adapter that never runs, and it fails silently.
+   */
   matches(url) {
-    return url.hostname === 'www.linkedin.com' || url.hostname === 'linkedin.com';
+    return url.hostname === 'linkedin.com' || url.hostname.endsWith('.linkedin.com');
   },
 
   isJobPage(url) {
@@ -200,11 +222,21 @@ export const linkedinAdapter: JobAdapter = {
     return result;
   },
 
+  /*
+   * Signed-in containers first, then the signed-out ones.
+   *
+   * `.show-more-less-html__markup` is the body on a public posting — the page
+   * a country subdomain serves, and now reachable since `matches` covers those
+   * hosts. It sits inside `.description__text` and is the narrower of the two,
+   * so it goes first: the wrapper also carries the "Show more" control, which
+   * would otherwise land in the text the matcher reads.
+   */
   descriptionSelectors: [
     '.jobs-description__content',
     '.jobs-box__html-content',
     '[class*="jobs-description"]',
     '#job-details',
+    '.show-more-less-html__markup',
     '.description__text',
   ],
 

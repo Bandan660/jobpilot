@@ -520,12 +520,36 @@ let autoApplyCancelled = false;
  */
 let matchCache: SkillMatch | null | undefined;
 
+/**
+ * Failed description scrapes, so a client-rendered pane gets a second chance
+ * without being re-read forever. `innerText` forces layout; unbounded retries
+ * on a posting that genuinely has no description would do it every poll.
+ */
+let matchAttempts = 0;
+const MAX_MATCH_ATTEMPTS = 10;
+
 async function computeMatch(): Promise<SkillMatch | null> {
   if (matchCache !== undefined) return matchCache;
 
   const description = pageDescription();
   if (!description) {
-    matchCache = null;
+    /*
+     * NOT cached, for the same reason the profile below is not.
+     *
+     * This used to set `matchCache = null`, and on LinkedIn that was fatal.
+     * The panel paints the moment a job is identified — which the top card and
+     * og:title supply well before the description pane has rendered — so the
+     * first scrape finds nothing, and caching that answer meant the posting was
+     * never looked at again. `matchCache` is only cleared on navigation, so the
+     * card read "no skills recognised" for the rest of the posting's life over
+     * a description that arrived a few hundred milliseconds later.
+     *
+     * Naukri never showed it: the description is in the server-rendered HTML,
+     * so the first attempt always succeeded. That is what made this look like a
+     * LinkedIn adapter fault rather than a caching one.
+     */
+    matchAttempts += 1;
+    if (matchAttempts >= MAX_MATCH_ATTEMPTS) matchCache = null;
     return null;
   }
 
@@ -548,6 +572,60 @@ function pageDescription(): string | null {
   const url = new URL(window.location.href);
   const adapter = findAdapter(url);
   return adapter ? jobDescription(document, adapter) : null;
+}
+
+/**
+ * Has a description turned up yet — cheaply enough to ask every poll.
+ *
+ * Part of the tracking signature, and it has to be, because nothing else in
+ * that signature moves when a description arrives: the id, the title, the
+ * company and the Easy Apply field count are all identical before and after
+ * the pane renders. Without this the repaint that would retry the scrape never
+ * happens, and a posting whose body loaded late stays uncompared.
+ *
+ * `textContent`, not `innerText`: this only needs to know whether text exists,
+ * and textContent does not force a layout. The real read stays in
+ * `jobDescription`, which runs once per posting rather than once per poll.
+ */
+/**
+ * Why the description could not be read, in one line the user can screenshot.
+ *
+ * LinkedIn rotates its class names, so "the scrape found nothing" is a report
+ * that will recur for the life of this product — and diagnosing it has twice
+ * meant asking someone to paste a console one-liner from a page only they can
+ * see. The panel already knows the answer at the moment it fails; printing it
+ * costs one line and turns every future report into a screenshot that names
+ * the container to add.
+ *
+ * Computed only on failure, so the querySelectorAll cost never lands on the
+ * normal path.
+ */
+function describeDescriptionMiss(): string[] {
+  const adapter = findAdapter(new URL(window.location.href));
+  const probes = [
+    ...(adapter?.descriptionSelectors ?? []),
+    'main',
+    'article',
+    '[class*="description"]',
+  ];
+
+  return probes.map((selector) => {
+    const el = document.querySelector(selector);
+    const length = el?.textContent?.trim().length ?? 0;
+    return `${selector} ${el ? length : '—'}`;
+  });
+}
+
+function descriptionArrived(): boolean {
+  const adapter = findAdapter(new URL(window.location.href));
+  if (!adapter) return false;
+
+  for (const selector of adapter.descriptionSelectors ?? []) {
+    const length = document.querySelector(selector)?.textContent?.trim().length ?? 0;
+    if (length >= 50) return true;
+  }
+
+  return false;
 }
 
 /**
@@ -607,6 +685,8 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
     match: matchVal,
     isAnalyzingMatch: isAnalyzing,
     isExternalJob,
+    // Only when there is nothing to show and the user is owed a reason.
+    matchDiagnostic: matchVal === null && authenticated ? describeDescriptionMiss() : undefined,
   });
 
   const handlers: PanelHandlers = {
@@ -787,7 +867,9 @@ function startTracking(adapter: JobAdapter): () => void {
       const fields = modal ? modal.querySelectorAll('input, select, textarea').length : 0;
 
       const jobKey = [job.externalId, job.title, job.company].join('|');
-      const signature = [jobKey, fields].join('|');
+      // The description bit flips once, when a client-rendered pane finishes.
+      // That repaint is what lets a first failed scrape try again.
+      const signature = [jobKey, fields, descriptionArrived() ? 'd' : '-'].join('|');
       if (signature === lastSignature) return;
 
       const jobChanged = jobKey !== lastJobKey;
@@ -851,6 +933,7 @@ async function init(): Promise<void> {
 
   // The comparison was about the posting that just went away.
   matchCache = undefined;
+  matchAttempts = 0;
 
   captured = false;
   submitRecorded = false;
@@ -1054,19 +1137,99 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
  * Set before anything else so it lands even if adapter matching bails.
  */
 function announce(): void {
-  if (!/(^|.)jobpilot-3lg.pages.dev$/.test(window.location.hostname)) return;
+  if (!onOwnSite()) return;
   document.documentElement.dataset.jobpilotExtension =
     chrome.runtime.getManifest().version;
 }
 
-announce();
-watchNavigation();
+/** jobpilot's own site — the only origin allowed to hand over a session. */
+function onOwnSite(): boolean {
+  return /(^|\.)jobpilot-3lg\.pages\.dev$/.test(window.location.hostname);
+}
 
-/*
- * Failures here must not become unhandled rejections. This script runs on
- * someone else's page, where an uncaught error is both useless to them and
- * reported against content.js:1 with no frame worth reading.
+/**
+ * Take the session the website hands over after signing in there.
+ *
+ * Sign-in lives on the website now. Google's consent flow does not belong in a
+ * 360px popup, and two sign-in surfaces is two things to keep working against
+ * one identity provider — so the popup sends people to the site, and the site
+ * passes the result back through here.
+ *
+ * FOUR CHECKS, AND EACH ONE MATTERS
+ *
+ * - The host is jobpilot's own. The manifest already guarantees this script
+ *   only runs there, so this is belt and braces — but it is one line, and the
+ *   thing being handled is a bearer token for someone's account.
+ * - `event.source === window`. Without it, an iframe embedded in the page could
+ *   post a session and have it adopted. jobpilot embeds none, which is the sort
+ *   of fact that stays true until someone adds a widget.
+ * - `event.origin === window.location.origin`. Rejects anything cross-origin
+ *   that got a handle to this window.
+ * - The payload is shaped as expected, and nothing else on the page's message
+ *   channel is treated as a login.
+ *
+ * Deliberately not verified beyond that. A bad token 401s on the first API
+ * call and the session is dropped — the path an expired token already takes.
  */
-init().catch((error) => {
-  console.warn('[jobpilot] init failed:', error);
-});
+function listenForWebSession(): void {
+  if (!onOwnSite()) return;
+
+  window.addEventListener('message', (event: MessageEvent) => {
+    if (event.source !== window) return;
+    if (event.origin !== window.location.origin) return;
+
+    const data = event.data as
+      | { source?: unknown; type?: unknown; token?: unknown; email?: unknown }
+      | null;
+
+    if (!data || data.source !== 'jobpilot-web' || data.type !== 'SESSION') return;
+    if (typeof data.token !== 'string' || !data.token) return;
+
+    void send({
+      type: 'ADOPT_SESSION',
+      payload: { token: data.token, email: typeof data.email === 'string' ? data.email : '' },
+    });
+  });
+}
+
+/**
+ * Refuse to start twice in one page.
+ *
+ * A second copy of this script is not a second panel — `HOST_ID` makes the DOM
+ * idempotent — it is a second MutationObserver, a second poll timer, and a
+ * second submit detector, all invisible. The capture guards are module state,
+ * so the two instances cannot see each other's `captured` or `captureInFlight`
+ * flags, and the duplicate write those exist to prevent comes straight back.
+ *
+ * `teardown` cannot cover this: it belongs to whichever instance is running,
+ * and a fresh injection gets a fresh closure with nothing to tear down.
+ *
+ * Reachable because enabling an optional platform injects into tabs already
+ * open on that host, and the same tab can be toggled off and on again. The
+ * marker goes on `window`, not on the DOM, because it must be invisible to the
+ * page and must not survive a navigation the way an attribute would.
+ */
+const RUNNING = '__jobpilotContentScriptRunning';
+type Marked = Window & { [RUNNING]?: boolean };
+
+if ((window as Marked)[RUNNING]) {
+  console.info('[jobpilot] content script already running here — second copy stood down');
+} else {
+  (window as Marked)[RUNNING] = true;
+  start();
+}
+
+function start(): void {
+  announce();
+  listenForWebSession();
+  watchNavigation();
+
+  /*
+   * Failures here must not become unhandled rejections. This script runs on
+   * someone else's page, where an uncaught error is both useless to them and
+   * reported against content.js:1 with no frame worth reading.
+   */
+  init().catch((error) => {
+    console.warn('[jobpilot] init failed:', error);
+  });
+}

@@ -205,3 +205,85 @@
 .auth-legal a:hover {
   color: var(--text);
 }
+
+/* ----------------------------- Google sign-in ----------------------------- */
+
+/*
+ * White with a grey border in both themes, deliberately.
+ *
+ * Google's branding guidelines specify the button's own colours, and unlike
+ * everything else here it does not follow the site palette — a "Continue with
+ * Google" button recoloured to match a dark theme stops looking like the
+ * control people recognise, which is the entire reason to use their mark.
+ */
+.btn-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #dadce0;
+  background: #ffffff;
+  color: #1f1f1f;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.btn-google:hover:not(:disabled) {
+  background: #f7f8f8;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.25);
+}
+
+.btn-google:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* "or" with a rule either side, drawn with borders rather than a background
+   image so it inherits the theme's line colour. */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: var(--gap-sm) 0;
+  color: var(--muted);
+  font-size: var(--step--2);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* A button that reads as a link: it performs an action rather than navigating,
+   so it must not be an anchor, but it should not look like a submit button
+   sitting next to the real one either. */
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--step--2);
+  color: var(--signal-text);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.auth-forgot {
+  align-self: flex-start;
+  margin-top: -4px;
+}
+
+.notice-text {
+  font-size: var(--step--2);
+  color: var(--live);
+  line-height: 1.45;
+}

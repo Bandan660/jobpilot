@@ -9,6 +9,7 @@ import { profileRoutes } from './routes/profile.js';
 import { resumeRoutes } from './routes/resumes.js';
 import { statsRoutes } from './routes/stats.js';
 import { analyzeRoutes } from './routes/analyze.js';
+import { adminRoutes } from './routes/admin.js';
 import { createDb } from './db/client.js';
 import { sweepPostings } from './workers/postingChecker.js';
 import { isAllowedOrigin, type AppContext, type Env } from './env.js';
@@ -47,6 +48,7 @@ app.route('/api/profile', profileRoutes);
 app.route('/api/resumes', resumeRoutes);
 app.route('/api/stats', statsRoutes);
 app.route('/api/analyze', analyzeRoutes);
+app.route('/api/admin', adminRoutes);
 
 app.notFound((c) => {
   const body: ApiError = { error: 'not_found', message: 'No such endpoint' };

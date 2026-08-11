@@ -49,12 +49,28 @@ export const users = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').notNull(),
-    /** PBKDF2 output, encoded by hashPassword() in auth/password.ts. */
-    passwordHash: text('password_hash').notNull(),
+    /**
+     * PBKDF2 output, encoded by hashPassword() in auth/password.ts.
+     *
+     * Nullable since Firebase became the identity provider: an account created
+     * by Google sign-in has no password here and never will. `verifyPassword`
+     * is only reached through /api/auth/login, which refuses a null hash rather
+     * than treating it as "no password required".
+     */
+    passwordHash: text('password_hash'),
+    /**
+     * Firebase uid, for accounts that arrived through Firebase.
+     *
+     * Stored rather than matching on email alone, because email is mutable at
+     * the provider and the uid is not. Null for accounts created before
+     * Firebase, which is what lets the two coexist while any remain.
+     */
+    firebaseUid: text('firebase_uid'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     emailIdx: uniqueIndex('users_email_idx').on(sql`lower(${t.email})`),
+    firebaseUidIdx: uniqueIndex('users_firebase_uid_idx').on(t.firebaseUid),
   })
 );
 

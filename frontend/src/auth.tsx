@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { clearToken, getToken, setToken } from './api.js';
+import { handOffWhenReady } from './extensionBridge.js';
 
 interface AuthValue {
   isAuthenticated: boolean;
@@ -27,6 +28,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearToken();
     setTokenState(null);
   }, []);
+
+  /*
+   * Pass the session to the extension whenever there is one.
+   *
+   * In an effect rather than inside `signIn`, so it also covers arriving on the
+   * site already signed in — which is the common case once someone installs the
+   * extension after making their account, and the one a sign-in-only hook
+   * silently misses.
+   */
+  useEffect(() => handOffWhenReady(token, null), [token]);
 
   const value = useMemo(
     () => ({ isAuthenticated: Boolean(token), signIn, signOut }),

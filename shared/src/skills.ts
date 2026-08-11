@@ -213,8 +213,107 @@ export interface SkillMatch {
   matched: string[];
   /** Recognised requirements it does not. */
   missing: string[];
+  /**
+   * Named only under a nice-to-have heading, and held. A genuine plus, shown
+   * as one — but kept out of the score, because scoring above 100% of what a
+   * posting requires is not a thing.
+   */
+  bonus: string[];
+  /** Named only under a nice-to-have heading, and not held. Costs nothing. */
+  preferred: string[];
   /** Years the posting asks for, when it says so plainly. */
   yearsWanted: number | null;
+}
+
+/**
+ * Headings that open an optional section, and headings that close one.
+ *
+ * Checked against short lines only. A heading is a few words on its own line;
+ * the same words inside a paragraph are prose, and treating "we have a strong
+ * preference for candidates who…" as a section break would silently drop the
+ * rest of the requirements out of the score.
+ *
+ * Optional is tested first on purpose: "Preferred Qualifications" matches both
+ * lists, and it is an optional section.
+ */
+const OPTIONAL_HEADING =
+  /\b(nice[\s-]*to[\s-]*haves?|good[\s-]*to[\s-]*haves?|preferred|bonus|desirable|advantageous|pluses|optional)\b/i;
+
+const REQUIRED_HEADING =
+  /\b(requirements?|required|responsibilities|qualifications|must[\s-]*haves?|what you.{0,3}ll do|what you.{0,3}ll bring|about you|who you are|your role|the role|key skills|essential)\b/i;
+
+/**
+ * The same idea inline, for the posting that never writes a heading at all.
+ *
+ * "Experience with Kafka is a plus" is one optional requirement in the middle
+ * of a required list, and it is by far the commonest way this is expressed.
+ * Scoped to the line it appears on, so it marks that bullet optional without
+ * moving the section.
+ */
+const INLINE_OPTIONAL =
+  /\b(is a plus|are a plus|a strong plus|nice to have|good to have|bonus points|would be a bonus|but not required)\b/i;
+
+/** A heading is short. A paragraph that happens to contain the word is not. */
+const MAX_HEADING_LENGTH = 80;
+
+/**
+ * Short is not enough on its own.
+ *
+ * "Preferred candidate should be an immediate joiner based in Hyderabad" is 67
+ * characters and not a heading, and treating it as one moves every line after
+ * it into the optional bucket. A real heading either ends in a colon or is a
+ * handful of words; requiring one of those keeps a sentence from silently
+ * closing the requirements list.
+ */
+function looksLikeHeading(line: string): boolean {
+  if (line.length > MAX_HEADING_LENGTH) return false;
+  return line.endsWith(':') || line.split(/\s+/).length <= 5;
+}
+
+/**
+ * Split a posting into what it demands and what it merely likes.
+ *
+ * Without this every "nice to have" counted as a requirement at full weight,
+ * and the effect was not small: a candidate holding all thirteen hard
+ * requirements of a posting that also listed four optional extras scored 59%
+ * rather than 77%, and four chips reading "Not in your profile" pointed at
+ * things the posting had explicitly said were not needed. The number that
+ * matters is overlap with what is actually required.
+ */
+export function splitRequirements(text: string): { required: string; optional: string } {
+  const required: string[] = [];
+  const optional: string[] = [];
+  let inOptional = false;
+
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (looksLikeHeading(trimmed)) {
+      if (OPTIONAL_HEADING.test(trimmed)) {
+        inOptional = true;
+        optional.push(trimmed);
+        continue;
+      }
+
+      if (REQUIRED_HEADING.test(trimmed)) {
+        inOptional = false;
+        required.push(trimmed);
+        continue;
+      }
+    }
+
+    // A line that says it is optional is optional wherever it sits, and does
+    // not drag the lines after it along with it.
+    if (!inOptional && INLINE_OPTIONAL.test(trimmed)) {
+      optional.push(trimmed);
+      continue;
+    }
+
+    (inOptional ? optional : required).push(trimmed);
+  }
+
+  return { required: required.join('\n'), optional: optional.join('\n') };
 }
 
 /**
@@ -247,7 +346,38 @@ export interface MatchableProfile {
  * that costs the user an application.
  */
 export function matchSkills(description: string, profile: MatchableProfile): SkillMatch {
-  const required = extractSkills(description);
+  const sections = splitRequirements(description);
+
+  let required = extractSkills(sections.required);
+  let optionalText = sections.optional;
+
+  /*
+   * A split that leaves nothing required is a bad split, not an empty posting.
+   *
+   * The sectioning is a heuristic over free text and it has exactly one
+   * catastrophic failure: put every skill the posting names into the optional
+   * bucket and the card reports "No skills named in this posting that jobpilot
+   * recognises" over a posting full of them. Four ordinary shapes did it —
+   * "Preferred skills:" with no requirements heading after it, everything
+   * under "Bonus:", a lone "Desirable profile:" — because `inOptional` stays
+   * set until something turns it off, and nothing has to.
+   *
+   * So the heuristic is allowed to refine the score, never to erase it. If it
+   * classified everything as optional, it learned nothing, and the whole
+   * posting is read as requirements the way it was before any of this.
+   */
+  if (required.length === 0) {
+    required = extractSkills(description);
+    optionalText = '';
+  }
+
+  /*
+   * Optional *only*. A skill named in both lists is a requirement that the
+   * posting also happened to mention under "nice to have" — the stronger
+   * statement wins, and it stays in the score.
+   */
+  const requiredSet = new Set(required);
+  const optional = extractSkills(optionalText).filter((skill) => !requiredSet.has(skill));
 
   const evidence = [
     ...(profile.skills ?? []),
@@ -260,8 +390,12 @@ export function matchSkills(description: string, profile: MatchableProfile): Ski
 
   const matched = required.filter((skill) => held.has(skill));
   const missing = required.filter((skill) => !held.has(skill));
+  const bonus = optional.filter((skill) => held.has(skill));
+  const preferred = optional.filter((skill) => !held.has(skill));
 
   return {
+    bonus,
+    preferred,
     /*
      * Zero when the posting named nothing recognisable. Callers check
      * `matched.length + missing.length` before showing a score, because "0%"

@@ -478,6 +478,39 @@ before touching anything.
 
 **Decisions already made — do not re-raise:**
 
+- **The first release ships three platforms enabled: LinkedIn, Indeed, Naukri.**
+  They are what India's job search runs through and the only three driven
+  against live postings. Every other adapter is compiled into the bundle and
+  reachable, but its host is opt-in: declared in `optional_host_permissions`
+  and granted per site from the popup. `platforms.ts` owns that list and is the
+  only file to edit when adding one — `ADAPTERS` already carries them all, and
+  trimming it would only make an enabled platform fall through to
+  `genericAdapter`.
+
+  This is why the hosts are optional rather than added to
+  `content_scripts.matches` one release at a time: adding a *required* host
+  permission to an update is a permission increase, and Chrome disables the
+  extension for every existing install until each user re-accepts. Doing that
+  once per adapter would knock users offline repeatedly. Do not "simplify" an
+  opt-in platform by moving its host into `content_scripts`.
+
+  Greenhouse is the one to enable first: it is the only opt-in adapter proven
+  on a live posting.
+- **Firebase is the identity provider; jobpilot still issues the session.**
+  Sign-in happens at Firebase (Google or email/password), the client exchanges
+  the Firebase ID token once at `POST /api/auth/firebase`, and the Worker
+  returns the same 30-day jobpilot JWT everything already used. `requireAuth`,
+  every route, the admin allowlist and every foreign key were unchanged by this.
+
+  Do not "simplify" it by verifying Firebase tokens per request. They last one
+  hour and need refresh-token handling; the extension holds its session in
+  `chrome.storage.local` with no refresh flow, and `jwt.ts` records why a short
+  expiry is wrong here — being signed out mid-application is the most costly
+  moment to interrupt anyone.
+
+  `users.passwordHash` is nullable as a result. `/api/auth/login` refuses a null
+  hash explicitly: "no local password" must mean "cannot log in this way", never
+  "no password required".
 - Auto-submit stays on. Taken with the Web Store and rate-limiting costs
   stated. See the guardrails note above before changing anything near it.
 - The match score is requirement overlap, never a callback probability.
@@ -507,10 +540,10 @@ before touching anything.
 - `optional_host_permissions` is declared but not wired to `chrome.scripting`.
 - Workday matters most among the untested: it emits no JSON-LD at all, so
   `workday.ts` is the only thing standing between it and an empty capture.
-- Two hosts are matched by an adapter but absent from `manifest.json`, so the
-  content script never runs there: `myworkdaysite.com` (newer Workday tenants)
-  and `successfactors.eu` (EU-hosted SAP). Adding the match patterns is all
-  either needs.
+- `myworkdaysite.com` (newer Workday tenants) and `successfactors.eu` (EU-hosted
+  SAP) are matched by their adapters but have never been in `manifest.json`.
+  Moot while both are parked; add the patterns alongside the existing ones when
+  Workday or SuccessFactors is brought back.
 - The extension is not on the Web Store, so the install banner points at
   `/copilot` rather than a listing.
 - `frontend/src/content/site.ts` holds placeholder contact details that render

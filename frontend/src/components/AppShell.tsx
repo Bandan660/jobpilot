@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth.js';
+import { api } from '../api.js';
 import { ThemeToggle } from '../theme.js';
 import { Brand } from './SiteChrome.js';
 import { ResumeBuilderLink } from './ResumeBuilderLink.js';
@@ -21,6 +23,30 @@ const NAV = [
 export function AppShell() {
   const { signOut } = useAuth();
 
+  /*
+   * The admin link appears only for an admin, and the answer comes from the
+   * server. There is no client-side notion of who is an admin — the allowlist
+   * is a Worker secret — so this asks once per mount and defaults to hidden.
+   *
+   * Hiding it is presentation, not protection: /api/admin/* refuses anyone not
+   * on the allowlist regardless of what the nav shows.
+   */
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .session()
+      .then((s) => !cancelled && setIsAdmin(s.isAdmin))
+      .catch(() => {
+        // A failed probe is not an error worth surfacing — it costs a link,
+        // not a feature, and the page it points at is one URL away.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="app">
       <header className="app-nav">
@@ -33,6 +59,11 @@ export function AppShell() {
                 {item.label}
               </NavLink>
             ))}
+            {isAdmin && (
+              <NavLink to="/dashboard/admin" end={false}>
+                Admin
+              </NavLink>
+            )}
           </nav>
 
           {/*

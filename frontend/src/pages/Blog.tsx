@@ -268,8 +268,8 @@ export function BlogPost() {
                     width: '36px',
                     height: '36px',
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
-                    color: '#120c02',
+                    background: 'linear-gradient(135deg, var(--signal-bright) 0%, var(--signal) 100%)',
+                    color: 'var(--on-signal)',
                     display: 'grid',
                     placeItems: 'center',
                     fontWeight: 800,
@@ -294,9 +294,9 @@ export function BlogPost() {
                   alert('Link copied to clipboard!');
                 }}
                 style={{
-                  background: 'rgba(255,176,32,0.12)',
-                  border: '1px solid rgba(255,176,32,0.3)',
-                  color: '#ffb020',
+                  background: 'var(--signal-wash)',
+                  border: '1px solid var(--signal-dim)',
+                  color: 'var(--signal-text)',
                   padding: '4px 12px',
                   borderRadius: '999px',
                   fontSize: '12px',
@@ -316,14 +316,14 @@ export function BlogPost() {
           {/* Key Takeaways Box */}
           <div
             style={{
-              background: 'linear-gradient(135deg, rgba(255,176,32,0.08) 0%, rgba(13,20,36,0.95) 100%)',
-              border: '1px solid rgba(255,176,32,0.35)',
+              background: 'linear-gradient(135deg, var(--signal-wash) 0%, var(--panel) 100%)',
+              border: '1px solid var(--signal-dim)',
               borderRadius: '14px',
               padding: '18px 22px',
               margin: '32px 0 24px 0',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ffb020', fontWeight: 800, fontSize: '13.5px', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--signal-text)', fontWeight: 800, fontSize: '13.5px', marginBottom: '8px' }}>
               <span>💡 Key Takeaways in 30 Seconds</span>
             </div>
             <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13.5px', color: 'var(--text)', lineHeight: 1.6 }}>
@@ -353,7 +353,7 @@ export function BlogPost() {
           {/* Author Bio Footer Box */}
           <div
             style={{
-              background: 'var(--panel-alt, rgba(0,0,0,0.25))',
+              background: 'var(--panel-raised)',
               border: '1px solid var(--line)',
               borderRadius: '14px',
               padding: '20px',
@@ -368,8 +368,8 @@ export function BlogPost() {
                 width: '44px',
                 height: '44px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
-                color: '#120c02',
+                background: 'linear-gradient(135deg, var(--signal-bright) 0%, var(--signal) 100%)',
+                color: 'var(--on-signal)',
                 display: 'grid',
                 placeItems: 'center',
                 fontWeight: 800,

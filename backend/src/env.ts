@@ -16,6 +16,21 @@ export interface Env {
   POSTING_RECHECK_AFTER_HOURS: string;
   POSTING_CHECK_BATCH_SIZE: string;
   GHOST_AFTER_DAYS: string;
+  /**
+   * Comma-separated emails allowed to read the admin metrics.
+   *
+   * Optional, and absent means nobody — see `requireAdmin`. Deliberately not a
+   * database column: there is then nothing in the database that can be edited
+   * to grant admin, and revoking is a deploy rather than a query.
+   */
+  ADMIN_EMAILS?: string;
+  /**
+   * Firebase project id. Not a secret — it appears in the client config — but
+   * it is the audience every ID token is checked against, so a wrong or empty
+   * value is the difference between verifying tokens and accepting anyone's.
+   * `/api/auth/firebase` 503s rather than guessing when it is unset.
+   */
+  FIREBASE_PROJECT_ID?: string;
 }
 
 /** Hono context typing used across every route module. */
@@ -40,6 +55,17 @@ function list(raw: string | undefined): string[] {
 
 export function corsOrigins(env: Env): string[] {
   return list(env.CORS_ORIGINS);
+}
+
+/**
+ * Admin emails, lowercased.
+ *
+ * Lowercased here rather than at each call site because the users table
+ * indexes email case-insensitively, so a secret written with different casing
+ * than the signup would otherwise lock the owner out of their own dashboard.
+ */
+export function adminEmails(env: Env): string[] {
+  return list(env.ADMIN_EMAILS).map((email) => email.toLowerCase());
 }
 
 /**

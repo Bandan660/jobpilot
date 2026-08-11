@@ -451,3 +451,46 @@ export function daysBetween(from: Date | string, to: Date | string = new Date())
   const ms = b.getTime() - a.getTime();
   return Math.floor(ms / 86_400_000);
 }
+
+/**
+ * How long ago something happened, in the largest unit that is still true.
+ *
+ * `daysBetween` floors, so everything that happened today is zero — and the
+ * duplicate banner rendered that as "0 days ago" on an application submitted a
+ * minute earlier, which reads as a bug in the tracker rather than as "just
+ * now". Anything under a day needs a smaller unit, and the unit has to come
+ * from the timestamp rather than from a day count that has already thrown the
+ * information away.
+ *
+ * A future timestamp is clock skew between the browser and the server, not a
+ * scheduled application, so it reports as "just now" rather than "in 3 hours".
+ */
+export function relativeTime(from: Date | string | null | undefined, to: Date | string = new Date()): string {
+  if (!from) return '';
+
+  const a = typeof from === 'string' ? new Date(from) : from;
+  const b = typeof to === 'string' ? new Date(to) : to;
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return '';
+
+  const seconds = Math.floor((b.getTime() - a.getTime()) / 1000);
+  if (seconds < 45) return 'just now';
+
+  const plural = (value: number, unit: string) => `${value} ${unit}${value === 1 ? '' : 's'} ago`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return plural(Math.max(1, minutes), 'minute');
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return plural(hours, 'hour');
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) return days === 1 ? 'yesterday' : plural(days, 'day');
+
+  const weeks = Math.floor(days / 7);
+  if (days < 30) return plural(weeks, 'week');
+
+  const months = Math.floor(days / 30);
+  if (months < 12) return plural(months, 'month');
+
+  return plural(Math.floor(days / 365), 'year');
+}

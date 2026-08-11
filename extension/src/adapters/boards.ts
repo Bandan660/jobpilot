@@ -37,7 +37,7 @@ import { pathSegments, textFrom, type JobAdapter } from './types.js';
  * does emit JobPosting JSON-LD, which is the primary path; this is the
  * fallback for when it does not.
  */
-const naukri = defineAdapter({
+export const naukri = defineAdapter({
   version: 'naukri@1',
   hosts: ['www.naukri.com', '.naukri.com'],
   isJobPage: (url) =>
@@ -62,7 +62,7 @@ const naukri = defineAdapter({
 });
 
 /** Indeed. www.indeed.com / in.indeed.com / www.indeed.co.in / smartapply.indeed.com */
-const indeed = defineAdapter({
+export const indeed = defineAdapter({
   version: 'indeed@1',
   hosts: ['.indeed.com', '.indeed.co.in', 'indeed.com', 'indeed.co.in', 'smartapply.indeed.com'],
   isJobPage: (url) =>

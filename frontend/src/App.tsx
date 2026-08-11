@@ -34,6 +34,9 @@ const ApplicationsPage = lazy(() =>
 const ProfilePage = lazy(() =>
   import('./pages/app/ProfilePage.js').then((m) => ({ default: m.ProfilePage }))
 );
+const AdminPage = lazy(() =>
+  import('./pages/app/AdminPage.js').then((m) => ({ default: m.AdminPage }))
+);
 // Lazy above all: this chunk pulls in the PDF parser.
 const Onboarding = lazy(() =>
   import('./pages/Onboarding.js').then((m) => ({ default: m.Onboarding }))
@@ -178,6 +181,9 @@ export function AppRoutes() {
             <Route index element={<DashboardHome />} />
             <Route path="applications" element={<ApplicationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            {/* Guarded by the API, not by this route. The allowlist lives in a
+                Worker secret, so a client-side check would be decoration. */}
+            <Route path="admin" element={<AdminPage />} />
           </Route>
         </Routes>
       </AuthProvider>

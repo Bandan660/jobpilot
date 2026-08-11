@@ -198,3 +198,49 @@ label.inline input {
   width: auto;
   margin: 0;
 }
+
+/* ---------------------------- optional job sites --------------------------- */
+
+.platforms {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.platforms h2 {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+/*
+ * Capped and scrollable: two dozen sites would otherwise make the popup taller
+ * than Chrome allows, and Chrome resolves that by clipping the bottom — which
+ * would hide the sign-out button under the list.
+ */
+.platform-list {
+  max-height: 168px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 6px 0;
+}
+
+label.platform-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 3px 0;
+  font-weight: 500;
+  font-size: 12px;
+  color: #111827;
+  cursor: pointer;
+}
+
+label.platform-row input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}

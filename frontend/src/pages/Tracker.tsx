@@ -107,20 +107,7 @@ export function Tracker() {
                 How capture works
               </Link>
             </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginTop: '12px',
-                fontSize: '12px',
-                color: 'var(--text-dim)',
-              }}
-            >
-              <span style={{ color: '#ffb020', fontWeight: 800 }}>★ 4.9/5 Rating</span>
-              <span>· Joined by 15,000+ active job seekers</span>
-            </div>
-            <span className="hero-note" style={{ marginTop: '6px' }}>
+            <span className="hero-note">
               No card, no trial timer. Free while jobpilot is in early access.
             </span>
           </div>
@@ -131,13 +118,13 @@ export function Tracker() {
                 position: 'absolute',
                 top: '-16px',
                 right: '-12px',
-                background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
-                color: '#120c02',
+                background: 'linear-gradient(135deg, var(--signal-bright) 0%, var(--signal) 100%)',
+                color: 'var(--on-signal)',
                 padding: '6px 12px',
                 borderRadius: '999px',
                 fontSize: '11px',
                 fontWeight: 800,
-                boxShadow: '0 6px 20px rgba(255,176,32,0.4)',
+                boxShadow: '0 6px 20px var(--hero-glow)',
                 zIndex: 10,
                 display: 'flex',
                 alignItems: 'center',
@@ -152,14 +139,14 @@ export function Tracker() {
                 position: 'absolute',
                 bottom: '-14px',
                 left: '-16px',
-                background: '#0d1424',
-                border: '1px solid #10b981',
-                color: '#ffffff',
+                background: 'var(--panel-raised)',
+                border: '1px solid var(--live)',
+                color: 'var(--text)',
                 padding: '6px 12px',
                 borderRadius: '999px',
                 fontSize: '11px',
                 fontWeight: 700,
-                boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+                boxShadow: '0 6px 20px var(--shadow)',
                 zIndex: 10,
                 display: 'flex',
                 alignItems: 'center',

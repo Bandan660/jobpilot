@@ -9,8 +9,18 @@ import { BOARD_ADAPTERS } from './boards.js';
 import { genericAdapter } from './generic.js';
 
 /**
- * Adding an ATS means writing an adapter, registering it here, and adding the
- * host to manifest.json's `matches`. Nothing else in the extension changes.
+ * Every adapter, always. What *runs* is decided elsewhere.
+ *
+ * This list used to be trimmed to the shipping platforms, which was the wrong
+ * lever: a content script that never executes on a host cannot be reached by
+ * `findAdapter` in the first place, and trimming here only meant that a
+ * platform the user later enabled would fall through to `genericAdapter`
+ * instead of the adapter written for it.
+ *
+ * Where the extension may run is decided by permissions —
+ * `content_scripts.matches` for the three that ship enabled (LinkedIn, Indeed,
+ * Naukri), and `optional_host_permissions` plus a granted request for the
+ * rest. `platforms.ts` owns that, and is the file to edit when adding one.
  *
  * ORDER MATTERS. `findAdapter` takes the first match, and `genericAdapter`
  * matches everything — it is the fallback for hosts nothing else claims, so it

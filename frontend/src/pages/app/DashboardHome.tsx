@@ -5,12 +5,13 @@ import {
   daysBetween,
   formatDate,
   profileReadiness,
+  relativeTime,
   type Application,
   type ApplicationStatus,
   type FunnelStats,
   type Profile,
 } from '@jobpilot/shared';
-import { api, type ActivityEvent } from '../../api.js';
+import { api } from '../../api.js';
 import {
   AlertIcon,
   CalendarIcon,
@@ -49,26 +50,22 @@ export function DashboardHome() {
   const [stats, setStats] = useState<FunnelStats | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [alerts, setAlerts] = useState<{ id: string; title: string; postingStatus: string }[]>([]);
-  const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // No `api.activity()` here. The activity stream this dashboard used to render
+  // was replaced by ApplicationAnalytics, which derives everything it draws from
+  // `applications` — the fetch outlived the component it fed and cost a request
+  // per load for data nothing read. Restore both together or neither.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      api.getProfile(),
-      api.funnel(),
-      api.listApplications(),
-      api.deadPostings(),
-      api.activity(),
-    ])
-      .then(([p, f, list, dead, act]) => {
+    Promise.all([api.getProfile(), api.funnel(), api.listApplications(), api.deadPostings()])
+      .then(([p, f, list, dead]) => {
         if (cancelled) return;
         setProfile(p.profile);
         setStats(f);
         setApplications(list.applications);
         setAlerts(dead.alerts);
-        setActivity(act.events);
       })
       .catch((err) => !cancelled && setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => !cancelled && setLoading(false));
@@ -209,8 +206,8 @@ function TimeSavedAndGoal({
       className="panel time-goal-panel"
       style={{
         background:
-          'linear-gradient(135deg, rgba(255,176,32,0.08) 0%, rgba(13,20,36,0.95) 100%)',
-        border: '1px solid rgba(255,176,32,0.3)',
+          'linear-gradient(135deg, var(--signal-wash) 0%, var(--panel) 100%)',
+        border: '1px solid var(--signal-dim)',
         padding: '16px 20px',
         borderRadius: '14px',
         marginBottom: '20px',
@@ -231,13 +228,13 @@ function TimeSavedAndGoal({
               width: '48px',
               height: '48px',
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
-              color: '#120c02',
+              background: 'linear-gradient(135deg, var(--signal-bright) 0%, var(--signal) 100%)',
+              color: 'var(--on-signal)',
               display: 'grid',
               placeItems: 'center',
               fontWeight: 800,
               fontSize: '22px',
-              boxShadow: '0 6px 18px rgba(255,176,32,0.35)',
+              boxShadow: '0 6px 18px var(--hero-glow)',
               flexShrink: 0,
             }}
           >
@@ -249,7 +246,7 @@ function TimeSavedAndGoal({
                 style={{
                   fontSize: '22px',
                   fontWeight: 800,
-                  color: '#ffffff',
+                  color: 'var(--text)',
                   letterSpacing: '-0.02em',
                 }}
               >
@@ -258,8 +255,8 @@ function TimeSavedAndGoal({
               <span
                 style={{
                   fontSize: '11px',
-                  color: '#ffb020',
-                  background: 'rgba(255,176,32,0.15)',
+                  color: 'var(--signal-text)',
+                  background: 'var(--signal-wash)',
                   padding: '2px 8px',
                   borderRadius: '999px',
                   fontWeight: 700,
@@ -278,7 +275,7 @@ function TimeSavedAndGoal({
         {/* Weekly Target Goal & Streak */}
         <div
           style={{
-            background: 'rgba(0,0,0,0.25)',
+            background: 'var(--panel-raised)',
             padding: '12px 16px',
             borderRadius: '12px',
             border: '1px solid var(--line)',
@@ -303,7 +300,7 @@ function TimeSavedAndGoal({
             >
               <span>⚡ {streakDays} Day Streak</span>
               <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>· Weekly Goal:</span>
-              <strong style={{ color: '#ffb020' }}>
+              <strong style={{ color: 'var(--signal-text)' }}>
                 {thisWeek}/{weeklyGoal}
               </strong>
             </div>
@@ -327,7 +324,7 @@ function TimeSavedAndGoal({
           <div
             style={{
               height: '8px',
-              background: 'rgba(255,255,255,0.08)',
+              background: 'var(--line)',
               borderRadius: '999px',
               overflow: 'hidden',
               position: 'relative',
@@ -337,7 +334,7 @@ function TimeSavedAndGoal({
               style={{
                 width: `${goalProgress}%`,
                 height: '100%',
-                background: 'linear-gradient(90deg, #ffb020 0%, #10b981 100%)',
+                background: 'linear-gradient(90deg, var(--signal) 0%, var(--live) 100%)',
                 borderRadius: '999px',
                 transition: 'width 400ms ease',
               }}
@@ -356,8 +353,8 @@ function TimeSavedAndGoal({
                     fontSize: '11px',
                     borderRadius: '6px',
                     border: '1px solid var(--line)',
-                    background: weeklyGoal === val ? 'var(--signal)' : 'rgba(255,255,255,0.05)',
-                    color: weeklyGoal === val ? '#120c02' : 'var(--text)',
+                    background: weeklyGoal === val ? 'var(--signal)' : 'var(--hover-wash)',
+                    color: weeklyGoal === val ? 'var(--on-signal)' : 'var(--text)',
                     cursor: 'pointer',
                     fontWeight: 600,
                   }}
@@ -393,7 +390,7 @@ function QuickActions() {
           to="/dashboard/profile"
           className="quick-card"
           style={{
-            background: 'var(--panel-alt, rgba(0,0,0,0.22))',
+            background: 'var(--panel-raised)',
             border: '1px solid var(--line)',
             borderRadius: '12px',
             padding: '14px',
@@ -409,7 +406,7 @@ function QuickActions() {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              color: '#ffb020',
+              color: 'var(--signal-text)',
               fontWeight: 700,
               fontSize: '13px',
             }}
@@ -432,7 +429,7 @@ function QuickActions() {
           to="/copilot"
           className="quick-card"
           style={{
-            background: 'var(--panel-alt, rgba(0,0,0,0.22))',
+            background: 'var(--panel-raised)',
             border: '1px solid var(--line)',
             borderRadius: '12px',
             padding: '14px',
@@ -448,7 +445,7 @@ function QuickActions() {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              color: '#10b981',
+              color: 'var(--live)',
               fontWeight: 700,
               fontSize: '13px',
             }}
@@ -471,7 +468,7 @@ function QuickActions() {
           to="/dashboard/applications"
           className="quick-card"
           style={{
-            background: 'var(--panel-alt, rgba(0,0,0,0.22))',
+            background: 'var(--panel-raised)',
             border: '1px solid var(--line)',
             borderRadius: '12px',
             padding: '14px',
@@ -487,7 +484,7 @@ function QuickActions() {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              color: '#3b82f6',
+              color: 'var(--info)',
               fontWeight: 700,
               fontSize: '13px',
             }}
@@ -800,12 +797,12 @@ function ApplicationAnalytics({
 
   // Status breakdown for Donut Chart
   const statusColors: Record<string, string> = {
-    APPLIED: '#ffb020',
-    SAVED: '#3b82f6',
-    SCREEN: '#10b981',
-    INTERVIEW: '#10b981',
-    OFFER: '#8b5cf6',
-    REJECTED: '#64748b',
+    APPLIED: 'var(--signal)',
+    SAVED: 'var(--info)',
+    SCREEN: 'var(--live)',
+    INTERVIEW: 'var(--live)',
+    OFFER: 'var(--accent-violet)',
+    REJECTED: 'var(--muted)',
   };
 
   const statusLabels: Record<string, string> = {
@@ -823,7 +820,7 @@ function ApplicationAnalytics({
           status,
           label: statusLabels[status] || status,
           count,
-          color: statusColors[status] || '#94a5c4',
+          color: statusColors[status] || 'var(--muted)',
           pct: totalCount > 0 ? Math.round((count / totalCount) * 100) : 0,
         }))
         .filter((d) => d.count > 0)
@@ -835,12 +832,12 @@ function ApplicationAnalytics({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
         {/* 14-Day Application Volume Bar & Line Graph */}
-        <div style={{ background: 'var(--panel-alt, rgba(0,0,0,0.22))', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--line)' }}>
+        <div style={{ background: 'var(--panel-raised)', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--line)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-dim)' }}>
               Submissions (Last 14 Days)
             </span>
-            <span style={{ fontSize: '11px', color: '#ffb020', background: 'rgba(255,176,32,0.14)', padding: '2px 9px', borderRadius: '999px', fontWeight: 700 }}>
+            <span style={{ fontSize: '11px', color: 'var(--signal-text)', background: 'var(--signal-wash)', padding: '2px 9px', borderRadius: '999px', fontWeight: 700 }}>
               Peak: {peakCount}/day
             </span>
           </div>
@@ -849,12 +846,12 @@ function ApplicationAnalytics({
             <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
               <defs>
                 <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ffc857" stopOpacity="0.95" />
-                  <stop offset="100%" stopColor="#ffb020" stopOpacity="0.45" />
+                  <stop offset="0%" stopColor="var(--signal-bright)" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="var(--signal)" stopOpacity="0.45" />
                 </linearGradient>
                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ffb020" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#ffb020" stopOpacity="0" />
+                  <stop offset="0%" stopColor="var(--signal)" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="var(--signal)" stopOpacity="0" />
                 </linearGradient>
                 <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="2.5" result="blur" />
@@ -870,7 +867,9 @@ function ApplicationAnalytics({
               {/* Shaded Area under Trendline */}
               <path d={areaPath} fill="url(#areaGrad)" />
 
-              {/* Bars */}
+              {/* Bars. The hover fill was #ffffff — an invisible bar against
+                  the light theme's white panel. Brightening the accent reads
+                  as a hover state in both themes. */}
               {points.map((pt) => {
                 const bHeight = Math.max(4, (pt.count / maxCount) * chartH);
                 const bY = height - paddingY - bHeight;
@@ -884,7 +883,7 @@ function ApplicationAnalytics({
                       width={barWidth}
                       height={bHeight}
                       rx="3.5"
-                      fill={isHovered ? '#ffffff' : 'url(#barGrad)'}
+                      fill={isHovered ? 'var(--signal-bright)' : 'url(#barGrad)'}
                       style={{ transition: 'all 140ms ease', cursor: 'pointer' }}
                     />
                   </g>
@@ -892,7 +891,7 @@ function ApplicationAnalytics({
               })}
 
               {/* Bezier Trend Line */}
-              <path d={linePath} fill="none" stroke="#ffb020" strokeWidth="2.5" filter="url(#glow)" />
+              <path d={linePath} fill="none" stroke="var(--signal)" strokeWidth="2.5" filter="url(#glow)" />
 
               {/* Data Points on Line */}
               {points.map((pt) => (
@@ -901,8 +900,8 @@ function ApplicationAnalytics({
                   cx={pt.x}
                   cy={pt.y}
                   r={hoveredIndex === pt.index ? '5' : '3'}
-                  fill="#ffffff"
-                  stroke="#ffb020"
+                  fill="var(--panel)"
+                  stroke="var(--signal)"
                   strokeWidth="2"
                   style={{ transition: 'all 140ms ease' }}
                 />
@@ -928,14 +927,14 @@ function ApplicationAnalytics({
                   top: '0px',
                   left: `${(hoveredIndex / 13) * 78 + 11}%`,
                   transform: 'translateX(-50%)',
-                  background: '#080d17',
-                  border: '1px solid #ffb020',
+                  background: 'var(--panel-raised)',
+                  border: '1px solid var(--signal-text)',
                   borderRadius: '6px',
                   padding: '3px 8px',
                   fontSize: '11px',
-                  color: '#ffffff',
+                  color: 'var(--text)',
                   whiteSpace: 'nowrap',
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.6)',
+                  boxShadow: '0 4px 14px var(--shadow)',
                   pointerEvents: 'none',
                   zIndex: 10,
                 }}
@@ -948,13 +947,13 @@ function ApplicationAnalytics({
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--line)', fontSize: '11.5px', color: 'var(--text-dim)' }}>
             <span>Avg: <strong style={{ color: 'var(--text)' }}>{avgCount}</strong> / day</span>
             <span>Total Tracked: <strong style={{ color: 'var(--text)' }}>{totalCount}</strong></span>
-            <span>Active Days: <strong style={{ color: '#10b981' }}>{days.filter(d => d.count > 0).length}d</strong></span>
+            <span>Active Days: <strong style={{ color: 'var(--live)' }}>{days.filter(d => d.count > 0).length}d</strong></span>
           </div>
         </div>
 
         {/* Stage Breakdown Donut & Legend */}
         {donutData.length > 0 && (
-          <div style={{ background: 'var(--panel-alt, rgba(0,0,0,0.22))', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--line)' }}>
+          <div style={{ background: 'var(--panel-raised)', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--line)' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '12px' }}>
               Stage Distribution
             </div>
@@ -1088,7 +1087,10 @@ function RecentApplications({ applications }: { applications: Application[] }) {
                   <td>{app.title}</td>
                   <td>{app.company.name}</td>
                   <td className="cell-dim">
-                    {app.appliedAt ? `${daysBetween(app.appliedAt)}d ago` : '—'}
+                    {/* Not `${daysBetween()}d ago` — that renders "0d ago" for
+                        anything applied to today, which is most of what lands
+                        in a list called Recent. */}
+                    {app.appliedAt ? relativeTime(app.appliedAt) : '—'}
                   </td>
                   <td>
                     <span

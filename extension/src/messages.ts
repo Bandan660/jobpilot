@@ -25,6 +25,16 @@ export type Message =
   | { type: 'LOGIN'; payload: { email: string; password: string } }
   | { type: 'SIGNUP'; payload: { email: string; password: string } }
   | { type: 'LOGOUT' }
+  /**
+   * A session handed over by the web app after signing in there.
+   *
+   * Sign-in moved to the website when Firebase became the identity provider:
+   * Google sign-in needs an OAuth consent screen the popup cannot host well,
+   * and two sign-in surfaces means two things to keep working. The popup now
+   * sends people to the site, and the site passes the token back through the
+   * content script that already runs on jobpilot's own domain.
+   */
+  | { type: 'ADOPT_SESSION'; payload: { token: string; email: string } }
   | { type: 'SET_API_BASE_URL'; payload: { apiBaseUrl: string } }
   | { type: 'GET_PROFILE' }
   /**

@@ -1,4 +1,4 @@
-import type { CapturedJob, DuplicateMatch } from '@jobpilot/shared';
+import { relativeTime, type CapturedJob, type DuplicateMatch } from '@jobpilot/shared';
 import { POPOVER_RESET, promoteToTopLayer, reraise, sealEvents } from './topLayer.js';
 import { DEFAULT_WEB_BASE_URL } from '../config.js';
 
@@ -35,6 +35,10 @@ export interface SkillSummary {
   score: number;
   matched: string[];
   missing: string[];
+  /** Nice-to-haves the profile evidences. Shown, never scored. */
+  bonus: string[];
+  /** Nice-to-haves it does not. Shown last, and explicitly not a gap. */
+  preferred: string[];
   yearsWanted: number | null;
 }
 
@@ -61,6 +65,8 @@ export interface PanelJob {
    * them to do work the machine had already done.
    */
   match: SkillSummary | null;
+  /** Set only when the description could not be read: which containers missed. */
+  matchDiagnostic?: string[];
   /**
    * Is there an application form here at all?
    *
@@ -254,12 +260,25 @@ function matchCard(match: SkillSummary): HTMLElement {
   chanceTag.style.cssText = `font-size: 11.5px; font-weight: 800; color: ${
     match.score >= 70 ? '#10b981' : match.score >= 40 ? '#ffb020' : '#ff8f8f'
   }; margin-bottom: 2px;`;
+  /*
+   * Overlap, not odds.
+   *
+   * This read "High Shortlist Chance" / "Low Shortlist Odds", which is the one
+   * thing this number must never be presented as. Nothing here can see the
+   * other applicants, the budget, the referral the role is already earmarked
+   * for, or whether it is already filled — so a shortlist probability would be
+   * invented, and the cost of inventing it is someone skipping a job they were
+   * right for because a dictionary lookup said "Low Odds".
+   *
+   * What it can honestly say is how much of what the posting asks for the
+   * profile evidences, which is what the bands describe now.
+   */
   chanceTag.textContent =
     match.score >= 70
-      ? '🔥 High Shortlist Chance'
+      ? 'Strong overlap with what this posting asks for'
       : match.score >= 40
-      ? '⚡ Moderate Shortlist Chance'
-      : '⚠️ Low Shortlist Odds';
+      ? 'Partial overlap with what this posting asks for'
+      : 'Limited overlap with what this posting asks for';
 
   const label = document.createElement('div');
   label.className = 'match-label';
@@ -282,7 +301,7 @@ function matchCard(match: SkillSummary): HTMLElement {
    */
   const VISIBLE_CHIPS = 6;
 
-  const chips = (items: string[], kind: 'has' | 'gap', heading: string) => {
+  const chips = (items: string[], kind: 'has' | 'gap' | 'extra', heading: string) => {
     if (items.length === 0) return;
 
     const group = document.createElement('div');
@@ -321,6 +340,15 @@ function matchCard(match: SkillSummary): HTMLElement {
 
   chips(match.matched, 'has', 'You have');
   chips(match.missing, 'gap', 'Not in your profile');
+  /*
+   * Below the two that count, and labelled so it cannot be read as a gap.
+   * These are the posting's own "nice to have" list: absent from the score in
+   * either direction, because a thing the employer said was not needed should
+   * neither reward nor penalise. They used to sit in "Not in your profile",
+   * which is how a candidate holding every requirement saw four red chips.
+   */
+  chips(match.bonus, 'has', 'Nice-to-haves you have');
+  chips(match.preferred, 'extra', 'Nice to have — not required');
 
   return card;
 }
@@ -954,6 +982,9 @@ const CSS = `
   .chip.more:hover { color: var(--text); border-color: var(--glass-edge); }
   .chip[data-kind='has'] { background: rgba(63,207,142,0.12); border-color: rgba(63,207,142,0.32); color: #9fe6c4; }
   .chip[data-kind='gap'] { background: rgba(255,176,32,0.10); border-color: rgba(255,176,32,0.30); color: #ffd08a; }
+  /* Neutral on purpose: an unmet nice-to-have is not a gap, and colouring it
+     like one is what made a full-marks profile look half-qualified. */
+  .chip[data-kind='extra'] { background: rgba(124,141,166,0.10); border-color: rgba(124,141,166,0.28); color: #b3c0d4; }
 
   .match .note { margin-top: 10px; }
 
@@ -1072,6 +1103,9 @@ const CSS = `
   }
   .chip[data-kind='has'] { background: rgba(63,207,142,0.12); border-color: rgba(63,207,142,0.32); color: #9fe6c4; }
   .chip[data-kind='gap'] { background: rgba(255,176,32,0.10); border-color: rgba(255,176,32,0.30); color: #ffd08a; }
+  /* Neutral on purpose: an unmet nice-to-have is not a gap, and colouring it
+     like one is what made a full-marks profile look half-qualified. */
+  .chip[data-kind='extra'] { background: rgba(124,141,166,0.10); border-color: rgba(124,141,166,0.28); color: #b3c0d4; }
 
   @keyframes jpSpin {
     0% { transform: rotate(0deg); }
@@ -1687,9 +1721,18 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       t.textContent = 'You already applied to this role';
       const m = document.createElement('div');
       m.className = 'meta';
-      m.textContent = `${current.duplicate.title} at ${current.duplicate.companyName} · ${
-        current.duplicate.daysAgo ?? '?'
-      } days ago · ${current.duplicate.status.toLowerCase()}`;
+      /*
+       * From the timestamp, not from `daysAgo`. That field floors to whole
+       * days, so an application submitted a minute ago came back as 0 and the
+       * banner read "0 days ago" — which looks like the tracker lost the date
+       * rather than like "just now". `daysAgo` stays as the fallback for rows
+       * that predate `appliedAt` being sent.
+       */
+      const when =
+        relativeTime(current.duplicate.appliedAt) ||
+        (current.duplicate.daysAgo !== null ? `${current.duplicate.daysAgo} days ago` : 'earlier');
+
+      m.textContent = `${current.duplicate.title} at ${current.duplicate.companyName} · ${when} · ${current.duplicate.status.toLowerCase()}`;
       dup.append(t, m);
       body.append(dup);
     }
@@ -1732,11 +1775,37 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
       const msg = document.createElement('p');
       msg.style.cssText = 'font-size: 11.5px; color: var(--dim); line-height: 1.4;';
+      /*
+       * This branch is "the posting could not be read", not "the posting named
+       * nothing". It said the latter, which sent a real investigation at the
+       * skills dictionary while the actual fault was a description scrape that
+       * ran before the pane rendered and cached its own failure.
+       *
+       * The genuinely-nothing-recognised case has its own message inside
+       * `matchCard`, where a description *was* read. Two different facts, and
+       * only one of them was ever true here.
+       */
       msg.textContent = current.authenticated
-        ? 'No skills named in this posting that jobpilot recognises.'
-        : 'Add your skills in your jobpilot web profile to calculate instant shortlist probability & keyword breakdown for this posting.';
+        ? 'Could not read this posting’s description, so there is nothing to compare yet.'
+        : 'Add your skills in your jobpilot web profile to see how this posting compares.';
 
       fallbackCard.append(head, msg);
+
+      /*
+       * The containers that were looked for and what was in them. Small and
+       * monospaced because it is diagnostic rather than content — but on the
+       * card rather than in the console, because the console is the thing
+       * nobody has open when this happens.
+       */
+      if (current.matchDiagnostic?.length) {
+        const diag = document.createElement('pre');
+        diag.style.cssText =
+          'margin-top: 8px; font-size: 10px; line-height: 1.45; color: var(--dim); ' +
+          'white-space: pre-wrap; word-break: break-all; opacity: 0.75; max-height: 88px; overflow: auto;';
+        diag.textContent = current.matchDiagnostic.join('\n');
+        fallbackCard.append(diag);
+      }
+
       body.append(fallbackCard);
     }
 

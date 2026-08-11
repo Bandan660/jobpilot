@@ -5,6 +5,33 @@ import { useAuth } from '../auth.js';
 import { usePageMeta } from '../usePageMeta.js';
 import { Brand } from '../components/SiteChrome.js';
 import { AutofillDemo, WorksOn } from '../components/illustrations.js';
+import {
+  describeAuthError,
+  firebaseConfigured,
+  sendPasswordReset,
+  signInWithGoogle,
+  signInWithPassword,
+  signUpWithPassword,
+} from '../firebase.js';
+
+/**
+ * Google's mark, inline.
+ *
+ * Google's branding rules require their own logo on a "Sign in with Google"
+ * button rather than a generic icon, and inlining it keeps the button from
+ * depending on a network request that would leave it looking broken while it
+ * loads.
+ */
+function GoogleMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.84.86-3.05.86-2.35 0-4.34-1.58-5.05-3.71H.96v2.33A9 9 0 0 0 9 18z" />
+      <path fill="#FBBC05" d="M3.95 10.71a5.41 5.41 0 0 1 0-3.42V4.96H.96a9 9 0 0 0 0 8.08l2.99-2.33z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.96l2.99 2.33C4.66 5.16 6.65 3.58 9 3.58z" />
+    </svg>
+  );
+}
 
 /** Where to land after signing in, if a guard bounced them here. */
 function useReturnTo(): string {
@@ -24,9 +51,20 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const isSignup = mode === 'signup';
+
+  /*
+   * Firebase is the identity provider when this build has its config, and the
+   * original email/password endpoints when it does not.
+   *
+   * Both paths end identically — a jobpilot session token handed to `signIn` —
+   * so nothing downstream knows which was used. Demo mode always takes the
+   * legacy path, because it has no API at all and no Firebase project.
+   */
+  const useFirebase = firebaseConfigured() && !DEMO;
 
   usePageMeta(
     isSignup ? 'Create your account' : 'Log in',
@@ -44,17 +82,79 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
     setBusy(true);
 
     try {
-      const result = isSignup
-        ? await api.signup(email, password)
-        : await api.login(email, password);
-      signIn(result.token, remember);
+      let token: string;
+
+      if (useFirebase) {
+        const idToken = isSignup
+          ? await signUpWithPassword(email, password)
+          : await signInWithPassword(email, password);
+        token = (await api.firebaseExchange(idToken)).token;
+      } else {
+        const result = isSignup
+          ? await api.signup(email, password)
+          : await api.login(email, password);
+        token = result.token;
+      }
+
+      signIn(token, remember);
       // New accounts always go through setup; the dashboard guard would only
       // bounce them there anyway, and this avoids the extra redirect.
       navigate(isSignup ? '/onboarding' : returnTo, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setError(authMessage(err));
       setBusy(false);
     }
+  }
+
+  /**
+   * Firebase codes get translated; anything else is already ours.
+   *
+   * `describeAuthError` returns '' for a popup the user closed themselves —
+   * that is not an error and showing one for it is how a UI feels broken.
+   */
+  function authMessage(err: unknown): string {
+    const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : '';
+    if (code.startsWith('auth/')) return describeAuthError(err);
+    return err instanceof Error ? err.message : 'Something went wrong';
+  }
+
+  async function handleGoogle() {
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+
+    try {
+      const idToken = await signInWithGoogle();
+      const result = await api.firebaseExchange(idToken);
+      signIn(result.token, remember);
+      /*
+       * Google sign-in cannot tell a new account from a returning one — the
+       * exchange creates the row if it is missing, and either way this is the
+       * same call. Sending everyone to onboarding would be wrong for returning
+       * users, so the dashboard's own guard decides: it bounces anyone who has
+       * not finished setup, which is exactly the check needed here.
+       */
+      navigate(returnTo, { replace: true });
+    } catch (err) {
+      const message = authMessage(err);
+      if (message) setError(message);
+      setBusy(false);
+    }
+  }
+
+  async function handleForgot() {
+    setError(null);
+    setNotice(null);
+
+    if (!email.trim()) {
+      setError('Enter your email address first, then press this again.');
+      return;
+    }
+
+    await sendPasswordReset(email.trim());
+    // The same confirmation whether or not that address has an account: the
+    // alternative is an endpoint that reports who is registered here.
+    setNotice(`If an account exists for ${email.trim()}, a reset link is on its way.`);
   }
 
   return (
@@ -104,6 +204,24 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
             </p>
           )}
 
+          {useFirebase && (
+            <>
+              <button
+                type="button"
+                className="btn btn-google"
+                onClick={() => void handleGoogle()}
+                disabled={busy}
+              >
+                <GoogleMark />
+                {isSignup ? 'Sign up with Google' : 'Continue with Google'}
+              </button>
+
+              <div className="auth-divider">
+                <span>or</span>
+              </div>
+            </>
+          )}
+
           <form className="auth-form" onSubmit={handleSubmit}>
             <label>
               Email address
@@ -130,6 +248,12 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
               />
             </label>
 
+            {!isSignup && useFirebase && (
+              <button type="button" className="link-button auth-forgot" onClick={() => void handleForgot()}>
+                Forgot your password?
+              </button>
+            )}
+
             <label className="checkbox-row">
               <input
                 type="checkbox"
@@ -145,6 +269,12 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
             {error && (
               <p className="error-text" role="alert">
                 {error}
+              </p>
+            )}
+
+            {notice && (
+              <p className="notice-text" role="status">
+                {notice}
               </p>
             )}
 
