@@ -282,15 +282,15 @@ export const indeedFlow: ApplyFlow = {
 const PAGINATED: AtsProvider[] = ['WORKDAY', 'ICIMS'];
 
 export function flowFor(ats: AtsProvider | null, adapterVersion?: string): ApplyFlow | null {
-  // LinkedIn is excluded on purpose — see linkedinFlow.
-  if (ats === 'LINKEDIN') return null;
+  const platform = adapterVersion?.split('@')[0] ?? '';
+  // LinkedIn and Indeed use Smart Assistant mode (1-Click Fill, 1-Click Save & Track, Auto-Submit Detection)
+  // to avoid anti-bot blocks and UI stalls on complex split views.
+  if (platform === 'indeed' || ats === 'LINKEDIN') return null;
   if (!ats) return null;
 
   if (PAGINATED.includes(ats)) return paginated;
 
-  // Version carries the real platform for everything mapped to GENERIC.
-  const platform = adapterVersion?.split('@')[0] ?? '';
-  if (['indeed', 'taleo', 'successfactors', 'workable'].includes(platform)) return paginated;
+  if (['taleo', 'successfactors', 'workable'].includes(platform)) return paginated;
   if (platform === 'generic') return null;
 
   return singlePage;
