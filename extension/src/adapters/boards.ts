@@ -61,14 +61,15 @@ const naukri = defineAdapter({
   externalId: (url) => idFromSlug(pathSegments(url)[0]),
 });
 
-/** Indeed. www.indeed.com / in.indeed.com / www.indeed.co.in */
+/** Indeed. www.indeed.com / in.indeed.com / www.indeed.co.in / smartapply.indeed.com */
 const indeed = defineAdapter({
   version: 'indeed@1',
-  hosts: ['.indeed.com', '.indeed.co.in', 'indeed.com', 'indeed.co.in'],
+  hosts: ['.indeed.com', '.indeed.co.in', 'indeed.com', 'indeed.co.in', 'smartapply.indeed.com'],
   isJobPage: (url) =>
     url.pathname.includes('/viewjob') ||
     url.pathname.includes('/rc/clk') ||
     url.pathname.includes('/jobs') ||
+    url.pathname.includes('/indeedapply') ||
     url.searchParams.has('vjk') ||
     url.searchParams.has('jk'),
   title: [
@@ -76,12 +77,16 @@ const indeed = defineAdapter({
     '.jobsearch-JobInfoHeader-title',
     'h1.jobsearch-JobInfoHeader-title',
     '[class*="JobInfoHeader-title"]',
+    '[data-testid="job-title"]',
+    '.ia-JobTitle',
     'h1',
   ],
   company: [
     '[data-testid="inlineHeader-companyName"] a',
     '[data-testid="inlineHeader-companyName"]',
     '.jobsearch-InlineCompanyRating-companyHeader',
+    '[data-testid="company-name"]',
+    '.ia-CompanyName',
     '[class*="companyName"]',
   ],
   location: [
@@ -90,6 +95,14 @@ const indeed = defineAdapter({
     '[class*="companyLocation"]',
   ],
   comp: ['#salaryInfoAndJobType', '[data-testid="jobMetaData"]', '[class*="salary"]'],
+  confirmationSelectors: [
+    '[data-testid="post-apply-container"]',
+    '[data-testid="ia-PostApplyContainer"]',
+    '.ia-PostApplyContainer',
+    '[class*="PostApply"]',
+    '[class*="post-apply"]',
+    'a[href*="MyJobs"]',
+  ],
   externalId: (url) =>
     url.searchParams.get('vjk') ?? url.searchParams.get('jk') ?? idFromSlug(pathSegments(url).pop()),
 });

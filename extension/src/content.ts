@@ -40,10 +40,17 @@ const CONFIRMATION_PHRASES = [
   'thank you for applying',
   'thanks for applying',
   'application submitted',
+  'application was submitted',
+  'your application was submitted',
+  'application has been submitted',
   'application received',
   'we have received your application',
   'your application has been received',
   'successfully submitted',
+  'application sent',
+  'your application has been sent',
+  'you will get an email confirmation at',
+  'return to job search',
 ];
 
 /**
