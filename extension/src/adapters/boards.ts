@@ -64,15 +64,18 @@ const naukri = defineAdapter({
 /** Indeed. www.indeed.com / in.indeed.com / www.indeed.co.in */
 const indeed = defineAdapter({
   version: 'indeed@1',
-  hosts: ['.indeed.com', '.indeed.co.in', 'www.indeed.com', 'in.indeed.com'],
+  hosts: ['.indeed.com', '.indeed.co.in', 'indeed.com', 'indeed.co.in'],
   isJobPage: (url) =>
     url.pathname.includes('/viewjob') ||
     url.pathname.includes('/rc/clk') ||
+    url.pathname.includes('/jobs') ||
+    url.searchParams.has('vjk') ||
     url.searchParams.has('jk'),
   title: [
     '[data-testid="simulated-title"]',
     '.jobsearch-JobInfoHeader-title',
     'h1.jobsearch-JobInfoHeader-title',
+    '[class*="JobInfoHeader-title"]',
     'h1',
   ],
   company: [
@@ -87,7 +90,8 @@ const indeed = defineAdapter({
     '[class*="companyLocation"]',
   ],
   comp: ['#salaryInfoAndJobType', '[data-testid="jobMetaData"]', '[class*="salary"]'],
-  externalId: (url) => url.searchParams.get('jk') ?? idFromSlug(url.searchParams.get('vjk')),
+  externalId: (url) =>
+    url.searchParams.get('vjk') ?? url.searchParams.get('jk') ?? idFromSlug(pathSegments(url).pop()),
 });
 
 /** Foundit / Monster India. www.foundit.in */
