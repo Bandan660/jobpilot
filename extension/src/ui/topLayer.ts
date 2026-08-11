@@ -102,7 +102,15 @@ export function sealEvents(host: HTMLElement): void {
     'focusout',
   ];
 
+  const handler = (event: Event) => {
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  };
+
   for (const type of types) {
-    host.addEventListener(type, (event) => event.stopPropagation());
+    // Registered in both capture phase (to beat LinkedIn/Workday document-level capture listeners)
+    // and bubble phase.
+    host.addEventListener(type, handler, true);
+    host.addEventListener(type, handler, false);
   }
 }
