@@ -231,7 +231,7 @@ export const linkedinFlow: ApplyFlow = {
     );
 
     if (!trigger) return false;
-    clickElement(trigger);
+    trigger.click();
     return true;
   },
   multiStep: true,
