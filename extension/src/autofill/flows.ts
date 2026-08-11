@@ -203,8 +203,22 @@ export const linkedinFlow: ApplyFlow = {
   // sends the application. See `applicationDialog`.
   scope: applicationDialog,
   async open() {
-    const scope = document.querySelector('.jobs-search__job-details') ?? document;
-    const trigger = findButton(scope, [/easy apply/i]);
+    const scope =
+      document.querySelector('.jobs-search__job-details') ??
+      document.querySelector('.jobs-search-two-pane__details') ??
+      document.querySelector('.job-view-layout') ??
+      document;
+
+    const candidates = [
+      ...scope.querySelectorAll<HTMLElement>(
+        'button.jobs-apply-button, button[aria-label*="Easy Apply" i], [class*="jobs-apply-button"] button, button, [role="button"]'
+      ),
+    ].filter((b) => visible(b));
+
+    const trigger = candidates.find((b) =>
+      /easy apply/i.test(b.getAttribute('aria-label') ?? b.textContent ?? '')
+    );
+
     if (!trigger) return false;
     clickElement(trigger);
     return true;
