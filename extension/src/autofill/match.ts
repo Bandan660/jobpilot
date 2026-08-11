@@ -137,18 +137,46 @@ export function matchControl(control: Control): FieldMatch {
   return { control, field: best.field, score: best.score, label };
 }
 
+export function isSearchOrHeaderControl(control: Control): boolean {
+  const container = control.closest(
+    'header, nav, [role="search"], [class*="search" i], [id*="search" i], [class*="header" i], [id*="header" i], [class*="nav" i], [id*="nav" i], [class*="JobAlert" i]'
+  );
+  if (container) {
+    if (!control.closest('dialog, [role="dialog"], [class*="modal" i], [class*="indeed-apply" i], [class*="smartapply" i]')) {
+      return true;
+    }
+  }
+
+  const name = (control.name || '').toLowerCase();
+  const id = (control.id || '').toLowerCase();
+  const placeholder = ('placeholder' in control ? (control.placeholder || '') : '').toLowerCase();
+  const ariaLabel = (control.getAttribute('aria-label') || '').toLowerCase();
+
+  const searchPatterns = /^(q|l|query|keywords?|location|where|what|search|job-search|text-input-what|text-input-where)$/i;
+  if (
+    searchPatterns.test(name) ||
+    searchPatterns.test(id) ||
+    /job title|keywords|city, state|where|what/i.test(placeholder) ||
+    /job title|keywords|location|where|what/i.test(ariaLabel)
+  ) {
+    if (!control.closest('dialog, [role="dialog"], [class*="modal" i], [class*="indeed-apply" i], [class*="smartapply" i]')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /** All fillable controls in a form or document, already matched. */
 export function scanForm(root: ParentNode = document): FieldMatch[] {
   const controls = root.querySelectorAll<Control>('input, select, textarea');
   const matches: FieldMatch[] = [];
 
   for (const control of controls) {
-    // `readOnly` exists on input and textarea but not on select.
     if (control.disabled) continue;
     if ('readOnly' in control && control.readOnly) continue;
+    if (isSearchOrHeaderControl(control)) continue;
 
-    // Skip anything the user cannot see; hidden steps of a multi-page form
-    // will be filled when they become visible.
     if (!control.offsetParent && control.type !== 'radio' && control.type !== 'checkbox') {
       continue;
     }
