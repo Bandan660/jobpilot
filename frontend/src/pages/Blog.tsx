@@ -235,7 +235,7 @@ export function BlogPost() {
 
         <article className="article">
           <header className="article-head">
-            <div className="article-meta">
+            <div className="article-meta" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <span className="post-card-category" data-inline="true">
                 {post.category}
               </span>
@@ -244,12 +244,93 @@ export function BlogPost() {
               <span>{post.readingMinutes} min read</span>
             </div>
 
-            <h1>{post.title}</h1>
-            <p className="article-lede">{post.summary}</p>
+            <h1 style={{ marginTop: '12px', marginBottom: '14px', lineHeight: 1.15 }}>{post.title}</h1>
+            <p className="article-lede" style={{ fontSize: '17px', color: 'var(--text-dim)', lineHeight: 1.5 }}>
+              {post.summary}
+            </p>
+
+            {/* Author Bar */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginTop: '20px',
+                paddingTop: '16px',
+                borderTop: '1px solid var(--line)',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
+                    color: '#120c02',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontWeight: 800,
+                    fontSize: '14px',
+                  }}
+                >
+                  JP
+                </div>
+                <div>
+                  <strong style={{ fontSize: '13px', display: 'block', color: 'var(--text)' }}>
+                    {post.author}
+                  </strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                    Job Hunt &amp; Hiring Team
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  void navigator.clipboard.writeText(window.location.href);
+                  alert('Link copied to clipboard!');
+                }}
+                style={{
+                  background: 'rgba(255,176,32,0.12)',
+                  border: '1px solid rgba(255,176,32,0.3)',
+                  color: '#ffb020',
+                  padding: '4px 12px',
+                  borderRadius: '999px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                🔗 Share Article
+              </button>
+            </div>
           </header>
 
-          <div className="article-media">
+          <div className="article-media" style={{ marginTop: '24px', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--line)' }}>
             <PostCover slug={post.slug} />
+          </div>
+
+          {/* Key Takeaways Box */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,176,32,0.08) 0%, rgba(13,20,36,0.95) 100%)',
+              border: '1px solid rgba(255,176,32,0.35)',
+              borderRadius: '14px',
+              padding: '18px 22px',
+              margin: '32px 0 24px 0',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ffb020', fontWeight: 800, fontSize: '13.5px', marginBottom: '8px' }}>
+              <span>💡 Key Takeaways in 30 Seconds</span>
+            </div>
+            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13.5px', color: 'var(--text)', lineHeight: 1.6 }}>
+              <li>Always have a specific trigger or update reason before reaching out to recruiters.</li>
+              <li>Keep follow-up emails strictly under 4 concise sentences.</li>
+              <li>Track all updates in an automatic log so you know exactly when to step back.</li>
+            </ul>
           </div>
 
           <div className="article-layout">
@@ -269,11 +350,48 @@ export function BlogPost() {
             <div className="prose">{post.body.map(renderBlock)}</div>
           </div>
 
+          {/* Author Bio Footer Box */}
+          <div
+            style={{
+              background: 'var(--panel-alt, rgba(0,0,0,0.25))',
+              border: '1px solid var(--line)',
+              borderRadius: '14px',
+              padding: '20px',
+              marginTop: '36px',
+              display: 'flex',
+              gap: '14px',
+              alignItems: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #ffc857 0%, #ffb020 100%)',
+                color: '#120c02',
+                display: 'grid',
+                placeItems: 'center',
+                fontWeight: 800,
+                fontSize: '16px',
+                flexShrink: 0,
+              }}
+            >
+              JP
+            </div>
+            <div>
+              <strong style={{ fontSize: '14px', color: 'var(--text)' }}>Written by {post.author}</strong>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                We write actionable guides to help software engineers, designers, and tech professionals navigate modern job applications and automated hiring.
+              </p>
+            </div>
+          </div>
+
           <footer className="article-foot">
             <div className="tag-row">
               {post.tags.map((tag) => (
                 <span className="tag" key={tag}>
-                  {tag}
+                  #{tag}
                 </span>
               ))}
             </div>
