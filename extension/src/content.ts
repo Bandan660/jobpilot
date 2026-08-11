@@ -97,8 +97,16 @@ function buildJob(adapter: JobAdapter, url: URL): CapturedJob | null {
   const title = pick('title');
   const company = pick('company');
 
-  // Without at least one of these the row would be unidentifiable noise.
   if (!title && !company) return null;
+
+  if (
+    title &&
+    (/application (has been|was|is)?\s*submitted/i.test(title) ||
+      /thank you for applying/i.test(title) ||
+      /your application/i.test(title))
+  ) {
+    return null;
+  }
 
   return {
     jobUrl: url.href,
@@ -591,12 +599,19 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
     formScope ? `${coverage.fillable} of ${coverage.total}` : 'no application form on this page'
   );
 
+  const validDuplicate =
+    duplicate &&
+    !/application (has been|was|is)?\s*submitted/i.test(duplicate.title) &&
+    !/smartapply/i.test(duplicate.companyName)
+      ? duplicate
+      : null;
+
   await renderPanel(
     {
       job,
       coverage,
       email: session.ok ? session.data.email : null,
-      duplicate,
+      duplicate: validDuplicate,
       authenticated,
       /*
        * Only where there is a form on this page to drive. On a job board that

@@ -248,14 +248,20 @@ function matchCard(match: SkillSummary): HTMLElement {
 
   const verdict = document.createElement('div');
   verdict.className = 'match-verdict';
+
+  const chanceTag = document.createElement('div');
+  chanceTag.style.cssText = `font-size: 11.5px; font-weight: 800; color: ${
+    match.score >= 70 ? '#10b981' : match.score >= 40 ? '#ffb020' : '#ff8f8f'
+  }; margin-bottom: 2px;`;
+  chanceTag.textContent =
+    match.score >= 70
+      ? '🔥 High Shortlist Chance'
+      : match.score >= 40
+      ? '⚡ Moderate Shortlist Chance'
+      : '⚠️ Low Shortlist Odds';
+
   const label = document.createElement('div');
   label.className = 'match-label';
-  label.textContent = 'Skills matched';
-
-  /*
-   * Composed from the counts, not written by anything. Generated prose would
-   * assert more confidence than this has earned.
-   */
   const parts = [`${match.matched.length} of ${total} named`];
   if (match.yearsWanted !== null) parts.push(`asks ${match.yearsWanted}+ years`);
 
