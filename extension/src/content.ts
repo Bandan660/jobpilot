@@ -596,7 +596,10 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
        * links out to the employer's ATS there is nothing here to fill, and on
        * LinkedIn the flow is deliberately withheld — see flows.ts.
        */
-      canAutoApply: !isExternalJob && applyFlow !== null && applyFlow.scope() !== null,
+      canAutoApply:
+        !isExternalJob &&
+        applyFlow !== null &&
+        (applyFlow.open !== undefined || applyFlow.scope() !== null),
       hasForm: formScope !== null,
       // Only where there is a list to work down, and only on LinkedIn: the
       // queue drives LinkedIn's split view and knows nothing about any other
