@@ -28,6 +28,8 @@ import {
   resetPanelSession,
   panelIsOpen,
   openPanelForInput,
+  type PanelJob,
+  type PanelHandlers,
 } from './ui/panel.js';
 import { runSession, sessionBusy, cancelSession, resetSession } from './autoapply/session.js';
 
@@ -570,24 +572,8 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   if (authenticated && !profile) return debug('could not load your profile');
 
   /*
-   * Handed to the panel already computed. It is a set intersection over a
-   * dictionary, so there is nothing to wait for and nothing to spend — which
-   * is why it no longer sits behind a button.
-   */
-  const match = authenticated ? await computeMatch() : null;
-
-  /*
    * Scoped to an actual application form — a dialog, or a form that collects a
    * file or an email. Never the whole document.
-   *
-   * The unscoped version counted the host page's own controls. On a LinkedIn
-   * posting with no Easy Apply dialog open that is the search box, the filter
-   * selects, the sort dropdown and the message composer, and the panel
-   * reported "0 of 28 fields can be filled" — true, and the opposite of what
-   * was happening. There were no fields to fill and no form to fill them in.
-   *
-   * `null` here is a distinct state from "a form with nothing we recognise",
-   * and the panel says something different for each.
    */
   const formScope = findApplicationForm();
   const coverage =
@@ -606,155 +592,134 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
       ? duplicate
       : null;
 
-  await renderPanel(
-    {
-      job,
-      coverage,
-      email: session.ok ? session.data.email : null,
-      duplicate: validDuplicate,
-      authenticated,
-      /*
-       * Only where there is a form on this page to drive. On a job board that
-       * links out to the employer's ATS there is nothing here to fill, and on
-       * LinkedIn the flow is deliberately withheld — see flows.ts.
-       */
-      canAutoApply:
-        !isExternalJob &&
-        applyFlow !== null &&
-        (applyFlow.open !== undefined || applyFlow.scope() !== null),
-      hasForm: formScope !== null,
-      // Only where there is a list to work down, and only on LinkedIn: the
-      // queue drives LinkedIn's split view and knows nothing about any other
-      // site's results page.
-      canApply: canRunSession(),
-      match,
-      isAnalyzingMatch: authenticated && match === null && matchCache === undefined,
-      isExternalJob,
+  const buildJobState = (matchVal: SkillMatch | null, isAnalyzing: boolean): PanelJob => ({
+    job,
+    coverage,
+    email: session.ok ? session.data.email : null,
+    duplicate: validDuplicate,
+    authenticated,
+    canAutoApply:
+      !isExternalJob &&
+      applyFlow !== null &&
+      (applyFlow.open !== undefined || applyFlow.scope() !== null),
+    hasForm: formScope !== null,
+    canApply: canRunSession(),
+    match: matchVal,
+    isAnalyzingMatch: isAnalyzing,
+    isExternalJob,
+  });
+
+  const handlers: PanelHandlers = {
+    onFill: async (overwrite) => {
+      const summary = await runAutofill(overwrite, {
+        silent: true,
+        root: easyApplyModal() ?? undefined,
+      });
+      return { filled: summary.filled, unanswered: summary.unanswered.length };
     },
-    {
-      onFill: async (overwrite) => {
-        // Re-read the modal at click time: it may have opened, or moved to the
-        // next step, since the panel was drawn.
-        const summary = await runAutofill(overwrite, {
-          silent: true,
-          root: easyApplyModal() ?? undefined,
-        });
-        return { filled: summary.filled, unanswered: summary.unanswered.length };
-      },
-      /*
-       * The real outcome, not an assumption. This returned true whatever
-       * happened, so a failed save showed "Saved to your tracker" in the panel
-       * and "jobpilot could not save this" in a banner at the same time — and
-       * the panel is the one the user is looking at.
-       */
-      onSave: () => doCapture(job, false),
-      onSignOut: () => {
-        void send({ type: 'LOGOUT' }).then(() => {
-          removePanel();
-          void maybeShowPanel(job, null);
-        });
-      },
-      onCancelAutoApply: () => {
-        autoApplyCancelled = true;
-      },
-
-      /* --------------------------- apply session --------------------------- */
-
-      onStartSession: () => runSessionHere(),
-      /*
-       * Continue is the same call. `runApply` never overwrites a filled field,
-       * so a second pass fills only what is still empty, re-checks, and — if
-       * the user answered what was asked — submits. The job is never skipped
-       * for want of one dropdown.
-       */
-      onContinueSession: () => runSessionHere(),
-      onCancelSession: () => cancelSession(),
-
-      onSaveAnswers: (answers) => {
-        updateSession({ savingAnswers: true });
-        void send<{ saved: number }>({ type: 'SAVE_ANSWERS', payload: { answers } }).then(
-          (result) => {
-            if (!result.ok) {
-              updateSession({ savingAnswers: false, message: result.error, state: 'error' });
-              return;
-            }
-            // The cached profile is now stale — the next fill must see the
-            // answers that were just stored, or it asks the same questions.
-            profileCache = undefined;
-            updateSession({ savingAnswers: false, answersSaved: true });
-          }
-        );
-      },
-
-      onAutoApply: async (report, draftAnswers) => {
-        autoApplyCancelled = false;
-
-        const flow = applyFlow;
-        if (!flow) {
-          report('There is no application form on this page.', 'blocked');
-          return;
-        }
-
-        const current = await loadProfile({ fresh: true });
-        if (!current) {
-          report('Could not load your profile.', 'blocked');
-          return;
-        }
-
-        const outcome = await runApply({
-          profile: current,
-          flow,
-          draftAnswers,
-          job: { title: job.title, company: job.company, jobUrl: job.jobUrl },
-          isCancelled: () => autoApplyCancelled,
-          onProgress: (progress) => {
-            const tone =
-              progress.status === 'ready'
-                ? 'ready'
-                : progress.status === 'blocked' || progress.status === 'error'
-                  ? 'blocked'
-                  : 'busy';
-            report(progress.message, tone);
-          },
-        });
-
-        /*
-         * Named, not counted. "3 questions left" sends the user hunting; the
-         * labels tell them which three, and the empty/invalid split tells them
-         * whether to answer something or fix something.
-         */
-        if (outcome.blockers?.length) {
-          const named = outcome.blockers
-            .map((blocker) => (blocker.kind === 'invalid' ? `⚠ ${blocker.label}` : blocker.label))
-            .join(' · ');
-          report(`${outcome.message} ${named}`, 'blocked');
-        }
-
-        /*
-         * Recorded as saved, not applied. The application has not been sent —
-         * the user still has to press submit — and application_events is
-         * append-only, so a premature "applied" row cannot be taken back.
-         */
-        if (outcome.status === 'ready') {
-          await doCapture(job, false);
-        }
-      },
-
-      onAuth: async (mode, email, password) => {
-        const result = await send({
-          type: mode === 'login' ? 'LOGIN' : 'SIGNUP',
-          payload: { email, password },
-        });
-        if (!result.ok) return result.error;
-
-        // Re-enter with a session: the same call now takes the signed-in path
-        // and swaps the form for the job actions in place.
+    onSave: () => doCapture(job, false),
+    onSignOut: () => {
+      void send({ type: 'LOGOUT' }).then(() => {
         removePanel();
-        await maybeShowPanel(job, duplicate);
+        void maybeShowPanel(job, null);
+      });
+    },
+    onCancelAutoApply: () => {
+      autoApplyCancelled = true;
+    },
+
+    /* --------------------------- apply session --------------------------- */
+
+    onStartSession: () => runSessionHere(),
+    onContinueSession: () => runSessionHere(),
+    onCancelSession: () => cancelSession(),
+
+    onSaveAnswers: (answers) => {
+      updateSession({ savingAnswers: true });
+      void send<{ saved: number }>({ type: 'SAVE_ANSWERS', payload: { answers } }).then(
+        (result) => {
+          if (!result.ok) {
+            updateSession({ savingAnswers: false, message: result.error, state: 'error' });
+            return;
+          }
+          profileCache = undefined;
+          updateSession({ savingAnswers: false, answersSaved: true });
+        }
+      );
+    },
+
+    onAuth: async (mode, email, password) => {
+      const result = await send<{ authenticated: boolean; error?: string }>({
+        type: mode === 'login' ? 'LOGIN' : 'SIGNUP',
+        payload: { email, password },
+      });
+      if (result.ok && result.data.authenticated) {
+        void maybeShowPanel(job, duplicate);
         return null;
-      },
-    }
-  );
+      }
+      return result.ok ? result.data.error ?? 'Could not sign in' : result.error;
+    },
+
+    onAutoApply: async (report, draftAnswers) => {
+      autoApplyCancelled = false;
+
+      const flow = applyFlow;
+      if (!flow) {
+        report('There is no application form on this page.', 'blocked');
+        return;
+      }
+
+      const current = await loadProfile({ fresh: true });
+      if (!current) {
+        report('Could not load your profile.', 'blocked');
+        return;
+      }
+
+      const outcome = await runApply({
+        profile: current,
+        flow,
+        draftAnswers,
+        job: { title: job.title, company: job.company, jobUrl: job.jobUrl },
+        isCancelled: () => autoApplyCancelled,
+        onProgress: (progress) => {
+          const tone =
+            progress.status === 'ready'
+              ? 'ready'
+              : progress.status === 'blocked' || progress.status === 'error'
+                ? 'blocked'
+                : 'busy';
+          report(progress.message, tone);
+        },
+      });
+
+      if (outcome.blockers?.length) {
+        const named = outcome.blockers
+          .map((blocker) => (blocker.kind === 'invalid' ? `⚠ ${blocker.label}` : blocker.label))
+          .join(' · ');
+        report(`${outcome.message} ${named}`, 'blocked');
+      }
+
+      if (outcome.status === 'ready') {
+        await doCapture(job, false);
+      }
+    },
+  };
+
+  const isNewMatch = matchCache === undefined;
+
+  // Render analyzing state immediately if match computation is pending
+  if (authenticated && isNewMatch) {
+    await renderPanel(buildJobState(null, true), handlers);
+  }
+
+  const match = authenticated ? await computeMatch() : null;
+
+  // Small delay so the analyzing animation plays smoothly on job switch
+  if (authenticated && isNewMatch) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+
+  await renderPanel(buildJobState(match, false), handlers);
 }
 
 /* --------------------------------- init --------------------------------- */
