@@ -28,6 +28,7 @@ import {
   resetPanelSession,
   panelIsOpen,
   openPanelForInput,
+  showJobAnalyzing,
   type PanelJob,
   type PanelHandlers,
 } from './ui/panel.js';
@@ -521,6 +522,23 @@ let autoApplyCancelled = false;
 let matchCache: SkillMatch | null | undefined;
 
 /**
+ * The posting `matchCache` was computed from.
+ *
+ * A cache with no owner is what let one job's score appear under another's
+ * title. `matchCache` was module-level and cleared by a *different* code path —
+ * the tracker's `jobChanged` branch — so every route into `computeMatch` that
+ * did not come through that branch, and every scrape that landed while the DOM
+ * still belonged to the previous posting, was free to answer from it. Keyed
+ * here, the cache can only ever be read back by the posting that filled it.
+ *
+ * It also stops the opposite failure: the key is the job identity, so a title
+ * or company that merely re-renders (LinkedIn rewrites both while a pane
+ * settles) no longer throws away a perfectly good comparison and re-runs the
+ * "Analysing" card over the same description.
+ */
+let matchCacheKey: string | null = null;
+
+/**
  * Failed description scrapes, so a client-rendered pane gets a second chance
  * without being re-read forever. `innerText` forces layout; unbounded retries
  * on a posting that genuinely has no description would do it every poll.
@@ -528,36 +546,159 @@ let matchCache: SkillMatch | null | undefined;
 let matchAttempts = 0;
 const MAX_MATCH_ATTEMPTS = 10;
 
-async function computeMatch(): Promise<SkillMatch | null> {
+/**
+ * The description the last comparison was computed from, and whose it was.
+ *
+ * The pane can carry the new posting's title and id while the body underneath
+ * is still the previous one's — a scrape taken then is indistinguishable from a
+ * good read except that its text is, byte for byte, the text already scored for
+ * the job before. That is the one signal that survives whatever order LinkedIn
+ * chooses to re-render in, so it is what this checks. Two postings with
+ * genuinely identical bodies would score identically anyway, which is why
+ * waiting on the coincidence costs nothing.
+ */
+let lastScoredDescription: { key: string; text: string } | null = null;
+
+/**
+ * When the posting on screen became the posting on screen.
+ *
+ * The wait above is bounded by time rather than by attempts because attempts
+ * are not a clock here: a pane swap fires mutations in the hundreds, and an
+ * attempt-based budget would be spent inside a second and leave the card
+ * claiming the description could not be read.
+ */
+let matchKeySince = 0;
+const STALE_BODY_GRACE_MS = 2500;
+
+/**
+ * `computeMatch` stood down and wants asking again.
+ *
+ * The tracker repaints only when its signature changes, and none of the things
+ * in that signature move while a pane settles — the id, the title, the company
+ * and the description bit all read the same before and after. So a deferred
+ * comparison would never be retried and the card would spin for the life of
+ * the posting.
+ *
+ * It is a flag rather than "retry whenever the match is unresolved" on purpose.
+ * Signed out, `computeMatch` never runs, so the match is unresolved forever —
+ * and that version of this rebuilt the panel every 800ms underneath the
+ * sign-in form the panel itself carries, which is unusable.
+ */
+let matchDeferred = false;
+
+/**
+ * Identity of the posting, as far as anything here can tell.
+ *
+ * Deliberately not `externalId` alone: on LinkedIn's split view `externalId`
+ * comes from JSON-LD first, and that block belongs to whichever posting the
+ * document was served for — it does not change as you click through the list.
+ * Title and company do.
+ */
+function jobKeyOf(job: CapturedJob): string {
+  return [job.externalId, job.title, job.company].join('|');
+}
+
+/**
+ * Has the detail pane settled on the posting the URL currently names?
+ *
+ * The same predicate as `isStale`, asked again at the description scrape. That
+ * is not redundant: the tracker checks it once at the top of `evaluate`, and
+ * then a duplicate-check request, a service-worker round trip and a profile
+ * load all happen before anything reads the description. A click on the next
+ * posting lands comfortably inside that window, and the scrape it produces is a
+ * fully valid read of the wrong job — right shape, real text, nothing to mark
+ * it as belonging to a posting nobody is looking at any more.
+ *
+ * Deliberately *not* compared against `job.externalId`. That field prefers
+ * JSON-LD, and LinkedIn's JSON-LD block belongs to whichever posting the
+ * document was served for — it does not change as you click through the list.
+ * Comparing against it would read as permanently stale on every posting after
+ * the first and leave the card spinning forever. Both values here are read
+ * live, one from the URL and one from the DOM, which is the whole point of the
+ * pair.
+ *
+ * `null` is "cannot tell": most adapters do not implement these hooks, and
+ * treating that as stale would switch the comparison off everywhere but here.
+ */
+function paneSettled(): boolean | null {
+  const url = new URL(window.location.href);
+  const adapter = findAdapter(url);
+  if (!adapter?.expectedExternalId || !adapter.renderedExternalId) return null;
+
+  const expected = adapter.expectedExternalId(url);
+  const rendered = adapter.renderedExternalId(document);
+  if (!expected || !rendered) return null;
+  return expected === rendered;
+}
+
+async function computeMatch(job: CapturedJob): Promise<SkillMatch | null> {
+  const key = jobKeyOf(job);
+
+  if (key !== matchCacheKey) {
+    matchCacheKey = key;
+    matchCache = undefined;
+    matchAttempts = 0;
+    matchKeySince = Date.now();
+  }
+
+  matchDeferred = false;
   if (matchCache !== undefined) return matchCache;
+
+  /*
+   * Not counted as an attempt — see `matchKeySince`. This is a pane mid-swap,
+   * which settles on its own within a poll or two.
+   */
+  if (paneSettled() === false) {
+    matchDeferred = true;
+    return null;
+  }
+
+  const url = new URL(window.location.href);
+  const adapter = findAdapter(url);
+  if (adapter?.renderedExternalId && job.externalId) {
+    const renderedId = adapter.renderedExternalId(document);
+    if (renderedId && renderedId !== job.externalId) {
+      matchDeferred = true;
+      return null;
+    }
+  }
 
   const description = pageDescription();
   if (!description) {
     /*
      * NOT cached, for the same reason the profile below is not.
-     *
-     * This used to set `matchCache = null`, and on LinkedIn that was fatal.
-     * The panel paints the moment a job is identified — which the top card and
-     * og:title supply well before the description pane has rendered — so the
-     * first scrape finds nothing, and caching that answer meant the posting was
-     * never looked at again. `matchCache` is only cleared on navigation, so the
-     * card read "no skills recognised" for the rest of the posting's life over
-     * a description that arrived a few hundred milliseconds later.
-     *
-     * Naukri never showed it: the description is in the server-rendered HTML,
-     * so the first attempt always succeeded. That is what made this look like a
-     * LinkedIn adapter fault rather than a caching one.
      */
     matchAttempts += 1;
     if (matchAttempts >= MAX_MATCH_ATTEMPTS) matchCache = null;
     return null;
   }
 
+  /*
+   * The body still belongs to the posting before this one.
+   * Compare both exact text and prefix text to reliably catch pane swaps on LinkedIn.
+   */
+  const isPreviousText =
+    lastScoredDescription &&
+    lastScoredDescription.key !== key &&
+    (lastScoredDescription.text === description ||
+      (lastScoredDescription.text.length > 80 &&
+        description.length > 80 &&
+        description.slice(0, 150) === lastScoredDescription.text.slice(0, 150)));
+
+  if (isPreviousText && Date.now() - matchKeySince < STALE_BODY_GRACE_MS) {
+    matchDeferred = true;
+    return null;
+  }
+
   const profile = await loadProfile();
-  // Not cached on failure: the user is probably about to sign in from the
-  // panel, and caching null would leave the card missing until a reload.
   if (!profile) return null;
 
+  if (matchCacheKey !== key || paneSettled() === false) {
+    matchDeferred = true;
+    return null;
+  }
+
+  lastScoredDescription = { key, text: description };
   matchCache = matchSkills(description, profile);
   return matchCache;
 }
@@ -641,11 +782,20 @@ chrome.storage.onChanged.addListener((changes, area) => {
 /**
  * Mount the launcher once there is something worth acting on.
  */
-async function maybeShowPanel(
-  job: CapturedJob,
-  duplicate: DuplicateMatch | null,
-  forceAnalyzing = false
-): Promise<void> {
+async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null): Promise<void> {
+  /*
+   * Every call is a full repaint from scratch, and there is no guarantee they
+   * finish in the order they started: each one awaits a service-worker message,
+   * a profile load and the comparison, and those take different amounts of time
+   * depending on what is cached. Two in flight across a job switch — which is
+   * the normal case, since the storage listener and the tracker both paint —
+   * and the *older* one can be the one that lands, putting the previous
+   * posting's panel back on top of the current one's.
+   *
+   * Last caller wins. Anything overtaken drops its paint on the floor.
+   */
+  const token = ++paintToken;
+
   currentJob = job;
   currentDuplicate = duplicate;
 
@@ -798,18 +948,24 @@ async function maybeShowPanel(
     },
   };
 
-  if (forceAnalyzing) {
-    if (authenticated) {
-      await renderPanel(buildJobState(null, true), handlers);
-    }
-    return;
+  let match: SkillMatch | null = null;
+  if (authenticated) {
+    match = await computeMatch(job);
+  } else {
+    // Nothing is pending when there is nobody to compare against, and a flag
+    // left set from before a sign-out would repaint the panel — and the
+    // sign-in form inside it — every 800ms.
+    matchDeferred = false;
   }
 
-  const match = authenticated ? await computeMatch() : null;
   const isAnalyzing = authenticated && match === null && matchAttempts < MAX_MATCH_ATTEMPTS;
 
+  if (token !== paintToken) return;
   await renderPanel(buildJobState(match, isAnalyzing), handlers);
 }
+
+/** Bumped by every `maybeShowPanel`; see the note there. */
+let paintToken = 0;
 
 /* --------------------------------- init --------------------------------- */
 
@@ -875,11 +1031,14 @@ function startTracking(adapter: JobAdapter): () => void {
       const modal = easyApplyModal();
       const fields = modal ? modal.querySelectorAll('input, select, textarea').length : 0;
 
-      const jobKey = [job.externalId, job.title, job.company].join('|');
+      const jobKey = jobKeyOf(job);
       // The description bit flips once, when a client-rendered pane finishes.
       // That repaint is what lets a first failed scrape try again.
       const signature = [jobKey, fields, descriptionArrived() ? 'd' : '-'].join('|');
-      if (signature === lastSignature) return;
+      // `matchDeferred` is the one reason to repaint an unchanged signature:
+      // the comparison asked to be tried again and nothing in the signature
+      // will ever move to make that happen. See the flag's own note.
+      if (signature === lastSignature && !matchDeferred) return;
 
       const jobChanged = jobKey !== lastJobKey;
       lastSignature = signature;
@@ -889,13 +1048,16 @@ function startTracking(adapter: JobAdapter): () => void {
       if (jobChanged) {
         captured = false;
         submitRecorded = false;
-        matchCache = undefined;
-        matchAttempts = 0;
         debug('job:', job.title, '@', job.company);
 
-        // Immediately flip the panel to the new job's title with Analyzing state
-        // at 0ms, so the previous job's score never lingers while network/scraping runs.
-        void maybeShowPanel(job, lastDuplicate, true);
+        /*
+         * Synchronous, and it has to be. The previous posting's score is on
+         * screen right now; every other route to replacing it goes through a
+         * service-worker message first. `computeMatch` owns invalidating its
+         * own cache from here on — clearing it here as well is what made a
+         * pane that merely re-rendered its title re-run the comparison.
+         */
+        showJobAnalyzing(job);
       }
 
       /*
@@ -911,9 +1073,32 @@ function startTracking(adapter: JobAdapter): () => void {
     }
   };
 
+  /*
+   * Debounced, but with a ceiling on how long the debounce can hold it off.
+   *
+   * A plain trailing debounce is starvable, and a LinkedIn pane swap starves
+   * it: mutations arrive faster than 300ms apart for as long as the new
+   * posting is rendering, and each one pushed the timer out again, so the
+   * evaluate that would notice the new job never ran. What actually noticed it
+   * was the 800ms backstop poll — which is why the panel took the better part
+   * of a second to catch up with a click, and why moving the reset around
+   * inside `evaluate` never made it feel any quicker.
+   *
+   * Now the timer is only ever pushed out to at most `MUTATION_MAX_WAIT_MS`
+   * from the last run. Bursts still coalesce; they can no longer postpone
+   * indefinitely.
+   */
+  let lastRun = 0;
+  const MUTATION_MAX_WAIT_MS = 300;
+
   const schedule = () => {
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => void evaluate(), 300);
+    const elapsed = Date.now() - lastRun;
+    const wait = elapsed >= MUTATION_MAX_WAIT_MS ? 0 : MUTATION_MAX_WAIT_MS - elapsed;
+    timer = window.setTimeout(() => {
+      lastRun = Date.now();
+      void evaluate();
+    }, wait);
   };
 
   const observer = new MutationObserver(schedule);
@@ -947,9 +1132,17 @@ async function init(): Promise<void> {
   resetSession();
   resetPanelSession();
 
-  // The comparison was about the posting that just went away.
-  matchCache = undefined;
-  matchAttempts = 0;
+  /*
+   * The comparison is NOT cleared here, and that is a change.
+   *
+   * `init` runs on every URL change, and LinkedIn rewrites its own query
+   * string — tracking parameters, pane state — while you sit on one posting.
+   * Each of those wiped a perfectly good comparison and sent the card back to
+   * "Analysing" over a description that had not moved, which is a good part of
+   * what "it analyses again" was. `computeMatch` is keyed to the posting now,
+   * so a genuine change invalidates itself and a spurious one costs nothing.
+   */
+  matchDeferred = false;
 
   captured = false;
   submitRecorded = false;
@@ -991,12 +1184,52 @@ async function init(): Promise<void> {
  * entirely client-side.
  */
 
+/**
+ * Which posting a URL names, for deciding whether a URL change is a job change.
+ *
+ * Falls back to the whole href where the adapter has no id hook, because on
+ * those platforms a URL change *is* a different posting — Ashby navigates
+ * board to posting client-side and nothing else marks it. LinkedIn does have
+ * the hook, and needs it: it rewrites its own query string for tracking and
+ * pane state, and treating that as a job change would blank the card while you
+ * sit on one posting.
+ */
+function urlJobIdentity(url: URL): string {
+  const adapter = findAdapter(url);
+  return adapter?.expectedExternalId?.(url) ?? url.href;
+}
+
 function watchNavigation(): void {
   let lastUrl = window.location.href;
+  let lastIdentity = urlJobIdentity(new URL(lastUrl));
 
   const onChange = () => {
     if (window.location.href === lastUrl) return;
     lastUrl = window.location.href;
+
+    /*
+     * Before `init`, and this is the whole trick.
+     *
+     * The URL changes the instant a posting is clicked. Everything that learns
+     * *which* posting has to wait for the pane to render, and the tracker that
+     * does that reading is driven by a debounced MutationObserver and an 800ms
+     * poll — so on a real job switch the previous posting's score stayed on
+     * screen for a second or more. Every attempt to fix this so far moved the
+     * reset around inside that pipeline, which cannot be early enough: the
+     * pipeline is the thing that is late.
+     *
+     * A URL comparison needs nothing from the DOM, so it can run here, at
+     * click time. Blanking the card costs nothing if the read turns out to be
+     * the same posting — the tracker paints over this within a frame or two
+     * either way.
+     */
+    const url = new URL(window.location.href);
+    const identity = urlJobIdentity(url);
+    const movedPosting = identity !== lastIdentity;
+    lastIdentity = identity;
+
+    if (movedPosting && findAdapter(url)?.isJobPage(url)) showJobAnalyzing();
+
     void init();
   };
 
@@ -1004,9 +1237,14 @@ function watchNavigation(): void {
    * Patching history is necessary but not sufficient. LinkedIn changes the
    * visible posting in ways that do not always reach these hooks — a framework
    * that captured pushState before this script ran still calls the original —
-   * so the URL is also polled. Cheap: a string compare a few times a second.
+   * so the URL is also polled.
+   *
+   * 150ms rather than 600: this poll is what actually catches a LinkedIn job
+   * switch, since LinkedIn is precisely the site whose pushState never reaches
+   * the patch above, and at 600ms it was contributing over half a second of
+   * stale score on its own. A string compare is not worth pacing.
    */
-  setInterval(onChange, 600);
+  setInterval(onChange, 150);
 
   for (const method of ['pushState', 'replaceState'] as const) {
     const original = history[method];

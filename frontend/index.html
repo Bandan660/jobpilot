@@ -46,6 +46,34 @@
       content="Apply like normal. BanApply captures the application, catches duplicates, and flags postings that have gone down."
     />
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!--
+      Google Analytics (gtag.js).
+
+      Last in the head on purpose. Everything above it is either a tag the
+      crawler needs or the theme script, which has to run before first paint;
+      a third-party script ahead of those competes with them for the main
+      thread during exactly the window LCP is measured in.
+
+      `async` keeps it off the critical path, but it is not free — this is the
+      one third-party script on a site that dropped three.js and GSAP over
+      main-thread cost. If the Lighthouse performance score moves, this is the
+      first thing to suspect.
+
+      The prerenderer uses dist/index.html as its template and replaces only
+      the root div and the meta tags, so this lands on every prerendered route.
+      The service worker ignores cross-origin requests, so it does not touch it.
+    -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9KTB0DKZN1"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag('js', new Date());
+
+      gtag('config', 'G-9KTB0DKZN1');
+    </script>
   </head>
   <body>
     <div id="root"></div>

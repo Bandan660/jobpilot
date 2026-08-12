@@ -662,6 +662,57 @@ export function panelIsOpen(): boolean {
   return !collapsed && mounted !== null;
 }
 
+/**
+ * Point the panel at a different posting, synchronously, before anything is
+ * known about it.
+ *
+ * The tracker already did this by calling `maybeShowPanel(job, dup, true)` and
+ * not awaiting it — but that path is not synchronous and never was. It sends
+ * `GET_SESSION` to the service worker and awaits `loadProfile()` before it
+ * paints anything, and a sleeping service worker makes the first of those cost
+ * hundreds of milliseconds. For that whole window the panel is still showing
+ * the *previous* posting fully painted: its title, its duplicate warning, and
+ * its match score. That is the "old score, then it analyses again, then the
+ * real score" everyone sees on a LinkedIn job switch — the reset was queued
+ * behind a network round-trip rather than run before it.
+ *
+ * So it happens here instead, off the state already on screen: swap the
+ * identity-bound fields, keep the page-bound ones, repaint. No awaits, no
+ * messages, nothing that can be scheduled late.
+ *
+ * `duplicate` is cleared for the same reason as the score, and more urgently —
+ * "you already applied to this role" pinned under a job you have never seen is
+ * worse than a stale number.
+ */
+export function showJobAnalyzing(job?: CapturedJob | null): void {
+  if (!mounted || !lastState || !lastHandlers) return;
+
+  lastState = {
+    ...lastState,
+    /*
+     * No job means the URL moved and nothing has been read off the new pane
+     * yet — which is the moment this matters most, and the only moment early
+     * enough to beat the old score off the screen. The identity is blanked
+     * rather than kept: the card falls back to "This posting", which reads as
+     * loading, where the previous posting's title reads as an answer.
+     */
+    job: job ?? { ...lastState.job, title: null, company: null, location: null },
+    match: null,
+    matchDiagnostic: undefined,
+    isAnalyzingMatch: true,
+    duplicate: null,
+    /*
+     * Both go with the identity. A coverage count belongs to a form on the
+     * posting being left behind, and leaving `hasForm` set while zeroing the
+     * count lands on "Nothing here matches your profile (0 fields)" — a verdict,
+     * during a transition, about a form that is not there.
+     */
+    coverage: job ? lastState.coverage : { fillable: 0, total: 0 },
+    hasForm: job ? lastState.hasForm : false,
+  };
+  mounted.repaint(lastState, lastHandlers);
+}
+
 export function removePanel(): void {
   mounted?.destroy();
   mounted = null;
