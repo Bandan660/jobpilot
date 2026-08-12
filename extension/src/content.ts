@@ -888,6 +888,8 @@ function startTracking(adapter: JobAdapter): () => void {
       if (jobChanged) {
         captured = false;
         submitRecorded = false;
+        matchCache = undefined;
+        matchAttempts = 0;
         debug('job:', job.title, '@', job.company);
       }
 
