@@ -1,4 +1,4 @@
-﻿/* Public marketing pages. Scoped under .marketing so nothing here can collide
+/* Public marketing pages. Scoped under .marketing so nothing here can collide
    with the app shell's rules. */
 
 .site-header {
@@ -129,10 +129,19 @@
  * toggle and two buttons stop fitting well before 900px — which is why the bar
  * looked wrong through the whole tablet range.
  */
+.show-small-mobile {
+  display: none;
+}
+
 @media (max-width: 1040px) {
   .site-nav,
   .hide-mobile {
     display: none;
+  }
+
+  .site-header .shell {
+    justify-content: space-between;
+    gap: 12px;
   }
 
   .menu-toggle {
@@ -141,6 +150,63 @@
 
   .mobile-nav:not([hidden]) {
     display: flex;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-header .shell {
+    padding-inline: 14px;
+    gap: 8px;
+  }
+
+  .site-header .brand {
+    font-size: 0.95rem;
+    gap: 0.4rem;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .header-actions .btn {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+  }
+
+  .menu-toggle {
+    padding: 0.5rem 0.55rem;
+  }
+}
+
+@media (max-width: 440px) {
+  .hide-small-mobile {
+    display: none !important;
+  }
+
+  .show-small-mobile {
+    display: inline !important;
+  }
+
+  .site-header .shell {
+    padding-inline: 10px;
+    gap: 6px;
+  }
+
+  .site-header .brand {
+    font-size: 0.88rem;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .header-actions .btn-header-cta {
+    padding: 5px 10px;
+    font-size: 0.78rem;
+  }
+
+  .menu-toggle {
+    padding: 0.45rem 0.5rem;
   }
 }
 

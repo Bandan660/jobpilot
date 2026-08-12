@@ -98,8 +98,9 @@ function SiteHeader() {
         <div className="header-actions">
           <ThemeToggle />
           {signedIn ? (
-            <Link className="btn btn-primary" to="/dashboard">
-              Open tracker
+            <Link className="btn btn-primary btn-header-cta" to="/dashboard">
+              <span className="hide-small-mobile">Open tracker</span>
+              <span className="show-small-mobile">Tracker</span>
             </Link>
           ) : (
             <>
@@ -108,8 +109,9 @@ function SiteHeader() {
               </Link>
               {/* Short form of the landing CTA — the header has no room for
                   the full "Join now — it's free". */}
-              <Link className="btn btn-primary" to="/signup">
-                Join free
+              <Link className="btn btn-primary btn-header-cta" to="/signup">
+                <span className="hide-small-mobile">Join free</span>
+                <span className="show-small-mobile">Join</span>
               </Link>
             </>
           )}
