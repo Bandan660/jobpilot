@@ -58,5 +58,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 'ee83c3ab71a1887dba11dc82414f543a'
-          command: pages deploy dist --project-name=jobpilot-3lg
+          command: pages deploy dist --project-name=jobpilot
           workingDirectory: 'frontend'
