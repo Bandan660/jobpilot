@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BoltIcon } from './illustrations.js';
 
@@ -15,17 +15,25 @@ import { BoltIcon } from './illustrations.js';
  * land after React does.
  */
 export function ExtensionBanner() {
-  // Starts hidden and appears only once both checks pass, so it can never
-  // flash in front of someone who has the extension.
-  const [show, setShow] = useState(false);
+  // Synchronous check on mount so banner renders immediately with page layout
+  const [show, setShow] = useState(() => {
+    if (typeof document === 'undefined') return false;
+    return !document.documentElement.dataset.BanApplyExtension && !document.documentElement.dataset.jobpilotExtension;
+  });
 
   useEffect(() => {
-    const installed = () => Boolean(document.documentElement.dataset.BanApplyExtension);
-    if (installed()) return;
+    const checkInstalled = () => {
+      const installed = Boolean(
+        document.documentElement.dataset.BanApplyExtension ||
+          document.documentElement.dataset.jobpilotExtension
+      );
+      if (installed) {
+        setShow(false);
+      }
+    };
 
-    // The content script may not have run yet. One late re-check costs
-    // nothing and avoids a banner that appears and then vanishes.
-    const timer = setTimeout(() => setShow(!installed()), 600);
+    checkInstalled();
+    const timer = setTimeout(checkInstalled, 150);
     return () => clearTimeout(timer);
   }, []);
 

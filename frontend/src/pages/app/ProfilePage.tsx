@@ -143,6 +143,7 @@ export function ProfilePage() {
     try {
       const { profile: updated } = await api.updateProfile(draft);
       setProfile(updated);
+      setDraft(updated);
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save');
@@ -178,7 +179,13 @@ export function ProfilePage() {
     compensation: draft.compensation?.expected?.amountCents != null,
   };
 
-  const dirty = profile ? JSON.stringify(draft) !== JSON.stringify(profile) : false;
+  const normalizeForDiff = (obj: any) => {
+    if (!obj) return '';
+    const { id, userId, createdAt, updatedAt, onboardingComplete, ...rest } = obj;
+    return JSON.stringify(rest, Object.keys(rest).sort());
+  };
+
+  const dirty = Boolean(profile && normalizeForDiff(draft) !== normalizeForDiff(profile));
 
   return (
     <div className="dash">
