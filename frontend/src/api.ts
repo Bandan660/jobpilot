@@ -172,6 +172,26 @@ const liveApi = {
   /** Service-wide aggregates. 403s for anyone not on the admin allowlist. */
   adminMetrics: () => request<AdminMetrics>('/api/admin/metrics'),
 
+  /* -------------------------------------------------------------------------- */
+  /* Blog API                                                                  */
+  /* -------------------------------------------------------------------------- */
+  getPublicBlogPosts: () => request<import('@jobpilot/shared').DynamicBlogPost[]>('/api/blog'),
+  getPublicBlogPostBySlug: (slug: string) =>
+    request<import('@jobpilot/shared').DynamicBlogPost>(`/api/blog/${encodeURIComponent(slug)}`),
+  getAdminBlogPosts: () => request<import('@jobpilot/shared').DynamicBlogPost[]>('/api/admin/blog'),
+  createBlogPost: (input: import('@jobpilot/shared').CreateBlogPostInput) =>
+    request<import('@jobpilot/shared').DynamicBlogPost>('/api/admin/blog', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateBlogPost: (id: string, input: Partial<import('@jobpilot/shared').CreateBlogPostInput>) =>
+    request<import('@jobpilot/shared').DynamicBlogPost>(`/api/admin/blog/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  deleteBlogPost: (id: string) =>
+    request<{ ok: boolean }>(`/api/admin/blog/${id}`, { method: 'DELETE' }),
+
   getProfile: () => request<{ profile: Profile }>('/api/profile'),
 
   updateProfile: (input: ProfileInput & { onboardingComplete?: boolean }) =>

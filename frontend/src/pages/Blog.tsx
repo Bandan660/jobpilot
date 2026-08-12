@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   POSTS,
@@ -12,6 +12,33 @@ import { PostCover } from '../components/PostCover.js';
 import { Reveal } from '../components/Reveal.js';
 import { SITE_URL, useSeo } from '../usePageMeta.js';
 import { SITE } from '../content/site.js';
+
+import { api } from '../api.js';
+import type { DynamicBlogPost as APIDynamicPost } from '@jobpilot/shared';
+
+function mapDynamicPost(dp: APIDynamicPost): Post {
+  return {
+    slug: dp.slug,
+    title: dp.title,
+    summary: dp.summary,
+    date: dp.createdAt ? dp.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+    readingMinutes: dp.readingMinutes || 3,
+    category: dp.category || 'Job search',
+    author: dp.author || 'BanApply Team',
+    tags: Array.isArray(dp.tags) ? dp.tags : ['job search'],
+    body: dp.content
+      ? dp.content.split('\n\n').map((paragraph) => {
+          if (paragraph.startsWith('## ')) {
+            return { kind: 'h2' as const, text: paragraph.replace(/^##\s+/, '') };
+          }
+          if (paragraph.startsWith('> ')) {
+            return { kind: 'quote' as const, text: paragraph.replace(/^>\s+/, '') };
+          }
+          return { kind: 'p' as const, text: paragraph };
+        })
+      : [{ kind: 'p', text: dp.summary }],
+  };
+}
 
 const BY_DATE = [...POSTS].sort((a, b) => b.date.localeCompare(a.date));
 
@@ -43,7 +70,29 @@ function PostCard({ post, featured = false }: { post: Post; featured?: boolean }
 }
 
 export function BlogIndex() {
-  const [featured, ...rest] = BY_DATE;
+  const [allPosts, setAllPosts] = useState<Post[]>(BY_DATE);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getPublicBlogPosts()
+      .then((dynamicPosts) => {
+        if (cancelled || !dynamicPosts || dynamicPosts.length === 0) return;
+        const mapped = dynamicPosts.map(mapDynamicPost);
+        // Combine dynamic posts (first) + static posts (filtering duplicates)
+        const dynamicSlugs = new Set(mapped.map((p) => p.slug));
+        const combined = [...mapped, ...BY_DATE.filter((p) => !dynamicSlugs.has(p.slug))];
+        combined.sort((a, b) => b.date.localeCompare(a.date));
+        setAllPosts(combined);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const [featured, ...rest] = allPosts;
 
   useSeo({
     title: 'Blog — job searching, applications, and how hiring actually works',
@@ -171,7 +220,36 @@ function renderBlock(block: Block, index: number) {
 
 export function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
-  const post = slug ? findPost(slug) : undefined;
+  const staticPost = slug ? findPost(slug) : undefined;
+  const [post, setPost] = useState<Post | undefined>(staticPost);
+  const [loading, setLoading] = useState(!staticPost);
+
+  useEffect(() => {
+    if (staticPost) {
+      setPost(staticPost);
+      setLoading(false);
+      return;
+    }
+
+    if (!slug) return;
+
+    let cancelled = false;
+    api
+      .getPublicBlogPostBySlug(slug)
+      .then((dp) => {
+        if (!cancelled && dp) {
+          setPost(mapDynamicPost(dp));
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, staticPost]);
 
   useSeo({
     title: post?.title ?? 'Post not found',

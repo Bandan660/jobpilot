@@ -469,3 +469,34 @@ export interface AdminMetrics {
   /** Accounts with at least one application. */
   activatedUsers: number;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Blog Management                                                             */
+/* -------------------------------------------------------------------------- */
+
+export interface DynamicBlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  category: string;
+  author: string;
+  readingMinutes: number;
+  tags: string[];
+  content: string;
+  published: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBlogPostInput {
+  title: string;
+  slug?: string;
+  summary: string;
+  category?: string;
+  author?: string;
+  readingMinutes?: number;
+  tags?: string[];
+  content: string;
+  published?: boolean;
+}

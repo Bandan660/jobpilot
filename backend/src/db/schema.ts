@@ -385,7 +385,29 @@ export const contacts = pgTable(
   })
 );
 
+export const blogPosts = pgTable(
+  'blog_posts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slug: text('slug').notNull(),
+    title: text('title').notNull(),
+    summary: text('summary').notNull(),
+    category: text('category').notNull().default('Job search'),
+    author: text('author').notNull().default('BanApply Team'),
+    readingMinutes: integer('reading_minutes').notNull().default(3),
+    tags: jsonb('tags').$type<string[]>().notNull().default([]),
+    content: text('content').notNull(),
+    published: boolean('published').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    slugIdx: uniqueIndex('blog_posts_slug_idx').on(t.slug),
+  })
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type CompanyRow = typeof companies.$inferSelect;
 export type ApplicationRow = typeof applications.$inferSelect;
 export type ApplicationEventRow = typeof applicationEvents.$inferSelect;
+export type BlogPostRow = typeof blogPosts.$inferSelect;
