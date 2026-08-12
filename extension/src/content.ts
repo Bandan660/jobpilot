@@ -628,14 +628,23 @@ function descriptionArrived(): boolean {
   return false;
 }
 
+let currentDuplicate: DuplicateMatch | null = null;
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && (changes.authToken || changes.userEmail)) {
+    if (currentJob) {
+      void maybeShowPanel(currentJob, currentDuplicate);
+    }
+  }
+});
+
 /**
  * Mount the launcher once there is something worth acting on.
- *
- * Shows the button, not the panel — the panel opens on click. Signed out it
- * still mounts, carrying the sign-in form, because sending someone to the
- * toolbar popup and back is worse than showing it where they already are.
  */
 async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null): Promise<void> {
+  currentJob = job;
+  currentDuplicate = duplicate;
+
   const session = await send<{ authenticated: boolean; email: string | null }>({
     type: 'GET_SESSION',
   });
@@ -1140,36 +1149,17 @@ function announce(): void {
   if (!onOwnSite()) return;
   document.documentElement.dataset.banapplyExtension =
     chrome.runtime.getManifest().version;
+  document.documentElement.dataset.jobpilotExtension =
+    chrome.runtime.getManifest().version;
 }
 
 /** jobpilot's own site — the only origin allowed to hand over a session. */
 function onOwnSite(): boolean {
-  return /(^|\.)banapply\.com$/.test(window.location.hostname);
+  return /(^|\.)(banapply\.com|jobpilot-3lg\.pages\.dev|pages\.dev|localhost)$/.test(window.location.hostname);
 }
 
 /**
  * Take the session the website hands over after signing in there.
- *
- * Sign-in lives on the website now. Google's consent flow does not belong in a
- * 360px popup, and two sign-in surfaces is two things to keep working against
- * one identity provider — so the popup sends people to the site, and the site
- * passes the result back through here.
- *
- * FOUR CHECKS, AND EACH ONE MATTERS
- *
- * - The host is jobpilot's own. The manifest already guarantees this script
- *   only runs there, so this is belt and braces — but it is one line, and the
- *   thing being handled is a bearer token for someone's account.
- * - `event.source === window`. Without it, an iframe embedded in the page could
- *   post a session and have it adopted. jobpilot embeds none, which is the sort
- *   of fact that stays true until someone adds a widget.
- * - `event.origin === window.location.origin`. Rejects anything cross-origin
- *   that got a handle to this window.
- * - The payload is shaped as expected, and nothing else on the page's message
- *   channel is treated as a login.
- *
- * Deliberately not verified beyond that. A bad token 401s on the first API
- * call and the session is dropped — the path an expired token already takes.
  */
 function listenForWebSession(): void {
   if (!onOwnSite()) return;
@@ -1182,13 +1172,16 @@ function listenForWebSession(): void {
       | { source?: unknown; type?: unknown; token?: unknown; email?: unknown }
       | null;
 
-    if (!data || data.source !== 'banapply-web' || data.type !== 'SESSION') return;
-    if (typeof data.token !== 'string' || !data.token) return;
+    if (!data || data.source !== 'banapply-web') return;
 
-    void send({
-      type: 'ADOPT_SESSION',
-      payload: { token: data.token, email: typeof data.email === 'string' ? data.email : '' },
-    });
+    if (data.type === 'SESSION' && typeof data.token === 'string' && data.token) {
+      void send({
+        type: 'ADOPT_SESSION',
+        payload: { token: data.token, email: typeof data.email === 'string' ? data.email : '' },
+      });
+    } else if (data.type === 'LOGOUT') {
+      void send({ type: 'LOGOUT' });
+    }
   });
 }
 

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { clearToken, getToken, setToken } from './api.js';
+import { api, clearToken, getToken, setToken } from './api.js';
 import { handOffWhenReady } from './extensionBridge.js';
 
 interface AuthValue {
@@ -18,6 +18,7 @@ const AuthContext = createContext<AuthValue | null>(null);
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(() => getToken());
+  const [email, setEmail] = useState<string | null>(null);
 
   const signIn = useCallback((next: string, remember = true) => {
     setToken(next, remember);
@@ -27,17 +28,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(() => {
     clearToken();
     setTokenState(null);
+    setEmail(null);
+    if (typeof window !== 'undefined') {
+      window.postMessage({ source: 'banapply-web', type: 'LOGOUT' }, window.location.origin);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!token) {
+      setEmail(null);
+      return;
+    }
+
+    let cancelled = false;
+    api
+      .getProfile()
+      .then(({ profile }) => {
+        if (!cancelled && profile?.email) {
+          setEmail(profile.email);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   /*
    * Pass the session to the extension whenever there is one.
-   *
-   * In an effect rather than inside `signIn`, so it also covers arriving on the
-   * site already signed in — which is the common case once someone installs the
-   * extension after making their account, and the one a sign-in-only hook
-   * silently misses.
    */
-  useEffect(() => handOffWhenReady(token, null), [token]);
+  useEffect(() => {
+    if (token) {
+      return handOffWhenReady(token, email);
+    }
+  }, [token, email]);
 
   const value = useMemo(
     () => ({ isAuthenticated: Boolean(token), signIn, signOut }),
