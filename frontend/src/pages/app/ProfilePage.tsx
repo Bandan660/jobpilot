@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   PROFILE_REGIONS,
   profileReadiness,
@@ -9,6 +9,7 @@ import {
   type ProfileRegion,
 } from '@jobpilot/shared';
 import { api } from '../../api.js';
+import { LoadingSpinner } from '../../components/LoadingSpinner.js';
 import { usePageMeta } from '../../usePageMeta.js';
 import { Resumes } from './Resumes.js';
 import { ChipList, EducationSection, ExperienceSection } from './ProfileSections.js';
@@ -150,7 +151,7 @@ export function ProfilePage() {
     }
   }
 
-  if (loading) return <p className="centered">Loading…</p>;
+  if (loading) return <LoadingSpinner label="Loading profile data…" fullPage />;
 
   const readiness = profileReadiness({ ...profile, ...draft } as Profile);
   const percent = Math.round((readiness.complete / readiness.total) * 100);

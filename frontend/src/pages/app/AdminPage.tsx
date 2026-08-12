@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AdminMetrics } from '@jobpilot/shared';
 import { api } from '../../api.js';
+import { LoadingSpinner } from '../../components/LoadingSpinner.js';
 import { usePageMeta } from '../../usePageMeta.js';
 
 /**
@@ -138,7 +139,7 @@ export function AdminPage() {
     }
   };
 
-  if (loading) return <p className="centered">Loading…</p>;
+  if (loading) return <LoadingSpinner label="Loading admin metrics…" fullPage />;
 
   if (error) {
     return (

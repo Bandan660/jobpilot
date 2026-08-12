@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PROFILE_REGIONS,
@@ -8,6 +8,7 @@ import {
   type ProfileRegion,
 } from '@jobpilot/shared';
 import { api } from '../api.js';
+import { LoadingSpinner } from '../components/LoadingSpinner.js';
 import { useAuth } from '../auth.js';
 import { usePageMeta } from '../usePageMeta.js';
 import { Brand } from '../components/SiteChrome.js';
@@ -103,7 +104,7 @@ export function Onboarding() {
     }
   }
 
-  if (loading) return <p className="centered">Loading…</p>;
+  if (loading) return <LoadingSpinner label="Setting up your account…" fullPage />;
 
   const progress = ((step + 1) / STEPS.length) * 100;
 

@@ -10,6 +10,7 @@ import { Tracker } from './pages/Tracker.js';
 import { BlogIndex, BlogPost } from './pages/Blog.js';
 import { Privacy, Terms } from './pages/Legal.js';
 import { NotFound } from './pages/NotFound.js';
+import { LoadingSpinner } from './components/LoadingSpinner.js';
 
 /*
  * Auth-gated routes are code-split: nobody reading a blog post should download
@@ -102,7 +103,7 @@ function RequireOnboarded({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (state === 'checking') return <p className="centered">Loading…</p>;
+  if (state === 'checking') return <LoadingSpinner fullPage label="Securing session…" />;
   if (state === 'needs-onboarding') return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
@@ -140,7 +141,7 @@ export function AppRoutes() {
           <Route
             path="/login"
             element={
-              <Suspense fallback={<p className="centered">Loading…</p>}>
+              <Suspense fallback={<LoadingSpinner fullPage />}>
                 <LoginPage mode="login" />
               </Suspense>
             }
@@ -148,7 +149,7 @@ export function AppRoutes() {
           <Route
             path="/signup"
             element={
-              <Suspense fallback={<p className="centered">Loading…</p>}>
+              <Suspense fallback={<LoadingSpinner fullPage />}>
                 <LoginPage mode="signup" />
               </Suspense>
             }
@@ -159,7 +160,7 @@ export function AppRoutes() {
             path="/onboarding"
             element={
               <RequireAuth>
-                <Suspense fallback={<p className="centered">Loading…</p>}>
+                <Suspense fallback={<LoadingSpinner fullPage />}>
                   <Onboarding />
                 </Suspense>
               </RequireAuth>
@@ -171,7 +172,7 @@ export function AppRoutes() {
             element={
               <RequireAuth>
                 <RequireOnboarded>
-                  <Suspense fallback={<p className="centered">Loading…</p>}>
+                  <Suspense fallback={<LoadingSpinner fullPage />}>
                     <AppShell />
                   </Suspense>
                 </RequireOnboarded>

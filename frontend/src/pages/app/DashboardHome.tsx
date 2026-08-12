@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ACTIVE_STATUSES,
@@ -12,6 +12,7 @@ import {
   type Profile,
 } from '@jobpilot/shared';
 import { api } from '../../api.js';
+import { LoadingSpinner } from '../../components/LoadingSpinner.js';
 import {
   AlertIcon,
   CalendarIcon,
@@ -74,7 +75,7 @@ export function DashboardHome() {
     };
   }, []);
 
-  if (loading) return <p className="centered">Loading…</p>;
+  if (loading) return <LoadingSpinner label="Loading dashboard stats…" fullPage />;
 
   const readiness = profile ? profileReadiness(profile) : null;
   const thisWeek = applications.filter((a) => a.appliedAt && daysBetween(a.appliedAt) < 7).length;

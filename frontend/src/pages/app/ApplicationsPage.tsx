@@ -11,6 +11,7 @@ import {
   type Resume,
 } from '@jobpilot/shared';
 import { api } from '../../api.js';
+import { LoadingSpinner } from '../../components/LoadingSpinner.js';
 import { ArchiveIcon, BuildingIcon, PinIcon, SearchIcon } from '../../components/icons.js';
 import { downloadCsv, parseCsv, toCsv } from '../../csv.js';
 import { usePageMeta } from '../../usePageMeta.js';
@@ -227,7 +228,7 @@ export function ApplicationsPage() {
       </section>
 
       {loading ? (
-        <p className="centered">Loading…</p>
+        <LoadingSpinner label="Loading application pipeline…" />
       ) : applications.length === 0 ? (
         <section className="panel">
           <p className="muted">
