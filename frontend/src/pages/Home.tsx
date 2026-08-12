@@ -94,9 +94,9 @@ function TrackerMock() {
 
 export function Home() {
   useSeo({
-    title: 'Job application tracker that updates itself',
+    title: 'Ban the pain of applying | 1-Click AI Job Autofill & Tracker',
     description:
-      'BanApply autofills job applications from one profile, records every application from your browser, and tells you when a posting comes down.',
+      'BanApply — Ban the pain of applying. 1-click AI autofill across LinkedIn, Indeed, Naukri, Greenhouse, Lever & Workday. Calculate skill match scores and auto-track applications.',
     path: '/',
     structuredData: {
       '@context': 'https://schema.org',
@@ -105,7 +105,7 @@ export function Home() {
           '@type': 'WebSite',
           name: SITE.name,
           url: SITE_URL,
-          description: 'A job application tracker that fills forms and updates itself.',
+          description: 'BanApply — Ban the pain of applying. 1-click AI job autofill and automatic application tracker.',
         },
         {
           '@type': 'SoftwareApplication',
@@ -131,25 +131,23 @@ export function Home() {
       <section className="hero">
         <div className="shell">
           <div className="hero-copy">
-            <span className="eyebrow">Job application tracker</span>
+            <span className="eyebrow">⚡ BanApply &mdash; Ban the pain of applying</span>
             <h1>
-              Apply. That&rsquo;s the <em>whole</em> workflow.
+              Ban the <em>pain</em> of applying for jobs.
             </h1>
             <p>
-              Copilot fills the form from one profile, records the application straight from your
-              browser, warns you before you apply somewhere twice, and tells you when a posting
-              comes down.
+              BanApply is your 1-click AI job co-pilot. Fill application forms instantly across LinkedIn, Indeed, Naukri, Greenhouse, Lever, &amp; Workday, calculate skill match scores, and auto-track every role in your dashboard.
             </p>
             <div className="hero-actions">
               <Link className="btn btn-primary" to="/signup">
-                Join now — it&rsquo;s free
+                Join now &mdash; it&rsquo;s free
               </Link>
               <Link className="btn btn-ghost" to="/job-application-tracker">
                 See the tracker
               </Link>
             </div>
             <span className="hero-note">
-              No card, no trial timer. Free while BanApply is in early access.
+              No card required, no trial timer. Free while BanApply is in early access.
             </span>
           </div>
 
