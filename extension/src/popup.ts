@@ -72,7 +72,7 @@ function renderAuth(session: SessionState): void {
     el('p', {
       className: 'muted',
       textContent:
-        'Sign in on the website — including with Google. jobpilot connects this extension automatically once you are in.',
+        'Sign in on the website — including with Google. BanApply connects this extension automatically once you are in.',
     }),
     signIn,
     signUp,
@@ -203,7 +203,7 @@ async function renderSignedIn(session: SessionState): Promise<void> {
     el('p', {
       className: 'muted',
       textContent:
-        'Open a job posting and use the Autofill button on the right of the page. jobpilot records the application when you submit it.',
+        'Open a job posting and use the Autofill button on the right of the page. BanApply records the application when you submit it.',
     })
   );
 

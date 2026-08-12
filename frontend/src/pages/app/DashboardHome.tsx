@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ACTIVE_STATUSES,
@@ -267,7 +267,7 @@ function TimeSavedAndGoal({
             </div>
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '2px' }}>
               By autofilling forms and auto-capturing {applications.length} applications with
-              jobpilot.
+              BanApply.
             </p>
           </div>
         </div>

@@ -27,7 +27,7 @@
 
 /** Set by the content script on mount, and the only signal the extension is here. */
 function extensionPresent(): boolean {
-  return typeof document !== 'undefined' && 'jobpilotExtension' in document.documentElement.dataset;
+  return typeof document !== 'undefined' && 'banapplyExtension' in document.documentElement.dataset;
 }
 
 /**
@@ -42,7 +42,7 @@ export function handOffSession(token: string | null, email: string | null): void
   if (!token || !extensionPresent()) return;
 
   window.postMessage(
-    { source: 'jobpilot-web', type: 'SESSION', token, email: email ?? '' },
+    { source: 'banapply-web', type: 'SESSION', token, email: email ?? '' },
     window.location.origin
   );
 }

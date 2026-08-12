@@ -163,11 +163,11 @@ export async function syncContentScripts(): Promise<void> {
       },
     ]);
   } catch (error) {
-    console.warn('[jobpilot] could not sync optional content scripts:', error);
+    console.warn('[banapply] could not sync optional content scripts:', error);
   }
 }
 
-const OPTIONAL_SCRIPT_ID = 'jobpilot-optional-platforms';
+const OPTIONAL_SCRIPT_ID = 'banapply-optional-platforms';
 
 /**
  * Run the content script in tabs that are already open on a just-granted host.
@@ -195,6 +195,6 @@ export async function injectIntoOpenTabs(platform: Platform): Promise<void> {
       })
     );
   } catch (error) {
-    console.warn('[jobpilot] could not inject into open tabs:', error);
+    console.warn('[banapply] could not inject into open tabs:', error);
   }
 }

@@ -109,14 +109,14 @@ export async function send<T>(message: Message): Promise<Response<T>> {
     // Absent once the context is torn down — cheaper than waiting for the
     // rejection, and it distinguishes this case from a genuine send failure.
     if (!chrome.runtime?.id) {
-      return { ok: false, error: 'jobpilot was reloaded — refresh this page to reconnect.' };
+      return { ok: false, error: 'BanApply was reloaded — refresh this page to reconnect.' };
     }
 
     return (await chrome.runtime.sendMessage(message)) as Response<T>;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (detail.includes('Extension context invalidated')) {
-      return { ok: false, error: 'jobpilot was reloaded — refresh this page to reconnect.' };
+      return { ok: false, error: 'BanApply was reloaded — refresh this page to reconnect.' };
     }
     return { ok: false, error: detail };
   }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   POSTS,
@@ -415,7 +415,7 @@ export function BlogPost() {
           <div className="cta-panel">
             <h2>Stop losing track of where you applied</h2>
             <p>
-              jobpilot fills the form, records the application, and tells you when a posting comes
+              BanApply fills the form, records the application, and tells you when a posting comes
               down — without you touching a spreadsheet.
             </p>
             <div className="cta-actions">

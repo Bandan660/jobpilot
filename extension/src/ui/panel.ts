@@ -28,7 +28,7 @@ import { DEFAULT_WEB_BASE_URL } from '../config.js';
  * cookie bars routinely sit in the high hundreds of thousands.
  */
 
-const HOST_ID = 'jobpilot-panel-host';
+const HOST_ID = 'banapply-panel-host';
 
 /** What the local matcher reports. No prose, so no model. */
 export interface SkillSummary {
@@ -186,7 +186,7 @@ function paintRunState(): void {
     if (autoApplyRun.line) statusEl.append(document.createTextNode(autoApplyRun.line));
   }
   if (applyEl) {
-    applyEl.textContent = autoApplyRun.active ? 'Stop' : 'Apply with jobpilot';
+    applyEl.textContent = autoApplyRun.active ? 'Stop' : 'Apply with BanApply';
   }
 }
 
@@ -232,7 +232,7 @@ function matchCard(match: SkillSummary): HTMLElement {
   if (total === 0) {
     const none = document.createElement('div');
     none.className = 'match-line';
-    none.textContent = 'No skills named in this posting that jobpilot recognises.';
+    none.textContent = 'No skills named in this posting that BanApply recognises.';
     card.append(none);
     return card;
   }
@@ -490,7 +490,7 @@ function paintSession(): void {
     const hint = document.createElement('p');
     hint.className = 'note';
     hint.textContent =
-      'Answer the required questions in the application form and jobpilot carries on by itself.';
+      'Answer the required questions in the application form and BanApply carries on by itself.';
     root.append(hint);
   }
 
@@ -533,7 +533,7 @@ function paintSession(): void {
     copy.className = 'ghost';
     copy.textContent = 'Copy report';
     copy.addEventListener('click', () => {
-      const text = [`jobpilot ${session.message}`, ...(session.diagnostic ?? [])].join('\n');
+      const text = [`BanApply ${session.message}`, ...(session.diagnostic ?? [])].join('\n');
       void navigator.clipboard.writeText(text).then(
         () => {
           copy.textContent = 'Copied';
@@ -622,7 +622,7 @@ function paintSession(): void {
     action.textContent = 'Waiting for your answers…';
     action.disabled = true;
   } else {
-    action.textContent = session.state === 'done' ? 'Apply to another' : 'Apply with jobpilot';
+    action.textContent = session.state === 'done' ? 'Apply to another' : 'Apply with BanApply';
     action.addEventListener('click', () => acts.onStartSession());
   }
   root.append(action);
@@ -1441,7 +1441,7 @@ function buildAuth(
   const panel = document.createElement('div');
   panel.className = 'panel';
   panel.setAttribute('role', 'complementary');
-  panel.setAttribute('aria-label', 'jobpilot');
+  panel.setAttribute('aria-label', 'BanApply');
 
   const header = document.createElement('header');
   const mark = document.createElement('span');
@@ -1449,7 +1449,7 @@ function buildAuth(
   mark.innerHTML = MARK;
   const word = document.createElement('span');
   word.className = 'wordmark';
-  word.textContent = 'jobpilot';
+  word.textContent = 'BanApply';
   const who = document.createElement('span');
   who.className = 'who';
   who.textContent = 'Sign in';
@@ -1478,7 +1478,7 @@ function buildAuth(
   lampRow.className = 'lamp-row';
   lampRow.dataset.state = 'ready';
   lampRow.innerHTML = '<span class="lamp"></span>';
-  lampRow.append(document.createTextNode('Sign in on jobpilot website to auto-apply'));
+  lampRow.append(document.createTextNode('Sign in on BanApply website to auto-apply'));
   job.append(lampRow);
   body.append(job);
 
@@ -1498,7 +1498,7 @@ function buildAuth(
   const intro = document.createElement('p');
   intro.className = 'note';
   intro.textContent =
-    'Sign in or create your jobpilot account on our web app to autofill applications with one click and track every role in your dashboard.';
+    'Sign in or create your BanApply account on our web app to autofill applications with one click and track every role in your dashboard.';
 
   authCard.append(authHead, intro);
   body.append(authCard);
@@ -1582,13 +1582,13 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
        */
       const hasFields = current.coverage.fillable > 0;
       const label = hasFields
-        ? `Autofill ${current.coverage.fillable} fields with jobpilot`
-        : 'Open jobpilot — save this job or check for duplicates';
+        ? `Autofill ${current.coverage.fillable} fields with BanApply`
+        : 'Open BanApply — save this job or check for duplicates';
 
       handle.setAttribute('aria-label', label);
       handle.title = label;
       handle.innerHTML = BOLT;
-      handle.append(document.createTextNode(hasFields ? 'Autofill' : 'jobpilot'));
+      handle.append(document.createTextNode(hasFields ? 'Autofill' : 'BanApply'));
 
       if (hasFields) {
         const count = document.createElement('span');
@@ -1602,6 +1602,13 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
         paint();
       });
 
+      // The root covers 100% of the host height. When collapsed the host is a
+      // 200px-wide strip that would otherwise eat every click in that column.
+      // Pass events through the invisible area; only the handle itself needs
+      // to be interactive, so give it pointer-events back explicitly.
+      root.style.pointerEvents = 'none';
+      handle.style.pointerEvents = 'auto';
+
       root.append(handle);
       // Narrow host while closed, so the page stays clickable everywhere the
       // button is not.
@@ -1609,6 +1616,8 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       return;
     }
 
+    // Restore pointer-events when the full panel is open.
+    root.style.pointerEvents = 'auto';
     host.style.width = '372px';
 
     if (!current.authenticated) {
@@ -1622,7 +1631,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     const panel = document.createElement('div');
     panel.className = 'panel';
     panel.setAttribute('role', 'complementary');
-    panel.setAttribute('aria-label', 'jobpilot');
+    panel.setAttribute('aria-label', 'BanApply');
 
     /* Header */
     const header = document.createElement('header');
@@ -1631,7 +1640,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     mark.innerHTML = MARK;
     const word = document.createElement('span');
     word.className = 'wordmark';
-    word.textContent = 'jobpilot';
+    word.textContent = 'BanApply';
     const who = document.createElement('span');
     who.className = 'who';
     who.textContent = current.email ?? '';
@@ -1787,7 +1796,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
        */
       msg.textContent = current.authenticated
         ? 'Could not read this posting’s description, so there is nothing to compare yet.'
-        : 'Add your skills in your jobpilot web profile to see how this posting compares.';
+        : 'Add your skills in your BanApply web profile to see how this posting compares.';
 
       fallbackCard.append(head, msg);
 

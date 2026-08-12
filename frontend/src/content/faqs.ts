@@ -1,4 +1,4 @@
-export interface Faq {
+﻿export interface Faq {
   q: string;
   a: string[];
 }
@@ -56,7 +56,7 @@ export const FAQS: Faq[] = [
   {
     q: 'What does "posting went down" actually mean?',
     a: [
-      'Every few hours jobpilot re-checks the postings you are still waiting on. If the page returns a 404 or 410, or the page itself says applications are closed, the posting is marked as down.',
+      'Every few hours BanApply re-checks the postings you are still waiting on. If the page returns a 404 or 410, or the page itself says applications are closed, the posting is marked as down.',
       'That usually means the role was filled or the req was frozen. It does not mean you were rejected — and it is a good moment to follow up.',
       'Rate limits, bot walls, and server errors are never treated as evidence. Only definitive signals count.',
     ],

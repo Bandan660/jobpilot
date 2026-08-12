@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BoltIcon } from './illustrations.js';
 
@@ -9,7 +9,7 @@ import { BoltIcon } from './illustrations.js';
  * nothing reads, so this is a setup step rather than an advertisement.
  *
  * It does disappear on its own once the extension is installed — the content
- * script writes `data-jobpilot-extension` onto the document on jobpilot's own
+ * script writes `data-BanApply-extension` onto the document on BanApply's own
  * pages, so the check needs no extension id and no message round-trip. That
  * has to run after mount, because the script loads at document_idle and may
  * land after React does.
@@ -20,7 +20,7 @@ export function ExtensionBanner() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    const installed = () => Boolean(document.documentElement.dataset.jobpilotExtension);
+    const installed = () => Boolean(document.documentElement.dataset.BanApplyExtension);
     if (installed()) return;
 
     // The content script may not have run yet. One late re-check costs
@@ -38,7 +38,7 @@ export function ExtensionBanner() {
       </span>
 
       <div className="ext-copy">
-        <strong>Add the jobpilot Copilot extension</strong>
+        <strong>Add the BanApply Copilot extension</strong>
         <p className="muted">
           Fills applications from this profile and records them as you send them. No copying,
           nothing to remember.

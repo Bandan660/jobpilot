@@ -10,6 +10,7 @@ import {
   CaptureDemo,
   DuplicateDemo,
   FunnelDemo,
+  JobBoardShowcase,
   PlatformMarquee,
   RadarSweep,
   WorksOn,
@@ -95,7 +96,7 @@ export function Home() {
   useSeo({
     title: 'Job application tracker that updates itself',
     description:
-      'jobpilot autofills job applications from one profile, records every application from your browser, and tells you when a posting comes down.',
+      'BanApply autofills job applications from one profile, records every application from your browser, and tells you when a posting comes down.',
     path: '/',
     structuredData: {
       '@context': 'https://schema.org',
@@ -148,7 +149,7 @@ export function Home() {
               </Link>
             </div>
             <span className="hero-note">
-              No card, no trial timer. Free while jobpilot is in early access.
+              No card, no trial timer. Free while BanApply is in early access.
             </span>
           </div>
 
@@ -196,7 +197,7 @@ export function Home() {
             </Reveal>
 
             <Reveal>
-              <WorksOn />
+              <JobBoardShowcase />
               <AutofillDemo />
             </Reveal>
           </Waypoint>
@@ -231,7 +232,7 @@ export function Home() {
                 <h3>One job hides behind four URLs</h3>
                 <p>
                   Careers page, ATS board, aggregator, recruiter link — different addresses,
-                  different titles, same opening. jobpilot recognises them as one and warns you
+                  different titles, same opening. BanApply recognises them as one and warns you
                   before you apply again.
                 </p>
                 <div className="tile-visual">
@@ -351,12 +352,12 @@ function ComparisonSection() {
           <span className="icon-chip">
             <BoltIcon />
           </span>
-          <span className="chip-label">Why jobpilot</span>
+          <span className="chip-label">Why BanApply</span>
         </div>
-        <h2>Manual Spreadsheets vs. The jobpilot Workflow</h2>
+        <h2>Manual Spreadsheets vs. The BanApply Workflow</h2>
         <p>
           Traditional job searching is filled with retyping, lost URLs, and zero feedback. See how
-          jobpilot automates the hard parts.
+          BanApply automates the hard parts.
         </p>
       </Reveal>
 
@@ -424,7 +425,7 @@ function ComparisonSection() {
             </ul>
           </div>
 
-          {/* With jobpilot */}
+          {/* With BanApply */}
           <div
             style={{
               background:
@@ -447,7 +448,7 @@ function ComparisonSection() {
               }}
             >
               <span style={{ fontSize: '20px' }}>✨</span>
-              <span>With jobpilot Copilot</span>
+              <span>With BanApply Copilot</span>
             </div>
 
             <ul

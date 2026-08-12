@@ -45,11 +45,11 @@ function CloseGlyph() {
 
 export function Brand({ to = '/' }: { to?: string }) {
   return (
-    <Link to={to} className="brand" aria-label="jobpilot">
+    <Link to={to} className="brand" aria-label="BanApply">
       <span className="brand-mark" aria-hidden="true">
         ◆
       </span>
-      jobpilot
+      BanApply
     </Link>
   );
 }
@@ -192,12 +192,12 @@ function SiteFooter() {
         </div>
 
         <div className="footer-baseline">
-          <span>© 2026 jobpilot</span>
+          <span>© 2026 BanApply</span>
           <span>Free while it&rsquo;s in early access</span>
         </div>
 
         <span className="footer-wordmark" aria-hidden="true">
-          jobpilot
+          BanApply
         </span>
       </div>
     </footer>

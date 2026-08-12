@@ -8,16 +8,16 @@
  * submit, so both have to be real before publishing.
  */
 export const SITE = {
-  name: 'jobpilot',
+  name: 'BanApply',
   /** Used in policy text as the responsible party. */
-  legalEntity: 'jobpilot',
+  legalEntity: 'BanApply',
   contactEmail: 'bandanpradhan456@gmail.com',
   /**
    * Drives `SITE_URL`, and through it every canonical link and every
    * structured-data URL on the site. Must be the domain actually serving the
    * production build.
    */
-  domain: 'jobpilot.app',
+  domain: 'banapply.com',
   /** Last substantive revision of the policy pages. */
-  policyUpdated: '2026-08-05',
+  policyUpdated: '2026-08-12',
 } as const;

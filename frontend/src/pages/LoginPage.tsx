@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { api, DEMO } from '../api.js';
 import { useAuth } from '../auth.js';
@@ -60,7 +60,7 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
    * Firebase is the identity provider when this build has its config, and the
    * original email/password endpoints when it does not.
    *
-   * Both paths end identically — a jobpilot session token handed to `signIn` —
+   * Both paths end identically — a BanApply session token handed to `signIn` —
    * so nothing downstream knows which was used. Demo mode always takes the
    * legacy path, because it has no API at all and no Firebase project.
    */
@@ -69,8 +69,8 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
   usePageMeta(
     isSignup ? 'Create your account' : 'Log in',
     isSignup
-      ? 'Create a free jobpilot account to autofill applications and track every job you apply to.'
-      : 'Log in to your jobpilot tracker.',
+      ? 'Create a free BanApply account to autofill applications and track every job you apply to.'
+      : 'Log in to your BanApply tracker.',
     isSignup ? '/signup' : '/login'
   );
 
@@ -189,10 +189,10 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
           </Link>
 
           <header className="auth-header">
-            <h1>{isSignup ? 'Create your account' : 'Log in to jobpilot'}</h1>
+            <h1>{isSignup ? 'Create your account' : 'Log in to BanApply'}</h1>
             <p>
               {isSignup
-                ? 'Free while jobpilot is in early access. No card.'
+                ? 'Free while BanApply is in early access. No card.'
                 : 'Welcome back.'}
             </p>
           </header>

@@ -1,4 +1,4 @@
-import { formatDate } from '@jobpilot/shared';
+﻿import { formatDate } from '@jobpilot/shared';
 import { usePageMeta } from '../usePageMeta.js';
 import { SITE } from '../content/site.js';
 
@@ -21,7 +21,7 @@ function updated(): string {
 export function Privacy() {
   usePageMeta(
     'Privacy',
-    'What jobpilot stores, what the browser extension can access, and what is never collected or sold.',
+    'What BanApply stores, what the browser extension can access, and what is never collected or sold.',
     '/privacy'
   );
 

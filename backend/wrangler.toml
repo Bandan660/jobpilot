@@ -14,7 +14,7 @@ crons = ["0 */6 * * *"]
 #   npx wrangler secret put JWT_SECRET
 # For local dev they go in backend/.dev.vars instead.
 # Exact origins allowed to call the API from a browser.
-CORS_ORIGINS = "https://jobpilot-3lg.pages.dev,http://localhost:5173,http://127.0.0.1:5173"
+CORS_ORIGINS = "https://banapply.com,https://www.banapply.com,https://jobpilot-3lg.pages.dev,http://localhost:5173,http://127.0.0.1:5173"
 
 # Host suffixes, for Pages preview deployments whose hostname is per-build
 # (<hash>.jobpilot-3lg.pages.dev) and cannot be listed in advance.

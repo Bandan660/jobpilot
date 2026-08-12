@@ -1,4 +1,4 @@
-export interface Post {
+﻿export interface Post {
   slug: string;
   title: string;
   /** Shown on cards and in search results. Keep under ~160 characters. */
@@ -29,7 +29,7 @@ export const POSTS: Post[] = [
     date: '2026-07-14',
     readingMinutes: 4,
     category: 'Job search',
-    author: 'jobpilot',
+    author: 'BanApply',
     tags: ['job tracking', 'spreadsheets', 'productivity'],
     body: [
       {
@@ -85,7 +85,7 @@ export const POSTS: Post[] = [
     date: '2026-07-28',
     readingMinutes: 3,
     category: 'Job search',
-    author: 'jobpilot',
+    author: 'BanApply',
     tags: ['ghosting', 'follow-up', 'signals'],
     body: [
       {
@@ -136,7 +136,7 @@ export const POSTS: Post[] = [
     date: '2026-08-02',
     readingMinutes: 3,
     category: 'Job search',
-    author: 'jobpilot',
+    author: 'BanApply',
     tags: ['duplicates', 'ats', 'applications'],
     body: [
       {
@@ -183,7 +183,7 @@ export const POSTS: Post[] = [
     date: '2026-08-04',
     readingMinutes: 5,
     category: 'Applying',
-    author: 'jobpilot',
+    author: 'BanApply',
     tags: ['follow-up', 'recruiters', 'email'],
     body: [
       {
@@ -254,7 +254,7 @@ export const POSTS: Post[] = [
     date: '2026-08-06',
     readingMinutes: 6,
     category: 'How hiring works',
-    author: 'jobpilot',
+    author: 'BanApply',
     tags: ['ats', 'greenhouse', 'lever', 'workday', 'resume'],
     body: [
       {

@@ -64,7 +64,7 @@ const CONFIRMATION_PHRASES = [
  * logging.
  */
 function debug(...args: unknown[]): void {
-  console.info('[jobpilot]', ...args);
+  console.info('[banapply]', ...args);
 }
 
 /** Per-page-load guard. The server is idempotent, this just avoids noise. */
@@ -229,13 +229,13 @@ async function doCapture(job: CapturedJob, applied: boolean): Promise<boolean> {
     // it is a validation failure. Logged as well, with what was actually sent:
     // the banner is transient and a screenshot of it rarely includes the body.
     captureInFlight = false;
-    console.warn('[jobpilot] capture failed:', result.error, payload);
+    console.warn('[banapply] capture failed:', result.error, payload);
 
     // Most likely not signed in. Prompt rather than failing silently, since the
     // user just did the thing we exist to record.
     renderBanner({
       tone: 'error',
-      title: 'jobpilot could not save this',
+      title: 'BanApply could not save this',
       body: result.error,
     });
     return false;
@@ -1138,13 +1138,13 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
  */
 function announce(): void {
   if (!onOwnSite()) return;
-  document.documentElement.dataset.jobpilotExtension =
+  document.documentElement.dataset.banapplyExtension =
     chrome.runtime.getManifest().version;
 }
 
 /** jobpilot's own site — the only origin allowed to hand over a session. */
 function onOwnSite(): boolean {
-  return /(^|\.)jobpilot-3lg\.pages\.dev$/.test(window.location.hostname);
+  return /(^|\.)banapply\.com$/.test(window.location.hostname);
 }
 
 /**
@@ -1182,7 +1182,7 @@ function listenForWebSession(): void {
       | { source?: unknown; type?: unknown; token?: unknown; email?: unknown }
       | null;
 
-    if (!data || data.source !== 'jobpilot-web' || data.type !== 'SESSION') return;
+    if (!data || data.source !== 'banapply-web' || data.type !== 'SESSION') return;
     if (typeof data.token !== 'string' || !data.token) return;
 
     void send({
@@ -1209,11 +1209,11 @@ function listenForWebSession(): void {
  * marker goes on `window`, not on the DOM, because it must be invisible to the
  * page and must not survive a navigation the way an attribute would.
  */
-const RUNNING = '__jobpilotContentScriptRunning';
+const RUNNING = '__banapplyContentScriptRunning';
 type Marked = Window & { [RUNNING]?: boolean };
 
 if ((window as Marked)[RUNNING]) {
-  console.info('[jobpilot] content script already running here — second copy stood down');
+  console.info('[banapply] content script already running here — second copy stood down');
 } else {
   (window as Marked)[RUNNING] = true;
   start();
@@ -1230,6 +1230,6 @@ function start(): void {
    * reported against content.js:1 with no frame worth reading.
    */
   init().catch((error) => {
-    console.warn('[jobpilot] init failed:', error);
+    console.warn('[banapply] init failed:', error);
   });
 }

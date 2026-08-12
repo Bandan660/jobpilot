@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import { usePageMeta } from '../usePageMeta.js';
 import { Reveal } from '../components/Reveal.js';
 import { Showcase, type ShowcaseItem } from '../components/Showcase.js';
@@ -68,7 +68,7 @@ const FEATURES: ShowcaseItem[] = [
     id: 'import',
     tag: 'History',
     title: 'Bring in the ones you already sent',
-    body: 'You did not start your job search today. Import the applications you made before jobpilot existed so the stats reflect your whole search, not just the part after signup.',
+    body: 'You did not start your job search today. Import the applications you made before BanApply existed so the stats reflect your whole search, not just the part after signup.',
     points: [
       'Import from the spreadsheet you were already keeping',
       'Rows with missing details are flagged, not silently dropped',
@@ -96,7 +96,7 @@ export function Tracker() {
               Track your search. Stop <em>maintaining</em> it.
             </h1>
             <p>
-              jobpilot saves every application you submit, keeps its status current on its own, and
+              BanApply saves every application you submit, keeps its status current on its own, and
               tells you which roles have gone quiet — so you always know where you stand.
             </p>
             <div className="hero-actions">
@@ -108,7 +108,7 @@ export function Tracker() {
               </Link>
             </div>
             <span className="hero-note">
-              No card, no trial timer. Free while jobpilot is in early access.
+              No card, no trial timer. Free while BanApply is in early access.
             </span>
           </div>
 
@@ -216,7 +216,7 @@ export function Tracker() {
             <span className="eyebrow">And the part nobody else does</span>
             <h2>It tells you when a posting dies</h2>
             <p>
-              Silence after applying is indistinguishable from rejection. jobpilot re-checks the
+              Silence after applying is indistinguishable from rejection. BanApply re-checks the
               roles you are waiting on every six hours, and when a posting comes down — filled, or
               the req frozen — it moves to the top of your list instead of sitting there looking
               active.

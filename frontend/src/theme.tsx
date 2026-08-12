@@ -11,7 +11,7 @@ import { useHydrated } from './useHydrated.js';
 
 export type Theme = 'light' | 'dark';
 
-const STORAGE_KEY = 'jobpilot.theme';
+const STORAGE_KEY = 'banapply.theme';
 
 interface ThemeValue {
   theme: Theme;

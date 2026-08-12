@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "jobpilot - Autofill & Job Application Tracker",
+  "name": "BanApply - Autofill & Job Application Tracker",
   "version": "0.1.0",
   "description": "Autofills job applications from one profile, warns you before you apply twice, and tells you when a posting comes down.",
   "permissions": [
@@ -8,6 +8,7 @@
     "scripting"
   ],
   "host_permissions": [
+    "https://api.banapply.com/*",
     "https://jobpilot-api.jobpilot.workers.dev/*",
     "http://localhost:8787/*"
   ],
@@ -54,8 +55,8 @@
         "https://*.indeed.co.in/*",
         "https://indeed.co.in/*",
         "https://www.naukri.com/*",
-        "https://jobpilot-3lg.pages.dev/*",
-        "https://*.jobpilot-3lg.pages.dev/*"
+        "https://banapply.com/*",
+        "https://www.banapply.com/*"
       ],
       "js": [
         "content.js"
@@ -65,7 +66,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "jobpilot"
+    "default_title": "BanApply"
   },
   "icons": {
     "16": "icons/icon16.png",

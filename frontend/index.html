@@ -7,7 +7,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="jobpilot" />
+    <meta name="apple-mobile-web-app-title" content="BanApply" />
     <!-- iOS has no maskable icon support and no manifest theme_color; it reads
          these instead. black-translucent lets the header sit under the status
          bar, which the safe-area rules then pad for. -->
@@ -22,7 +22,7 @@
     -->
     <script>
       try {
-        var saved = localStorage.getItem('jobpilot.theme');
+        var saved = localStorage.getItem('banapply.theme');
         if (saved === 'light' || saved === 'dark') {
           document.documentElement.setAttribute('data-theme', saved);
         }
@@ -33,17 +33,17 @@
 
     <!-- Per-route titles and descriptions are set by usePageMeta; these are the
          defaults a crawler sees before the app boots. -->
-    <title>jobpilot — a job tracker that updates itself</title>
+    <title>BanApply — a job tracker that updates itself</title>
     <meta
       name="description"
-      content="jobpilot records every job application from your browser, warns you before you apply twice, and tells you when a posting comes down."
+      content="BanApply records every job application from your browser, warns you before you apply twice, and tells you when a posting comes down."
     />
 
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="jobpilot — a job tracker that updates itself" />
+    <meta property="og:title" content="BanApply — a job tracker that updates itself" />
     <meta
       property="og:description"
-      content="Apply like normal. jobpilot captures the application, catches duplicates, and flags postings that have gone down."
+      content="Apply like normal. BanApply captures the application, catches duplicates, and flags postings that have gone down."
     />
     <meta name="twitter:card" content="summary_large_image" />
   </head>

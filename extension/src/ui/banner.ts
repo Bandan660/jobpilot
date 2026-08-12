@@ -8,7 +8,7 @@
 
 import { POPOVER_RESET, promoteToTopLayer, sealEvents } from './topLayer.js';
 
-const HOST_ID = 'jobpilot-banner-host';
+const HOST_ID = 'banapply-banner-host';
 
 export type BannerTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -99,7 +99,7 @@ export function renderBanner(options: BannerOptions): void {
 
   const brand = document.createElement('div');
   brand.className = 'brand';
-  brand.textContent = 'jobpilot';
+  brand.textContent = 'BanApply';
 
   const title = document.createElement('div');
   title.className = 'title';
