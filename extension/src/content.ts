@@ -641,7 +641,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 /**
  * Mount the launcher once there is something worth acting on.
  */
-async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null): Promise<void> {
+async function maybeShowPanel(
+  job: CapturedJob,
+  duplicate: DuplicateMatch | null,
+  forceAnalyzing = false
+): Promise<void> {
   currentJob = job;
   currentDuplicate = duplicate;
 
@@ -794,21 +798,17 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
     },
   };
 
-  const isNewMatch = matchCache === undefined;
-
-  // Render analyzing state immediately if match computation is pending
-  if (authenticated && isNewMatch) {
-    await renderPanel(buildJobState(null, true), handlers);
+  if (forceAnalyzing) {
+    if (authenticated) {
+      await renderPanel(buildJobState(null, true), handlers);
+    }
+    return;
   }
 
   const match = authenticated ? await computeMatch() : null;
+  const isAnalyzing = authenticated && match === null && matchAttempts < MAX_MATCH_ATTEMPTS;
 
-  // Small delay so the analyzing animation plays smoothly on job switch
-  if (authenticated && isNewMatch) {
-    await new Promise((resolve) => setTimeout(resolve, 400));
-  }
-
-  await renderPanel(buildJobState(match, false), handlers);
+  await renderPanel(buildJobState(match, isAnalyzing), handlers);
 }
 
 /* --------------------------------- init --------------------------------- */
@@ -885,12 +885,17 @@ function startTracking(adapter: JobAdapter): () => void {
       lastSignature = signature;
       lastJobKey = jobKey;
       currentJob = job;
+
       if (jobChanged) {
         captured = false;
         submitRecorded = false;
         matchCache = undefined;
         matchAttempts = 0;
         debug('job:', job.title, '@', job.company);
+
+        // Immediately flip the panel to the new job's title with Analyzing state
+        // at 0ms, so the previous job's score never lingers while network/scraping runs.
+        void maybeShowPanel(job, lastDuplicate, true);
       }
 
       /*
