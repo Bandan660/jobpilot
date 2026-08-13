@@ -361,6 +361,13 @@ async function checkDuplicates(job: CapturedJob): Promise<DuplicateMatch | null>
 function isExternalJobPosting(): boolean {
   const host = window.location.hostname.toLowerCase();
   if (host.includes('naukri.com')) {
+    if (
+      document.querySelector(
+        '[class*="chatbot-container"], [class*="apply-message-container"], [class*="apply-drawer"], [class*="drawer-wrapper"], [class*="drawer-container"], .chatbot, #chatbot'
+      )
+    ) {
+      return false;
+    }
     const candidates = document.querySelectorAll(
       'button, a, div[role="button"], [class*="apply"], [class*="comp-site"]'
     );

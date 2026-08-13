@@ -37,6 +37,13 @@ export const DIALOG_SELECTORS = [
   'dialog[open]',
   '[aria-modal="true"]',
   'div[role="dialog"]',
+  '[class*="chatbot-container"]',
+  '[class*="apply-message-container"]',
+  '[class*="apply-drawer"]',
+  '[class*="drawer-wrapper"]',
+  '[class*="drawer-container"]',
+  '.chatbot',
+  '#chatbot',
 ];
 
 export function visible(el: Element): boolean {
@@ -46,7 +53,11 @@ export function visible(el: Element): boolean {
 
 /** Does this hold anything fillable? The test that separates a form from a notice. */
 export function hasFormControls(node: ParentNode): boolean {
-  return node.querySelector('input, select, textarea') !== null;
+  return (
+    node.querySelector(
+      'input, select, textarea, [contenteditable="true"], [class*="option-btn"], [class*="chip"]'
+    ) !== null
+  );
 }
 
 /**

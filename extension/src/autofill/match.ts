@@ -142,7 +142,11 @@ export function isSearchOrHeaderControl(control: Control): boolean {
     'header, nav, [role="search"], [class*="search" i], [id*="search" i], [class*="header" i], [id*="header" i], [class*="nav" i], [id*="nav" i], [class*="JobAlert" i]'
   );
   if (container) {
-    if (!control.closest('dialog, [role="dialog"], [class*="modal" i], [class*="indeed-apply" i], [class*="smartapply" i]')) {
+    if (
+      !control.closest(
+        'dialog, [role="dialog"], [class*="modal" i], [class*="indeed-apply" i], [class*="smartapply" i], [class*="chatbot" i], [class*="drawer" i]'
+      )
+    ) {
       return true;
     }
   }
@@ -159,7 +163,11 @@ export function isSearchOrHeaderControl(control: Control): boolean {
     /job title|keywords|city, state|where|what/i.test(placeholder) ||
     /job title|keywords|location|where|what/i.test(ariaLabel)
   ) {
-    if (!control.closest('dialog, [role="dialog"], [class*="modal" i], [class*="indeed-apply" i], [class*="smartapply" i]')) {
+    if (
+      !control.closest(
+        'dialog, [role="dialog"], [class*="modal" i], [class*="indeed-apply" i], [class*="smartapply" i], [class*="chatbot" i], [class*="drawer" i]'
+      )
+    ) {
       return true;
     }
   }

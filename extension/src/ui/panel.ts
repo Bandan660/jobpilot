@@ -2362,6 +2362,14 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       .join(' · ');
     jobCard.append(role, meta);
 
+    const isNaukriDrawerOpen =
+      typeof document !== 'undefined' &&
+      Boolean(
+        document.querySelector(
+          '[class*="chatbot-container"], [class*="apply-message-container"], [class*="apply-drawer"], [class*="drawer-wrapper"], [class*="drawer-container"], .chatbot, #chatbot'
+        )
+      );
+
     /*
      * Status indicator line for application form readiness & posting recency.
      */
@@ -2372,31 +2380,67 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
           state: 'no-form',
           text: 'Apply on company website — auto-apply is available for Naukri Easy Apply jobs',
         }
-      : !current.hasForm
-        ? current.canApply
-          ? { state: 'ready', text: 'Ready to apply — the form opens when you start' }
-          : { state: 'no-form', text: 'No application form on this page' }
-        : current.coverage.fillable === 0
-          ? {
-              state: 'ready',
-              text: postedStr
-                ? `${postedStr} · ${current.coverage.total} field${
-                    current.coverage.total === 1 ? '' : 's'
-                  } on page`
-                : `Job posting active · ${current.coverage.total} field${
-                    current.coverage.total === 1 ? '' : 's'
-                  } on page`,
-            }
-          : {
-              state: 'ready',
-              text: `${current.coverage.fillable} of ${current.coverage.total} fields can be filled`,
-            };
+      : isNaukriDrawerOpen
+        ? {
+            state: 'ready',
+            text: '⚡ Naukri Chatbot Form Active — ready to autofill answers',
+          }
+        : !current.hasForm
+          ? current.canApply
+            ? { state: 'ready', text: 'Ready to apply — the form opens when you start' }
+            : { state: 'no-form', text: 'No application form on this page' }
+          : current.coverage.fillable === 0
+            ? {
+                state: 'ready',
+                text: postedStr
+                  ? `${postedStr} · ${current.coverage.total} field${
+                      current.coverage.total === 1 ? '' : 's'
+                    } on page`
+                  : `Job posting active · ${current.coverage.total} field${
+                      current.coverage.total === 1 ? '' : 's'
+                    } on page`,
+              }
+            : {
+                state: 'ready',
+                text: `${current.coverage.fillable} of ${current.coverage.total} fields can be filled`,
+              };
 
     lampRow.dataset.state = status.state;
     lampRow.innerHTML = '<span class="lamp"></span>';
     lampRow.append(document.createTextNode(status.text));
     jobCard.append(lampRow);
     body.append(jobCard);
+
+    if (isNaukriDrawerOpen) {
+      const naukriBanner = document.createElement('div');
+      naukriBanner.className = 'card info';
+      naukriBanner.style.cssText =
+        'border: 1px solid var(--live); background: rgba(0, 212, 173, 0.1); padding: 10px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 6px;';
+
+      const head = document.createElement('div');
+      head.style.cssText =
+        'font-weight: 750; color: var(--live); font-size: 12.5px; display: flex; align-items: center; justify-content: space-between;';
+      head.textContent = '⚡ Naukri Chatbot Drawer Active';
+
+      const collapseBtn = document.createElement('button');
+      collapseBtn.className = 'ghost';
+      collapseBtn.style.cssText = 'font-size: 11px; padding: 2px 8px; margin: 0;';
+      collapseBtn.textContent = '👁️ View Drawer (Minimize Panel)';
+      collapseBtn.addEventListener('click', () => {
+        collapsed = true;
+        paint();
+      });
+      head.append(collapseBtn);
+
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.style.margin = '0';
+      note.textContent =
+        'Naukri application drawer is active. Click minimize above anytime to view the un-obscured form.';
+
+      naukriBanner.append(head, note);
+      body.append(naukriBanner);
+    }
 
     if (current.duplicate) {
       const dup = document.createElement('div');
