@@ -2233,8 +2233,15 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
       root.append(handle);
       // Narrow host while closed, so the page stays clickable everywhere the
-      // button is not.
-      host.style.width = '200px';
+      // button is not. Delay pointer-event unmasking by 100ms so mouseup/click phase
+      // finishes safely inside shadow DOM without triggering host page backdrop click handlers.
+      window.setTimeout(() => {
+        if (collapsed) {
+          root.style.pointerEvents = 'none';
+          handle.style.pointerEvents = 'auto';
+          host.style.width = '200px';
+        }
+      }, 100);
       return;
     }
 
@@ -2243,7 +2250,11 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     host.style.width = '372px';
 
     if (!current.authenticated) {
-      root.append(buildAuth(state, handlers, () => {
+      root.append(buildAuth(state, handlers, (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         collapsed = true;
         paint();
       }));
@@ -2271,7 +2282,9 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     collapse.className = 'icon-btn';
     collapse.setAttribute('aria-label', 'Collapse');
     collapse.innerHTML = CHEV;
-    collapse.addEventListener('click', () => {
+    collapse.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       collapsed = true;
       paint();
     });
@@ -2286,7 +2299,9 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     close.setAttribute('aria-label', 'Close');
     close.title = 'Close';
     close.innerHTML = CLOSE;
-    close.addEventListener('click', () => {
+    close.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       collapsed = true;
       paint();
     });
@@ -2422,7 +2437,9 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       collapseBtn.className = 'ghost';
       collapseBtn.style.cssText = 'font-size: 11px; padding: 2px 8px; margin: 0;';
       collapseBtn.textContent = '👁️ View Drawer (Minimize Panel)';
-      collapseBtn.addEventListener('click', () => {
+      collapseBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         collapsed = true;
         paint();
       });
