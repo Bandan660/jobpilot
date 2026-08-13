@@ -1,9 +1,11 @@
 import type {
   CaptureRequest,
   CaptureResponse,
+  CreateReportInput,
   DuplicateCheckRequest,
   DuplicateCheckResponse,
   Profile,
+  UserReport,
 } from '@jobpilot/shared';
 
 /** Summary of one autofill run, returned to the popup. */
@@ -25,6 +27,7 @@ export type Message =
   | { type: 'LOGIN'; payload: { email: string; password: string } }
   | { type: 'SIGNUP'; payload: { email: string; password: string } }
   | { type: 'LOGOUT' }
+  | { type: 'SUBMIT_REPORT'; payload: CreateReportInput }
   /**
    * A session handed over by the web app after signing in there.
    *

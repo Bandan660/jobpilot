@@ -406,8 +406,28 @@ export const blogPosts = pgTable(
   })
 );
 
+export const userReports = pgTable(
+  'user_reports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    userEmail: text('user_email'),
+    category: text('category').notNull().default('bug'),
+    subject: text('subject').notNull(),
+    description: text('description').notNull(),
+    pageUrl: text('page_url'),
+    status: text('status').notNull().default('open'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    createdIdx: index('user_reports_created_idx').on(t.createdAt),
+  })
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type CompanyRow = typeof companies.$inferSelect;
 export type ApplicationRow = typeof applications.$inferSelect;
 export type ApplicationEventRow = typeof applicationEvents.$inferSelect;
 export type BlogPostRow = typeof blogPosts.$inferSelect;
+export type UserReportRow = typeof userReports.$inferSelect;
+

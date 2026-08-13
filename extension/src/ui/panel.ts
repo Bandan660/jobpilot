@@ -1,6 +1,15 @@
-import { relativeTime, type CapturedJob, type DuplicateMatch } from '@jobpilot/shared';
+import {
+  relativeTime,
+  type CapturedJob,
+  type CreateReportInput,
+  type DuplicateMatch,
+  type Profile,
+  type ReportCategory,
+  type UserReport,
+} from '@jobpilot/shared';
 import { POPOVER_RESET, promoteToTopLayer, reraise, sealEvents } from './topLayer.js';
 import { DEFAULT_WEB_BASE_URL } from '../config.js';
+import { send } from '../messages.js';
 
 /**
  * In-page side panel, opened from a button docked to the right edge.
@@ -46,6 +55,7 @@ export interface PanelJob {
   job: CapturedJob;
   coverage: { fillable: number; total: number };
   email: string | null;
+  profile?: Profile | null;
   duplicate: DuplicateMatch | null;
   /**
    * Signed out renders the form in the panel rather than sending people to the
@@ -144,6 +154,12 @@ let lastHandlers: PanelHandlers | null = null;
  * reason to undo it.
  */
 let collapsed = true;
+
+/** Selected tab in the side panel ('job' or 'profile'). */
+let activeTab: 'job' | 'profile' = 'job';
+
+/** Whether the issue report form is open in the panel. */
+let showingReportForm = false;
 
 /**
  * Auto-apply run state, module-level for exactly the reason `collapsed` is —
@@ -857,6 +873,131 @@ const CSS = `
   .icon-btn:hover { color: var(--text); background: var(--glass-hover); }
   .icon-btn svg { width: 15px; height: 15px; }
 
+  .report-btn {
+    background: rgba(255, 176, 32, 0.12);
+    border: 1px solid rgba(255, 176, 32, 0.35);
+    color: var(--signal);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    transition: all 140ms ease;
+  }
+  .report-btn:hover {
+    background: rgba(255, 176, 32, 0.25);
+    border-color: rgba(255, 176, 32, 0.6);
+    transform: translateY(-1px);
+  }
+
+  /* Tab Bar --------------------------------------------------------------- */
+  .tab-bar {
+    display: flex;
+    background: #080d17;
+    border-bottom: 1px solid var(--glass-line);
+    padding: 6px 10px;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--dim);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 140ms ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .tab-btn:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .tab-btn[data-active='true'] {
+    color: var(--signal);
+    background: var(--glass-raised);
+    border-color: rgba(255, 176, 32, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Profile Tab ----------------------------------------------------------- */
+  .profile-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .profile-head-card {
+    background: linear-gradient(135deg, #141e33 0%, #0d1424 100%);
+    border: 1px solid var(--glass-edge);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.24);
+  }
+  .profile-name {
+    font-size: 15px;
+    font-weight: 750;
+    color: #ffffff;
+  }
+  .profile-title {
+    font-size: 12px;
+    color: var(--signal);
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .profile-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--dim);
+    margin-top: 6px;
+  }
+  .profile-sec-h {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 8px;
+  }
+  .profile-item-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-line);
+    border-radius: 8px;
+    padding: 9px 11px;
+    margin-bottom: 6px;
+  }
+  .profile-item-card:last-child {
+    margin-bottom: 0;
+  }
+  .profile-item-title {
+    font-size: 12px;
+    font-weight: 650;
+    color: #f3f7fc;
+  }
+  .profile-item-sub {
+    font-size: 11px;
+    color: var(--dim);
+    margin-top: 2px;
+  }
+
   /* The only scrolling region: the header and the action stay put. */
   .body {
     flex: 1;
@@ -1481,6 +1622,435 @@ const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 const CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
 /**
+ * Profile tab view displaying all candidate info, experience, education, skills, and answers.
+ */
+function buildProfileView(profile: Profile | null | undefined): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'profile-scroll';
+
+  if (!profile) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.padding = '16px';
+
+    const h = document.createElement('div');
+    h.className = 'role';
+    h.textContent = 'Profile Loading...';
+
+    const p = document.createElement('p');
+    p.className = 'note';
+    p.style.marginTop = '6px';
+    p.textContent = 'Fetching your profile details from BanApply...';
+
+    card.append(h, p);
+    container.append(card);
+    return container;
+  }
+
+  // 1. Header Card (Name, Target Title, Contact info)
+  const headCard = document.createElement('div');
+  headCard.className = 'profile-head-card';
+
+  const fullName =
+    [profile.firstName, profile.lastName].filter(Boolean).join(' ') ||
+    profile.preferredName ||
+    'Candidate Profile';
+  const nameEl = document.createElement('div');
+  nameEl.className = 'profile-name';
+  nameEl.textContent = fullName;
+
+  const titleCompany = [profile.currentTitle, profile.currentCompany].filter(Boolean).join(' at ');
+  headCard.append(nameEl);
+  if (titleCompany) {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'profile-title';
+    titleEl.textContent = titleCompany;
+    headCard.append(titleEl);
+  }
+
+  const location = [profile.city, profile.state, profile.country].filter(Boolean).join(', ');
+  if (location) {
+    const locRow = document.createElement('div');
+    locRow.className = 'profile-detail-row';
+    locRow.textContent = `📍 ${location}`;
+    headCard.append(locRow);
+  }
+
+  if (profile.email) {
+    const emailRow = document.createElement('div');
+    emailRow.className = 'profile-detail-row';
+    emailRow.textContent = `✉️ ${profile.email}`;
+    headCard.append(emailRow);
+  }
+
+  if (profile.phone) {
+    const phoneRow = document.createElement('div');
+    phoneRow.className = 'profile-detail-row';
+    phoneRow.textContent = `📞 ${profile.phone}`;
+    headCard.append(phoneRow);
+  }
+
+  container.append(headCard);
+
+  // 2. Links Section
+  const links = [
+    { label: 'LinkedIn', url: profile.linkedinUrl },
+    { label: 'GitHub', url: profile.githubUrl },
+    { label: 'Portfolio', url: profile.portfolioUrl },
+    { label: 'Other', url: profile.otherUrl },
+  ].filter((l) => Boolean(l.url));
+
+  if (links.length > 0) {
+    const linkCard = document.createElement('div');
+    linkCard.className = 'card';
+    const h = document.createElement('div');
+    h.className = 'profile-sec-h';
+    h.textContent = '🔗 Links & Profiles';
+    linkCard.append(h);
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px;';
+
+    for (const item of links) {
+      const a = document.createElement('a');
+      a.href = item.url!;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'chip';
+      a.style.cssText = 'color: var(--signal); border-color: rgba(255,176,32,0.3); text-decoration: none;';
+      a.textContent = `${item.label} ↗`;
+      row.append(a);
+    }
+    linkCard.append(row);
+    container.append(linkCard);
+  }
+
+  // 3. Skills Section
+  if (profile.skills && profile.skills.length > 0) {
+    const skillsCard = document.createElement('div');
+    skillsCard.className = 'card';
+    const h = document.createElement('div');
+    h.className = 'profile-sec-h';
+    h.textContent = `⚡ Skills (${profile.skills.length})`;
+    skillsCard.append(h);
+
+    const chipsRow = document.createElement('div');
+    chipsRow.className = 'chips';
+    for (const skill of profile.skills) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.dataset.kind = 'has';
+      chip.textContent = skill;
+      chipsRow.append(chip);
+    }
+    skillsCard.append(chipsRow);
+    container.append(skillsCard);
+  }
+
+  // 4. Experience Section
+  if (profile.experience && profile.experience.length > 0) {
+    const expCard = document.createElement('div');
+    expCard.className = 'card';
+    const h = document.createElement('div');
+    h.className = 'profile-sec-h';
+    h.textContent = `💼 Experience (${profile.experience.length})`;
+    expCard.append(h);
+
+    for (const exp of profile.experience) {
+      const item = document.createElement('div');
+      item.className = 'profile-item-card';
+
+      const title = document.createElement('div');
+      title.className = 'profile-item-title';
+      title.textContent = `${exp.title} ${exp.company ? `@ ${exp.company}` : ''}`;
+
+      const dates = [exp.startDate, exp.current ? 'Present' : exp.endDate].filter(Boolean).join(' - ');
+      const sub = document.createElement('div');
+      sub.className = 'profile-item-sub';
+      sub.textContent = [dates, exp.location].filter(Boolean).join(' · ');
+
+      item.append(title, sub);
+      if (exp.description) {
+        const desc = document.createElement('p');
+        desc.className = 'note';
+        desc.style.cssText =
+          'margin-top: 4px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;';
+        desc.textContent = exp.description;
+        item.append(desc);
+      }
+      expCard.append(item);
+    }
+    container.append(expCard);
+  }
+
+  // 5. Education Section
+  if (profile.education && profile.education.length > 0) {
+    const eduCard = document.createElement('div');
+    eduCard.className = 'card';
+    const h = document.createElement('div');
+    h.className = 'profile-sec-h';
+    h.textContent = `🎓 Education (${profile.education.length})`;
+    eduCard.append(h);
+
+    for (const edu of profile.education) {
+      const item = document.createElement('div');
+      item.className = 'profile-item-card';
+
+      const title = document.createElement('div');
+      title.className = 'profile-item-title';
+      title.textContent = [edu.degree, edu.field].filter(Boolean).join(' in ') || edu.school;
+
+      const sub = document.createElement('div');
+      sub.className = 'profile-item-sub';
+      const dates = [edu.startDate, edu.endDate].filter(Boolean).join(' - ');
+      const scoreStr = edu.score ? `Score: ${edu.score}${edu.scoreType ? ` (${edu.scoreType})` : ''}` : '';
+      sub.textContent = [edu.school, dates, scoreStr].filter(Boolean).join(' · ');
+
+      item.append(title, sub);
+      eduCard.append(item);
+    }
+    container.append(eduCard);
+  }
+
+  // 6. Saved Q&A Answers Section
+  if (profile.savedAnswers && profile.savedAnswers.length > 0) {
+    const qaCard = document.createElement('div');
+    qaCard.className = 'card';
+    const h = document.createElement('div');
+    h.className = 'profile-sec-h';
+    h.textContent = `📝 Saved Q&A Answers (${profile.savedAnswers.length})`;
+    qaCard.append(h);
+
+    for (const qa of profile.savedAnswers) {
+      const item = document.createElement('div');
+      item.className = 'profile-item-card';
+
+      const qLabel = document.createElement('div');
+      qLabel.className = 'profile-item-title';
+      qLabel.style.fontSize = '11.5px';
+      qLabel.textContent = qa.label;
+
+      const ans = document.createElement('div');
+      ans.style.cssText = 'font-size: 11.5px; color: var(--signal); margin-top: 3px; font-weight: 600;';
+      ans.textContent = qa.answer;
+
+      item.append(qLabel, ans);
+      qaCard.append(item);
+    }
+    container.append(qaCard);
+  }
+
+  // 7. Work Eligibility & Resume summary card
+  const metaCard = document.createElement('div');
+  metaCard.className = 'card';
+  const metaH = document.createElement('div');
+  metaH.className = 'profile-sec-h';
+  metaH.textContent = 'ℹ️ Details & Resume';
+  metaCard.append(metaH);
+
+  if (profile.resumeFileName) {
+    const resRow = document.createElement('div');
+    resRow.className = 'profile-detail-row';
+    resRow.textContent = `📄 Active Resume: ${profile.resumeFileName}`;
+    metaCard.append(resRow);
+  }
+
+  const authWork =
+    profile.authorizedToWork !== null
+      ? profile.authorizedToWork
+        ? 'Authorized to work'
+        : 'Requires work authorization'
+      : null;
+  const sponsorship =
+    profile.requiresSponsorship !== null
+      ? profile.requiresSponsorship
+        ? 'Requires visa sponsorship'
+        : 'No sponsorship required'
+      : null;
+  const authSummary = [authWork, sponsorship].filter(Boolean).join(' · ');
+
+  if (authSummary) {
+    const authRow = document.createElement('div');
+    authRow.className = 'profile-detail-row';
+    authRow.textContent = `🌐 ${authSummary}`;
+    metaCard.append(authRow);
+  }
+
+  // Open Web Profile Button
+  const editBtn = document.createElement('button');
+  editBtn.className = 'ghost';
+  editBtn.style.marginTop = '10px';
+  editBtn.textContent = 'Edit Profile on Web Dashboard ↗';
+  editBtn.addEventListener('click', () => {
+    window.open(`${DEFAULT_WEB_BASE_URL}/dashboard/profile`, '_blank');
+  });
+  metaCard.append(editBtn);
+
+  container.append(metaCard);
+  return container;
+}
+
+/**
+ * Report Issue form view in the side panel.
+ */
+function buildReportView(onClose: () => void): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'body';
+  container.style.gap = '12px';
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.cssText = 'display: flex; flex-direction: column; gap: 10px; padding: 14px;';
+
+  const head = document.createElement('div');
+  head.style.cssText =
+    'font-size: 14px; font-weight: 750; color: #ffffff; display: flex; align-items: center; justify-content: space-between;';
+  head.textContent = '🚩 Report an Issue / Feedback';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'icon-btn';
+  closeBtn.innerHTML = CLOSE;
+  closeBtn.addEventListener('click', onClose);
+  head.append(closeBtn);
+
+  const intro = document.createElement('p');
+  intro.className = 'note';
+  intro.textContent =
+    'Experiencing an issue with autofill, parsing, or a job board? Submit details below to notify our team.';
+
+  /* Category field */
+  const catField = document.createElement('div');
+  catField.className = 'field';
+  const catLabel = document.createElement('label');
+  catLabel.textContent = 'Category';
+  const catSelect = document.createElement('select');
+  catSelect.style.cssText =
+    'background: var(--ink); border: 1px solid var(--glass-line); border-radius: 9px; padding: 9px 11px; color: var(--text); font: inherit; font-size: 12.5px;';
+
+  const categories: { value: ReportCategory; label: string }[] = [
+    { value: 'autofill', label: 'Autofill Issue' },
+    { value: 'parser', label: 'Parsing / Skill Match Issue' },
+    { value: 'site_issue', label: 'Unsupported Job Board' },
+    { value: 'bug', label: 'Bug / Glitch' },
+    { value: 'suggestion', label: 'Feature Suggestion' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  for (const c of categories) {
+    const opt = document.createElement('option');
+    opt.value = c.value;
+    opt.textContent = c.label;
+    catSelect.append(opt);
+  }
+  catField.append(catLabel, catSelect);
+
+  /* Subject field */
+  const subField = document.createElement('div');
+  subField.className = 'field';
+  const subLabel = document.createElement('label');
+  subLabel.textContent = 'Subject';
+  const subInput = document.createElement('input');
+  subInput.type = 'text';
+  subInput.placeholder = 'e.g. Autofill failed on form';
+  subField.append(subLabel, subInput);
+
+  /* Description field */
+  const descField = document.createElement('div');
+  descField.className = 'field';
+  const descLabel = document.createElement('label');
+  descLabel.textContent = 'Description & Details';
+  const descTextarea = document.createElement('textarea');
+  descTextarea.style.cssText =
+    'background: var(--ink); border: 1px solid var(--glass-line); border-radius: 9px; padding: 9px 11px; color: var(--text); font: inherit; font-size: 12.5px; min-height: 80px; resize: vertical;';
+  descTextarea.placeholder = 'Explain what happened or what expected behavior was...';
+  descField.append(descLabel, descTextarea);
+
+  /* Page URL info */
+  const urlField = document.createElement('div');
+  urlField.className = 'field';
+  const urlLabel = document.createElement('label');
+  urlLabel.textContent = 'Page URL (Auto-attached)';
+  const urlInput = document.createElement('input');
+  urlInput.type = 'text';
+  urlInput.readOnly = true;
+  urlInput.value = typeof window !== 'undefined' ? window.location.href : '';
+  urlInput.style.opacity = '0.7';
+  urlField.append(urlLabel, urlInput);
+
+  /* Error / Status message */
+  const statusMsg = document.createElement('div');
+  statusMsg.style.display = 'none';
+
+  /* Actions */
+  const sendBtn = document.createElement('button');
+  sendBtn.className = 'fill';
+  sendBtn.textContent = 'Send Report to Admin';
+
+  sendBtn.addEventListener('click', async () => {
+    const subject = subInput.value.trim();
+    const description = descTextarea.value.trim();
+
+    if (!subject || !description) {
+      statusMsg.style.display = 'block';
+      statusMsg.className = 'err';
+      statusMsg.textContent = 'Please provide both a subject and description details.';
+      return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Sending...';
+
+    const payload: CreateReportInput = {
+      category: catSelect.value as ReportCategory,
+      subject,
+      description,
+      pageUrl: typeof window !== 'undefined' ? window.location.href : null,
+    };
+
+    const res = await send<{ report: UserReport }>({
+      type: 'SUBMIT_REPORT',
+      payload,
+    });
+
+    if (res.ok) {
+      card.innerHTML = '';
+      const successHead = document.createElement('div');
+      successHead.style.cssText =
+        'font-size: 15px; font-weight: 750; color: var(--live); margin-bottom: 6px;';
+      successHead.textContent = '✅ Report Submitted!';
+
+      const successBody = document.createElement('p');
+      successBody.className = 'note';
+      successBody.textContent =
+        'Thank you! Your feedback has been sent directly to the admin dashboard for investigation.';
+
+      const backBtn = document.createElement('button');
+      backBtn.className = 'ghost';
+      backBtn.style.marginTop = '12px';
+      backBtn.textContent = 'Return to Extension';
+      backBtn.addEventListener('click', onClose);
+
+      card.append(successHead, successBody, backBtn);
+    } else {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send Report to Admin';
+      statusMsg.style.display = 'block';
+      statusMsg.className = 'err';
+      statusMsg.textContent = res.error ?? 'Failed to submit report. Please try again.';
+    }
+  });
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'ghost';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', onClose);
+
+  card.append(head, intro, catField, subField, descField, urlField, statusMsg, sendBtn, cancelBtn);
+  container.append(card);
+  return container;
+}
+
+/**
  * Signed-out view: the same panel shell with a sign-in form in place of the
  * job actions, so the surface never changes shape underneath the user.
  */
@@ -1720,7 +2290,56 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       paint();
     });
 
-    header.append(mark, word, who, collapse, close);
+    const reportHeadBtn = document.createElement('button');
+    reportHeadBtn.className = 'report-btn';
+    reportHeadBtn.innerHTML = '<span>🚩</span><span>Report</span>';
+    reportHeadBtn.title = 'Report an issue or send feedback to admin';
+    reportHeadBtn.addEventListener('click', () => {
+      showingReportForm = !showingReportForm;
+      paint();
+    });
+
+    header.append(mark, word, who, reportHeadBtn, collapse, close);
+
+    if (showingReportForm) {
+      panel.append(
+        header,
+        buildReportView(() => {
+          showingReportForm = false;
+          paint();
+        })
+      );
+      root.append(panel);
+      return;
+    }
+
+    /* Tab Bar */
+    const tabBar = document.createElement('div');
+    tabBar.className = 'tab-bar';
+
+    const jobTab = document.createElement('button');
+    jobTab.className = 'tab-btn';
+    jobTab.dataset.active = String(activeTab === 'job');
+    jobTab.textContent = '🎯 Job & Apply';
+    jobTab.addEventListener('click', () => {
+      if (activeTab !== 'job') {
+        activeTab = 'job';
+        paint();
+      }
+    });
+
+    const profileTab = document.createElement('button');
+    profileTab.className = 'tab-btn';
+    profileTab.dataset.active = String(activeTab === 'profile');
+    profileTab.textContent = '👤 Profile Info';
+    profileTab.addEventListener('click', () => {
+      if (activeTab !== 'profile') {
+        activeTab = 'profile';
+        paint();
+      }
+    });
+
+    tabBar.append(jobTab, profileTab);
 
     /* Body */
     const body = document.createElement('div');
@@ -1733,16 +2352,18 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     role.textContent = current.job.title ?? 'This posting';
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = [current.job.company, current.job.location].filter(Boolean).join(' · ');
+    const postedStr = current.job.postedDate
+      ? current.job.postedDate.toLowerCase().includes('posted')
+        ? current.job.postedDate
+        : `Posted ${current.job.postedDate}`
+      : null;
+    meta.textContent = [current.job.company, current.job.location, postedStr]
+      .filter(Boolean)
+      .join(' · ');
     jobCard.append(role, meta);
 
     /*
-     * Three states, three sentences.
-     *
-     * "0 of 28 fields can be filled" was one sentence covering all of them,
-     * and on a posting with no form at all the 28 was the host page's search
-     * box and filters. A count is only meaningful once there is a form to
-     * count within; otherwise say there isn't one.
+     * Status indicator line for application form readiness & posting recency.
      */
     const lampRow = document.createElement('div');
     lampRow.className = 'lamp-row';
@@ -1757,10 +2378,14 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
           : { state: 'no-form', text: 'No application form on this page' }
         : current.coverage.fillable === 0
           ? {
-              state: 'no-match',
-              text: `Nothing here matches your profile (${current.coverage.total} field${
-                current.coverage.total === 1 ? '' : 's'
-              })`,
+              state: 'ready',
+              text: postedStr
+                ? `${postedStr} · ${current.coverage.total} field${
+                    current.coverage.total === 1 ? '' : 's'
+                  } on page`
+                : `Job posting active · ${current.coverage.total} field${
+                    current.coverage.total === 1 ? '' : 's'
+                  } on page`,
             }
           : {
               state: 'ready',
@@ -1992,7 +2617,11 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       action.append(apply, draftToggle, caveat, status);
     }
 
-    panel.append(header, body, action);
+    if (activeTab === 'profile') {
+      panel.append(header, tabBar, buildProfileView(current.profile));
+    } else {
+      panel.append(header, tabBar, body, action);
+    }
     root.append(panel);
   };
 

@@ -121,3 +121,40 @@ adminRoutes.delete('/blog/:id', async (c) => {
   }
   return c.json({ ok: true, deletedId: id });
 });
+
+/* -------------------------------------------------------------------------- */
+/* User Reports Management (Admin only)                                       */
+/* -------------------------------------------------------------------------- */
+
+import { userReports } from '../db/schema.js';
+
+/** List all user reports/feedback submissions. */
+adminRoutes.get('/reports', async (c) => {
+  const db = createDb(c.env);
+  const reports = await db.select().from(userReports).orderBy(desc(userReports.createdAt));
+  return c.json(reports);
+});
+
+/** Update status of a report. */
+adminRoutes.patch('/reports/:id', async (c) => {
+  const id = c.req.param('id');
+  const body = (await c.req.json().catch(() => ({}))) as { status?: string };
+
+  if (!body.status || !['open', 'investigating', 'resolved', 'closed'].includes(body.status)) {
+    throw new HTTPException(400, { message: 'Invalid report status' });
+  }
+
+  const db = createDb(c.env);
+  const [updated] = await db
+    .update(userReports)
+    .set({ status: body.status })
+    .where(eq(userReports.id, id))
+    .returning();
+
+  if (!updated) {
+    throw new HTTPException(404, { message: 'Report not found' });
+  }
+
+  return c.json({ report: updated });
+});
+

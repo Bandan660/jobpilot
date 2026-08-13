@@ -4,6 +4,7 @@ import type {
   CaptureResponse,
   DuplicateCheckResponse,
   Profile,
+  UserReport,
 } from '@jobpilot/shared';
 import type { Message, Response, SessionState, StoredResumePayload } from './messages.js';
 import { syncContentScripts } from './platforms.js';
@@ -143,8 +144,19 @@ async function saveAnswers(
 }
 
 async function currentSession(): Promise<SessionState> {
-  const [token, email, apiBaseUrl] = await Promise.all([getToken(), getEmail(), getApiBaseUrl()]);
-  return { authenticated: Boolean(token), email, apiBaseUrl };
+  let [token, email, apiBaseUrl] = await Promise.all([getToken(), getEmail(), getApiBaseUrl()]);
+  if (token && (!email || !email.trim())) {
+    try {
+      const { profile } = await api<{ profile: Profile }>('/api/profile');
+      if (profile?.email) {
+        email = profile.email;
+        await setSession(token, email);
+      }
+    } catch {
+      /* Silent error fallback */
+    }
+  }
+  return { authenticated: Boolean(token), email: email && email.trim() ? email : null, apiBaseUrl };
 }
 
 /** Page-scoped messages are answered by the content script, not the worker. */
@@ -197,9 +209,22 @@ async function handle(message: WorkerMessage): Promise<unknown> {
      * simply 401s on the first API call and the session is cleared, which is
      * the same path an expired token already takes.
      */
-    case 'ADOPT_SESSION':
-      await setSession(message.payload.token, message.payload.email);
+    case 'ADOPT_SESSION': {
+      let email = message.payload.email;
+      await setSession(message.payload.token, email);
+      if (!email || !email.trim()) {
+        try {
+          const { profile } = await api<{ profile: Profile }>('/api/profile');
+          if (profile?.email) {
+            email = profile.email;
+            await setSession(message.payload.token, email);
+          }
+        } catch {
+          /* Fallback */
+        }
+      }
       return currentSession();
+    }
 
     case 'SET_API_BASE_URL':
       await setApiBaseUrl(message.payload.apiBaseUrl);
@@ -213,6 +238,12 @@ async function handle(message: WorkerMessage): Promise<unknown> {
 
     case 'SAVE_ANSWERS':
       return saveAnswers(message.payload.answers);
+
+    case 'SUBMIT_REPORT':
+      return api<{ report: UserReport }>('/api/reports', {
+        method: 'POST',
+        body: JSON.stringify(message.payload),
+      });
 
     case 'DRAFT_ANSWER':
       return api<{ answer: string }>('/api/analyze/answer', {

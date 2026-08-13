@@ -18,9 +18,11 @@ import { usePageMeta } from '../../usePageMeta.js';
 export function AdminPage() {
   usePageMeta('Admin', undefined, '/dashboard/admin');
 
-  const [tab, setTab] = useState<'analytics' | 'blog'>('analytics');
+  const [tab, setTab] = useState<'analytics' | 'blog' | 'reports'>('analytics');
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [blogPosts, setBlogPosts] = useState<import('@jobpilot/shared').DynamicBlogPost[]>([]);
+  const [reports, setReports] = useState<import('@jobpilot/shared').UserReport[]>([]);
+  const [updatingReportId, setUpdatingReportId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -41,14 +43,35 @@ export function AdminPage() {
     api.getAdminBlogPosts().then(setBlogPosts).catch(() => {});
   };
 
+  const fetchReports = () => {
+    api.getAdminReports().then(setReports).catch(() => {});
+  };
+
+  const handleUpdateReportStatus = async (id: string, nextStatus: string) => {
+    setUpdatingReportId(id);
+    try {
+      await api.updateReportStatus(id, nextStatus);
+      fetchReports();
+    } catch {
+      // Ignore
+    } finally {
+      setUpdatingReportId(null);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([api.adminMetrics(), api.getAdminBlogPosts().catch(() => [])])
-      .then(([m, posts]) => {
+    Promise.all([
+      api.adminMetrics(),
+      api.getAdminBlogPosts().catch(() => []),
+      api.getAdminReports().catch(() => []),
+    ])
+      .then(([m, posts, rep]) => {
         if (cancelled) return;
         setMetrics(m);
         setBlogPosts(posts);
+        setReports(rep);
       })
       .catch((err) => !cancelled && setError(err instanceof Error ? err.message : 'Failed to load'))
       .finally(() => !cancelled && setLoading(false));
@@ -184,6 +207,12 @@ export function AdminPage() {
             >
               📝 Blog Posts ({blogPosts.length})
             </button>
+            <button
+              className={`btn ${tab === 'reports' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setTab('reports')}
+            >
+              🚩 User Reports ({reports.length})
+            </button>
           </div>
         </div>
       </header>
@@ -225,7 +254,7 @@ export function AdminPage() {
             </div>
           )}
         </>
-      ) : (
+      ) : tab === 'blog' ? (
         <section className="panel" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
@@ -405,6 +434,157 @@ export function AdminPage() {
                     >
                       Delete
                     </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="panel" style={{ padding: '24px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
+            <div>
+              <h2 style={{ fontSize: '20px', margin: 0 }}>
+                User Feedback & Bug Reports ({reports.length})
+              </h2>
+              <p style={{ color: 'var(--text-dim)', fontSize: '14px', margin: '4px 0 0 0' }}>
+                Issues and feedback submitted directly from the BanApply extension side panel.
+              </p>
+            </div>
+            <button className="btn btn-ghost" onClick={fetchReports}>
+              🔄 Refresh
+            </button>
+          </div>
+
+          {reports.length === 0 ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-dim)' }}>
+              No user reports submitted yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {reports.map((report) => (
+                <div
+                  key={report.id}
+                  style={{
+                    background: 'var(--panel-raised)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '12px',
+                    padding: '18px 20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          padding: '3px 8px',
+                          borderRadius: '999px',
+                          background:
+                            report.category === 'autofill'
+                              ? 'rgba(255, 176, 32, 0.15)'
+                              : report.category === 'bug'
+                              ? 'rgba(239, 68, 68, 0.15)'
+                              : 'rgba(59, 130, 246, 0.15)',
+                          color:
+                            report.category === 'autofill'
+                              ? 'var(--warn)'
+                              : report.category === 'bug'
+                              ? '#ef4444'
+                              : '#3b82f6',
+                          border: '1px solid currentColor',
+                        }}
+                      >
+                        {report.category}
+                      </span>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0 }}>
+                        {report.subject}
+                      </h3>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                        {new Date(report.createdAt).toLocaleString()}
+                      </span>
+                      <select
+                        value={report.status}
+                        disabled={updatingReportId === report.id}
+                        onChange={(e) => handleUpdateReportStatus(report.id, e.target.value)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          background: 'var(--panel)',
+                          color: 'var(--text)',
+                          border: '1px solid var(--line)',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value="open">Open</option>
+                        <option value="investigating">Investigating</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <p
+                    style={{
+                      fontSize: '14px',
+                      margin: 0,
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {report.description}
+                  </p>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '12px',
+                      color: 'var(--text-dim)',
+                      paddingTop: '8px',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                    }}
+                  >
+                    <span>
+                      User: <strong>{report.userEmail || 'Anonymous'}</strong>
+                    </span>
+                    {report.pageUrl && (
+                      <a
+                        href={report.pageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--signal)', textDecoration: 'underline' }}
+                      >
+                        {report.pageUrl} ↗
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}

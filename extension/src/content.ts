@@ -836,7 +836,8 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   const buildJobState = (matchVal: SkillMatch | null, isAnalyzing: boolean): PanelJob => ({
     job,
     coverage,
-    email: session.ok ? session.data.email : null,
+    email: session.ok && session.data.email ? session.data.email : (profile?.email ?? null),
+    profile,
     duplicate: validDuplicate,
     authenticated,
     canAutoApply:

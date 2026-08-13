@@ -192,6 +192,21 @@ const liveApi = {
   deleteBlogPost: (id: string) =>
     request<{ ok: boolean }>(`/api/admin/blog/${id}`, { method: 'DELETE' }),
 
+  /* -------------------------------------------------------------------------- */
+  /* Reports API                                                                */
+  /* -------------------------------------------------------------------------- */
+  submitReport: (input: import('@jobpilot/shared').CreateReportInput) =>
+    request<{ report: import('@jobpilot/shared').UserReport }>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getAdminReports: () => request<import('@jobpilot/shared').UserReport[]>('/api/admin/reports'),
+  updateReportStatus: (id: string, status: string) =>
+    request<{ report: import('@jobpilot/shared').UserReport }>(`/api/admin/reports/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
   getProfile: () => request<{ profile: Profile }>('/api/profile'),
 
   updateProfile: (input: ProfileInput & { onboardingComplete?: boolean }) =>
@@ -364,6 +379,35 @@ function buildDemoApi(): typeof liveApi {
     // rather than routing to a page that cannot load.
     session: () => delay({ userId: 'demo', isAdmin: false }),
     listResumes: () => delay({ resumes: [] as Resume[] }),
+    submitReport: (input: import('@jobpilot/shared').CreateReportInput) =>
+      delay({
+        report: {
+          id: 'demo-report-1',
+          userId: 'demo-user',
+          userEmail: 'user@example.com',
+          category: input.category,
+          subject: input.subject,
+          description: input.description,
+          pageUrl: input.pageUrl ?? null,
+          status: 'open',
+          createdAt: new Date().toISOString(),
+        },
+      }),
+    getAdminReports: () => delay([] as import('@jobpilot/shared').UserReport[]),
+    updateReportStatus: (id: string, status: string) =>
+      delay({
+        report: {
+          id,
+          userId: 'demo-user',
+          userEmail: 'user@example.com',
+          category: 'bug',
+          subject: 'Demo Report',
+          description: 'Demo description',
+          pageUrl: null,
+          status: status as any,
+          createdAt: new Date().toISOString(),
+        },
+      }),
   };
 }
 

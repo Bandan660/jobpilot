@@ -195,5 +195,6 @@ export function extractFromJsonLd(doc: Document): Partial<CapturedJob> | null {
     ),
     externalId: extractIdentifier(posting),
     compRaw: extractSalary(posting),
+    postedDate: text(posting.datePosted),
   };
 }

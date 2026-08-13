@@ -42,6 +42,7 @@ app.use('*', (c, next) =>
 app.get('/health', (c) => c.json({ ok: true, service: 'jobpilot-api' }));
 
 import { publicBlogRoutes } from './routes/blog.js';
+import { reportRoutes } from './routes/reports.js';
 
 app.route('/api/auth', authRoutes);
 app.route('/api/applications', applicationRoutes);
@@ -52,6 +53,7 @@ app.route('/api/stats', statsRoutes);
 app.route('/api/analyze', analyzeRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/blog', publicBlogRoutes);
+app.route('/api/reports', reportRoutes);
 
 app.notFound((c) => {
   const body: ApiError = { error: 'not_found', message: 'No such endpoint' };

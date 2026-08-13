@@ -305,6 +305,7 @@ export interface CapturedJob {
   externalId: string | null;
   ats: AtsProvider;
   compRaw: string | null;
+  postedDate?: string | null;
   /** Adapter version, so we can tell stale captures apart after a site redesign. */
   adapterVersion: string;
 }
@@ -500,3 +501,30 @@ export interface CreateBlogPostInput {
   content: string;
   published?: boolean;
 }
+
+/* -------------------------------------------------------------------------- */
+/* User Feedback & Bug Reports                                                 */
+/* -------------------------------------------------------------------------- */
+
+export type ReportCategory = 'autofill' | 'parser' | 'site_issue' | 'bug' | 'suggestion' | 'other';
+export type ReportStatus = 'open' | 'investigating' | 'resolved' | 'closed';
+
+export interface UserReport {
+  id: string;
+  userId: string | null;
+  userEmail: string | null;
+  category: ReportCategory;
+  subject: string;
+  description: string;
+  pageUrl: string | null;
+  status: ReportStatus;
+  createdAt: string;
+}
+
+export interface CreateReportInput {
+  category: ReportCategory;
+  subject: string;
+  description: string;
+  pageUrl?: string | null;
+}
+

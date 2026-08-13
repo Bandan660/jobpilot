@@ -212,10 +212,20 @@ export const linkedinAdapter: JobAdapter = {
       }
     }
 
+    const postedDate =
+      rawLocation?.split('·')[1]?.trim() ??
+      textFrom(pane as Element, [
+        '.jobs-unified-top-card__posted-date',
+        '.job-details-jobs-unified-top-card__posted-date',
+        '.posted-time-ago__text',
+      ]) ??
+      null;
+
     const result: Partial<CapturedJob> = {
       title: title ?? fallbackTitle,
       company: (company ?? fallbackCompany)?.replace(/\s+/g, ' ').trim() ?? null,
       location,
+      postedDate,
       externalId: jobIdFrom(url),
     };
 
