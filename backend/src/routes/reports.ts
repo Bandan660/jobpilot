@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
-import { createDb } from '../db/client.js';
-import { requireAuth } from '../middleware/auth.js';
+import { createDb, cleanSecret } from '../db/client.js';
+import { verifyToken } from '../auth/jwt.js';
 import { userReports, users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { AppContext } from '../env.js';
@@ -16,8 +16,6 @@ const reportSchema = z.object({
 
 export const reportRoutes = new Hono<AppContext>();
 
-reportRoutes.use('*', requireAuth);
-
 reportRoutes.post('/', async (c) => {
   const parsed = reportSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
@@ -26,11 +24,27 @@ reportRoutes.post('/', async (c) => {
     });
   }
 
-  const userId = c.get('userId');
-  const db = createDb(c.env);
+  const header = c.req.header('Authorization') ?? '';
+  const [scheme, token] = header.split(' ');
 
-  const user = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
-  const userEmail = user[0]?.email ?? null;
+  let userId: string | null = null;
+  let userEmail: string | null = null;
+
+  if (scheme?.toLowerCase() === 'bearer' && token) {
+    try {
+      const verifiedId = await verifyToken(token, cleanSecret(c.env.JWT_SECRET));
+      if (verifiedId) {
+        userId = verifiedId;
+        const db = createDb(c.env);
+        const user = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+        userEmail = user[0]?.email ?? null;
+      }
+    } catch {
+      /* Token verification error fallback */
+    }
+  }
+
+  const db = createDb(c.env);
 
   const [report] = await db
     .insert(userReports)
