@@ -55,9 +55,30 @@ export function labelFor(control: Control): string {
   if (legend) return text(legend);
 
   // Last resort: the nearest preceding block of text in the same container.
-  const container = control.closest('div, section, li, td');
-  const heading = container?.querySelector('label, legend, h1, h2, h3, h4, p, span');
+  const container = control.closest(
+    'div, section, li, td, [class*="chat" i], [class*="drawer" i], [class*="bot" i], [class*="message" i]'
+  );
+  const heading = container?.querySelector(
+    'label, legend, h1, h2, h3, h4, p, span, [class*="question" i], [class*="msg" i], [class*="text" i]'
+  );
   if (heading && !heading.contains(control)) return text(heading);
+
+  // Naukri / Chatbot fallback: inspect recent message bubbles in the active drawer
+  const drawer = control.closest(
+    '[class*="chatbot" i], [class*="drawer" i], [class*="apply-message" i], [class*="bot" i]'
+  );
+  if (drawer) {
+    const bubbles = [
+      ...drawer.querySelectorAll(
+        '[class*="msg" i], [class*="question" i], [class*="bot" i], p, span'
+      ),
+    ]
+      .map((el) => text(el))
+      .filter((t) => t.length >= 2 && !/type message/i.test(t) && !/kindly answer/i.test(t));
+    if (bubbles.length > 0) {
+      return bubbles[bubbles.length - 1];
+    }
+  }
 
   return '';
 }

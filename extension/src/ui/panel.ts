@@ -10,6 +10,7 @@ import {
 import { POPOVER_RESET, promoteToTopLayer, reraise, sealEvents } from './topLayer.js';
 import { DEFAULT_WEB_BASE_URL } from '../config.js';
 import { send } from '../messages.js';
+import { getNaukriChatbotContainer } from '../autofill/flows.js';
 
 /**
  * In-page side panel, opened from a button docked to the right edge.
@@ -2363,12 +2364,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     jobCard.append(role, meta);
 
     const isNaukriDrawerOpen =
-      typeof document !== 'undefined' &&
-      Boolean(
-        document.querySelector(
-          '[class*="chatbot-container"], [class*="apply-message-container"], [class*="apply-drawer"], [class*="drawer-wrapper"], [class*="drawer-container"], .chatbot, #chatbot'
-        )
-      );
+      typeof document !== 'undefined' && getNaukriChatbotContainer() !== null;
 
     /*
      * Status indicator line for application form readiness & posting recency.

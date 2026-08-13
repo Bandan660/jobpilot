@@ -123,6 +123,38 @@ function isAtsPageWithoutFormElement(): boolean {
   return false;
 }
 
+export function getNaukriChatbotContainer(): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+
+  const messageInput = document.querySelector<HTMLElement>(
+    'input[placeholder*="message" i], textarea[placeholder*="message" i], [contenteditable="true"]'
+  );
+  if (messageInput) {
+    const parent = messageInput.closest<HTMLElement>(
+      '[class*="chatbot" i], [class*="drawer" i], [class*="apply-message" i], [class*="bot" i], section, main'
+    );
+    if (parent && parent !== document.body) return parent;
+  }
+
+  const selectors = [
+    '[class*="chatbot" i]',
+    '[class*="apply-message" i]',
+    '[class*="drawer" i]',
+    '[class*="slider" i]',
+    '[class*="bot-container" i]',
+    '[class*="chat-container" i]',
+    '.chatbot',
+    '#chatbot',
+  ];
+
+  for (const sel of selectors) {
+    const el = document.querySelector<HTMLElement>(sel);
+    if (el && visible(el)) return el;
+  }
+
+  return null;
+}
+
 /**
  * An actual application form, or null.
  *
@@ -131,6 +163,7 @@ function isAtsPageWithoutFormElement(): boolean {
  */
 export function findApplicationForm(): ParentNode | null {
   return (
+    getNaukriChatbotContainer() ??
     findDialog(hasFormControls) ??
     applicationFormElement() ??
     (isAtsPageWithoutFormElement() ? document : null)
