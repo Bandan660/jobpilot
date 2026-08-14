@@ -133,6 +133,13 @@ const profileSchema = z.object({
   demographics: demographicsSchema.optional(),
 
   resumeFileName: nullableText(260),
+  /*
+   * 20k characters is about eight pages of CV — past any real resume, and a
+   * bound worth having on a column the client fills. It feeds a dictionary
+   * lookup, so the tail of a longer document would change no answer anyway.
+   * The client truncates to the same figure; this is the half that is enforced.
+   */
+  resumeText: nullableText(20_000),
   /**
    * Boolean rather than a timestamp: the client says "onboarding is finished",
    * the server decides when that was. A client-supplied completion time would

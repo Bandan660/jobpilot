@@ -1,3 +1,5 @@
+import { totalExperienceMonths } from './profile.js';
+
 /**
  * Skills matching without a model.
  *
@@ -206,8 +208,41 @@ export function extractSkills(text: string): string[] {
   return found;
 }
 
+/**
+ * How worth applying this looks, in a word.
+ *
+ * The number alone answers "how much overlap"; it does not answer the question
+ * people actually have, which is "is this worth my afternoon". 62% with every
+ * must-have held is a different situation from 62% with two of them missing,
+ * and the percentage cannot tell them apart.
+ *
+ * It is a band and not a probability. Nothing here can see the other
+ * applicants, the budget, the referral the role is already promised to, or
+ * whether it is still open — so "72% chance" would be a number with nothing
+ * behind it, and the cost of inventing it is someone skipping a job they were
+ * right for. A band says how well the evidence lines up, which is the most
+ * that is true.
+ */
+export type FitBand = 'strong' | 'fair' | 'weak';
+
+export interface ExperienceFit {
+  /** Years the posting asks for, when it says so plainly. */
+  wanted: number | null;
+  /** Years the profile evidences, from its experience dates. */
+  held: number | null;
+  /**
+   * `null` when either side is unknown — which is most postings. Absence of a
+   * stated requirement is not a pass and not a fail, and rendering it as
+   * either would invent a fact.
+   */
+  meets: boolean | null;
+}
+
 export interface SkillMatch {
-  /** Share of the posting's recognised requirements the profile evidences. */
+  /**
+   * Share of the posting's recognised requirements the profile evidences,
+   * weighted by how firmly each was asked for. Still overlap, never odds.
+   */
   score: number;
   /** Recognised requirements the profile evidences. */
   matched: string[];
@@ -221,6 +256,18 @@ export interface SkillMatch {
   bonus: string[];
   /** Named only under a nice-to-have heading, and not held. Costs nothing. */
   preferred: string[];
+  /**
+   * Requirements the posting insisted on — "must have", "strong experience
+   * in", "expert in". A subset of `matched` + `missing`, weighted double in
+   * the score, because a posting that says a thing twice as firmly means it.
+   */
+  mustHave: string[];
+  /** The must-haves not evidenced. Empty is what separates a strong fit. */
+  missingMustHave: string[];
+  /** How worth applying this looks. See `FitBand`. */
+  band: FitBand;
+  /** Years asked for against years evidenced. Beside the score, never inside it. */
+  experience: ExperienceFit;
   /** Years the posting asks for, when it says so plainly. */
   yearsWanted: number | null;
 }
@@ -252,6 +299,28 @@ const REQUIRED_HEADING =
  */
 const INLINE_OPTIONAL =
   /\b(is a plus|are a plus|a strong plus|nice to have|good to have|bonus points|would be a bonus|but not required)\b/i;
+
+/**
+ * A line that is not asking politely.
+ *
+ * Postings do not weight their own requirements, but they signal them: "must
+ * have Python" and "exposure to Python" are not the same demand, and a flat
+ * average of every named skill treats them as though they were. A candidate
+ * holding both must-haves and missing three tools mentioned once scored the
+ * same as one who had it exactly the other way round, which is the comparison
+ * the number exists to make.
+ *
+ * Scoped to the line the cue appears on. A "Requirements:" heading does not
+ * make every skill under it a must-have — that heading is why they are in the
+ * required bucket at all, and counting it twice would weight the whole list
+ * equally again, which is where this started.
+ */
+const MUST_HAVE_CUE =
+  /\b(must[\s-]*have|must possess|is required|are required|mandatory|essential|non[\s-]*negotiable|strong (?:experience|background|knowledge|command|grasp)|expert(?:ise)? (?:in|with)|proficien(?:t|cy) (?:in|with)|deep (?:experience|knowledge|understanding)|solid (?:experience|understanding)|advanced (?:knowledge|experience)|extensive experience)\b/i;
+
+/** Weight of a requirement the posting insisted on, against one it merely named. */
+const MUST_HAVE_WEIGHT = 2;
+const NAMED_WEIGHT = 1;
 
 /** A heading is short. A paragraph that happens to contain the word is not. */
 const MAX_HEADING_LENGTH = 80;
@@ -332,18 +401,64 @@ export function yearsRequired(text: string): number | null {
   return years.length ? Math.min(...years) : null;
 }
 
+/**
+ * Every recognised skill named on a line the posting insisted on.
+ *
+ * Deliberately re-extracted per line rather than "does this skill appear
+ * anywhere near a cue": a bullet reading "must have strong Python; exposure to
+ * Go a plus" states two different demands, and only the first is a must-have.
+ */
+export function mustHaveSkills(requiredText: string): Set<string> {
+  const found = new Set<string>();
+
+  for (const line of requiredText.split('\n')) {
+    if (!MUST_HAVE_CUE.test(line)) continue;
+    for (const skill of extractSkills(line)) found.add(skill);
+  }
+
+  return found;
+}
+
 export interface MatchableProfile {
   skills?: string[] | null;
-  experience?: { title?: string | null; description?: string | null }[] | null;
+  experience?:
+    | {
+        title?: string | null;
+        description?: string | null;
+        startDate?: string | null;
+        endDate?: string | null;
+        current?: boolean;
+      }[]
+    | null;
+  /**
+   * The resume, as text. Where most of the evidence actually is — the skills
+   * list is a summary typed once, the resume names the tools of every project
+   * shipped. See `Profile.resumeText`.
+   */
+  resumeText?: string | null;
+}
+
+/**
+ * Years of work the profile evidences, or null when its dates do not say.
+ *
+ * Null rather than zero on purpose: "no dates entered" and "no experience" are
+ * different claims, and showing a fresher's zero against someone who simply
+ * has not filled in a start date is the kind of wrong that gets a real posting
+ * dismissed.
+ */
+function yearsHeld(profile: MatchableProfile): number | null {
+  const roles = (profile.experience ?? []).filter((role) => role.startDate);
+  if (roles.length === 0) return null;
+  return Math.floor(totalExperienceMonths({ experience: roles }) / 12);
 }
 
 /**
  * Compare a posting against a profile.
  *
- * Evidence for a skill is the skills list *or* the text of any role — someone
- * who shipped React for three years and never added it to their skills list
- * has the skill, and a matcher that says otherwise is wrong in the direction
- * that costs the user an application.
+ * Evidence for a skill is the skills list, the text of any role, *or* the
+ * resume — someone who shipped React for three years and never added it to
+ * their skills list has the skill, and a matcher that says otherwise is wrong
+ * in the direction that costs the user an application.
  */
 export function matchSkills(description: string, profile: MatchableProfile): SkillMatch {
   const sections = splitRequirements(description);
@@ -382,6 +497,7 @@ export function matchSkills(description: string, profile: MatchableProfile): Ski
   const evidence = [
     ...(profile.skills ?? []),
     ...(profile.experience ?? []).flatMap((role) => [role.title ?? '', role.description ?? '']),
+    profile.resumeText ?? '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -393,21 +509,73 @@ export function matchSkills(description: string, profile: MatchableProfile): Ski
   const bonus = optional.filter((skill) => held.has(skill));
   const preferred = optional.filter((skill) => !held.has(skill));
 
+  /*
+   * Must-haves are read off the required text only. A skill the posting
+   * insisted on under a "nice to have" heading is a contradiction the posting
+   * made, and the optional bucket already resolves it the same way: the
+   * stronger statement wins.
+   */
+  const insisted = mustHaveSkills(sections.required);
+  const mustHave = required.filter((skill) => insisted.has(skill));
+  const missingMustHave = mustHave.filter((skill) => !held.has(skill));
+
+  const weightOf = (skill: string): number =>
+    insisted.has(skill) ? MUST_HAVE_WEIGHT : NAMED_WEIGHT;
+  const total = required.reduce((sum, skill) => sum + weightOf(skill), 0);
+  const earned = matched.reduce((sum, skill) => sum + weightOf(skill), 0);
+
+  /*
+   * Zero when the posting named nothing recognisable. Callers check
+   * `matched.length + missing.length` before showing a score, because "0%" and
+   * "we could not read this posting" are very different messages and only one
+   * of them is true.
+   */
+  const score = total === 0 ? 0 : Math.round((earned / total) * 100);
+
+  const wanted = yearsRequired(description);
+  const heldYears = yearsHeld(profile);
+
   return {
     bonus,
     preferred,
-    /*
-     * Zero when the posting named nothing recognisable. Callers check
-     * `matched.length + missing.length` before showing a score, because "0%"
-     * and "we could not read this posting" are very different messages and
-     * only one of them is true.
-     */
-    score: required.length === 0 ? 0 : Math.round((matched.length / required.length) * 100),
+    score,
     matched,
     missing,
-    yearsWanted: yearsRequired(description),
+    mustHave,
+    missingMustHave,
+    band: fitBand(score, missingMustHave.length),
+    experience: {
+      wanted,
+      held: heldYears,
+      meets: wanted === null || heldYears === null ? null : heldYears >= wanted,
+    },
+    yearsWanted: wanted,
   };
 }
+
+/**
+ * Coverage plus must-haves, in a word.
+ *
+ * The thresholds are judgement, not measurement, and they are set where the
+ * advice changes rather than at round numbers: below 40% of a posting's
+ * weighted requirements the application is a long shot however it is dressed
+ * up, and a missing must-have caps it at "worth applying" no matter how high
+ * the coverage — a 90% match missing the one thing the posting called
+ * essential is not a strong fit, and calling it one would be the number
+ * lying on the user's behalf.
+ */
+export function fitBand(score: number, missingMustHaveCount: number): FitBand {
+  if (score >= 70 && missingMustHaveCount === 0) return 'strong';
+  if (score >= 40 || (score >= 25 && missingMustHaveCount === 0)) return 'fair';
+  return 'weak';
+}
+
+/** The band as the panel says it. Never odds — see `FitBand`. */
+export const BAND_LABEL: Record<FitBand, string> = {
+  strong: 'Strong fit',
+  fair: 'Worth applying',
+  weak: 'Long shot',
+};
 
 /** How many skill names the dictionary knows. Used in the UI's honesty note. */
 export const KNOWN_SKILL_COUNT = Object.keys(SKILLS).length;

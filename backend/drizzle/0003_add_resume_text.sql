@@ -1,0 +1,17 @@
+-- Skills matching compares a posting's named requirements against evidence the
+-- profile holds, and until now that evidence was the skills chips plus work
+-- experience text. The resume — where most of it actually is — was never part
+-- of the comparison, so a posting asking for something printed on page one of
+-- someone's CV scored as a gap.
+--
+-- Text rather than the file: the match is a set intersection over words, which
+-- the extension runs offline in milliseconds. The PDF itself stays in R2.
+--
+-- Extraction is client-side (frontend/src/resume.ts already does it for field
+-- import). It cannot move server-side: the Worker free tier caps CPU at 10ms
+-- and PDF parsing is nowhere near that.
+--
+-- Nullable, with no backfill possible — text can only come from a file the
+-- browser still has. Existing users get it the next time they upload a resume;
+-- until then matching behaves exactly as it did before.
+ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "resume_text" text;

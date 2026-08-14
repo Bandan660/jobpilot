@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MAX_RESUME_BYTES, formatDate, type Resume } from '@jobpilot/shared';
 import { api } from '../../api.js';
+import { extractResumeText } from '../../resume.js';
 import { ResumeBuilderLink } from '../../components/ResumeBuilderLink.js';
 import {
   DownloadIcon,
@@ -142,6 +143,22 @@ export function Resumes() {
       // guessing which flags changed.
       setResumes(await api.listResumes().then((r) => r.resumes));
       void resume;
+
+      /*
+       * Keep the text for skills matching.
+       *
+       * After the upload, never before it: the file is what the user asked for
+       * and this is a bonus on top, so a PDF that will not extract — a scan, a
+       * .docx — must not be able to fail the thing they actually pressed. Both
+       * halves are deliberately quiet for the same reason. Extraction returns
+       * null rather than throwing, and a failed save leaves matching exactly as
+       * good as it was a moment ago, which is not worth an error banner over a
+       * successful upload.
+       */
+      const resumeText = await extractResumeText(file);
+      if (resumeText) {
+        await api.updateProfile({ resumeText, resumeFileName: file.name }).catch(() => undefined);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {

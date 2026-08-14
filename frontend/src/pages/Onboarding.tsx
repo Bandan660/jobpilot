@@ -12,7 +12,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner.js';
 import { useAuth } from '../auth.js';
 import { usePageMeta } from '../usePageMeta.js';
 import { Brand } from '../components/SiteChrome.js';
-import { ResumeError, parseResume } from '../resume.js';
+import { MAX_RESUME_TEXT, ResumeError, parseResume } from '../resume.js';
 
 /**
  * Onboarding.
@@ -180,7 +180,17 @@ function ResumeStep({ draft, patch }: StepProps) {
     setProblem(null);
     try {
       const parsed = await parseResume(file);
-      patch({ ...parsed.fields, resumeFileName: file.name });
+      /*
+       * `rawText` was already extracted to find the fields below and was
+       * thrown away here. Keeping it is what lets skills matching see the
+       * whole CV rather than only the handful of fields this parser recognises
+       * — and it costs nothing, the work is already done.
+       */
+      patch({
+        ...parsed.fields,
+        resumeFileName: file.name,
+        resumeText: parsed.rawText.trim().slice(0, MAX_RESUME_TEXT) || null,
+      });
       setFound(parsed.found);
     } catch (err) {
       setProblem(

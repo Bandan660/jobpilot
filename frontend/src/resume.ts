@@ -257,6 +257,47 @@ export function extractFields(text: string): ParsedResume {
 
 export class ResumeError extends Error {}
 
+/**
+ * How much resume text is kept for matching.
+ *
+ * About eight pages. It feeds a dictionary lookup rather than a reader, so the
+ * tail of a longer document cannot change an answer, and the column it lands in
+ * is written by the client — a bound belongs on it. The API enforces the same
+ * figure; this end exists so an over-long CV is trimmed rather than rejected.
+ */
+export const MAX_RESUME_TEXT = 20_000;
+
+/**
+ * Just the text, for skills matching.
+ *
+ * Separate from `parseResume` because the two want opposite things on failure.
+ * Parsing is the user's whole reason for picking the file, so it throws and
+ * says why. This runs alongside a resume *upload*, where the file is the point
+ * and the text is a bonus — a scanned PDF or a .docx should cost the user
+ * nothing more than a match that stays as good as it was before. So it returns
+ * null and the upload carries on.
+ */
+export async function extractResumeText(file: File): Promise<string | null> {
+  try {
+    if (file.size > MAX_BYTES) return null;
+
+    const name = file.name.toLowerCase();
+    const text = name.endsWith('.pdf')
+      ? await extractPdfText(file)
+      : name.endsWith('.txt') || name.endsWith('.md')
+        ? await file.text()
+        : null;
+
+    // A scan extracts as a handful of stray characters. Storing that would
+    // dilute nothing and match nothing, but it would look like evidence.
+    if (!text || text.trim().length < 40) return null;
+
+    return text.trim().slice(0, MAX_RESUME_TEXT);
+  } catch {
+    return null;
+  }
+}
+
 export async function parseResume(file: File): Promise<ParsedResume> {
   if (file.size > MAX_BYTES) {
     throw new ResumeError('That file is larger than 10MB. Try exporting a smaller PDF.');

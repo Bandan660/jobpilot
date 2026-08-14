@@ -1,8 +1,11 @@
 import {
+  BAND_LABEL,
   relativeTime,
   type CapturedJob,
   type CreateReportInput,
   type DuplicateMatch,
+  type ExperienceFit,
+  type FitBand,
   type Profile,
   type ReportCategory,
   type UserReport,
@@ -49,6 +52,14 @@ export interface SkillSummary {
   bonus: string[];
   /** Nice-to-haves it does not. Shown last, and explicitly not a gap. */
   preferred: string[];
+  /** Requirements the posting insisted on. Weighted double in the score. */
+  mustHave: string[];
+  /** Those of them not evidenced — the difference between 70% and 70%. */
+  missingMustHave: string[];
+  /** How worth applying this looks. Never a probability; see `FitBand`. */
+  band: FitBand;
+  /** Years asked for against years evidenced. Beside the score, not in it. */
+  experience: ExperienceFit;
   yearsWanted: number | null;
 }
 
@@ -263,7 +274,7 @@ function matchCard(match: SkillSummary): HTMLElement {
    * Three bands, not a gradient. A number sliding through fifty shades invites
    * reading a precision into it that a dictionary lookup has not earned.
    */
-  dial.dataset.band = match.score >= 70 ? 'high' : match.score >= 40 ? 'mid' : 'low';
+  dial.dataset.band = match.band === 'strong' ? 'high' : match.band === 'fair' ? 'mid' : 'low';
   dial.style.setProperty('--pct', String(Math.max(0, Math.min(100, match.score))));
   const num = document.createElement('span');
   num.className = 'dial-n';
@@ -275,7 +286,7 @@ function matchCard(match: SkillSummary): HTMLElement {
 
   const chanceTag = document.createElement('div');
   chanceTag.style.cssText = `font-size: 11.5px; font-weight: 800; color: ${
-    match.score >= 70 ? '#10b981' : match.score >= 40 ? '#ffb020' : '#ff8f8f'
+    match.band === 'strong' ? '#10b981' : match.band === 'fair' ? '#ffb020' : '#ff8f8f'
   }; margin-bottom: 2px;`;
   /*
    * Overlap, not odds.
@@ -289,23 +300,65 @@ function matchCard(match: SkillSummary): HTMLElement {
    *
    * What it can honestly say is how much of what the posting asks for the
    * profile evidences, which is what the bands describe now.
+   *
+   * The band comes from `fitBand` rather than from thresholds repeated here:
+   * it also accounts for missing must-haves, which the percentage cannot see.
+   * A 90% match missing the one skill the posting called essential is not a
+   * strong fit, and two places deciding that independently is how they drift.
    */
-  chanceTag.textContent =
-    match.score >= 70
-      ? 'Strong overlap with what this posting asks for'
-      : match.score >= 40
-      ? 'Partial overlap with what this posting asks for'
-      : 'Limited overlap with what this posting asks for';
+  chanceTag.textContent = `${BAND_LABEL[match.band]} — ${match.score}% of what this posting asks for`;
 
   const label = document.createElement('div');
   label.className = 'match-label';
   const parts = [`${match.matched.length} of ${total} named`];
-  if (match.yearsWanted !== null) parts.push(`asks ${match.yearsWanted}+ years`);
+  if (match.mustHave.length > 0) {
+    parts.push(
+      `${match.mustHave.length - match.missingMustHave.length}/${match.mustHave.length} must-have`
+    );
+  }
+
+  /*
+   * Years, only when both halves are known.
+   *
+   * "asks 5+ years" on its own left the reader to do the comparison, and a
+   * profile with no dates entered cannot do it at all — so the shortfall is
+   * stated when it can be and the bare requirement shown when it cannot.
+   * Never a pass/fail: a year short of a stated figure is not a reason to skip
+   * a posting, and plenty of postings are written by someone who picked the
+   * number without meaning it.
+   */
+  if (match.experience.wanted !== null) {
+    parts.push(
+      match.experience.held === null
+        ? `asks ${match.experience.wanted}+ years`
+        : `asks ${match.experience.wanted}+ years, you have ~${match.experience.held}`
+    );
+  }
 
   const line = document.createElement('div');
   line.className = 'match-line';
   line.textContent = `${parts.join(' · ')}`;
   verdict.append(label, line);
+
+  /*
+   * One gap, named, above the chips.
+   *
+   * The chip rows say what is missing but weight everything equally, and the
+   * thing most likely to end the application is exactly the thing worth seeing
+   * first — often it is answerable in a line, either by adding it to the
+   * profile or by deciding not to apply. Only shown for a must-have: promoting
+   * an ordinary missing requirement to a headline overstates it.
+   */
+  if (match.missingMustHave.length > 0) {
+    const gap = document.createElement('div');
+    gap.className = 'match-line';
+    gap.style.cssText = 'color: #ff8f8f; font-weight: 700;';
+    gap.textContent =
+      match.missingMustHave.length === 1
+        ? `Called essential, not in your profile: ${match.missingMustHave[0]}`
+        : `Called essential, not in your profile: ${match.missingMustHave.slice(0, 3).join(', ')}`;
+    verdict.append(gap);
+  }
 
   top.append(dial, verdict);
   card.append(top);
@@ -2058,7 +2111,10 @@ function buildReportView(onClose: () => void): HTMLElement {
 function buildAuth(
   state: PanelJob,
   _handlers: PanelHandlers,
-  onCollapse: () => void
+  // Wired straight to a click listener, so it is handed the event. Typed as
+  // `() => void` it compiled only because the caller ignored the argument;
+  // the caller that stops propagation on it did not.
+  onCollapse: (event?: Event) => void
 ): HTMLElement {
   const panel = document.createElement('div');
   panel.className = 'panel';

@@ -189,6 +189,29 @@ export interface Profile {
   onboardingCompletedAt: string | null;
   /** Original filename of the resume the profile was parsed from, if any. */
   resumeFileName: string | null;
+  /**
+   * The plain text of that resume, kept for skills matching.
+   *
+   * WHY THE TEXT AND NOT THE FILE
+   *
+   * Matching compares a posting's named requirements against evidence the user
+   * holds, and the resume is where most of that evidence actually lives — the
+   * skills list on the profile is a summary someone typed once, while the
+   * resume names the tools of every project they shipped. Without this, a
+   * posting asking for something that appears on page one of the CV scored as a
+   * gap, which is the wrong answer in the direction that costs an application.
+   *
+   * It is text rather than the PDF because the comparison is a set
+   * intersection over words: the extension can run it offline, instantly, with
+   * nothing leaving the browser. Extraction happens client-side at upload —
+   * `frontend/src/resume.ts` already does it, and the Worker's 10ms CPU cap
+   * puts PDF parsing out of reach server-side anyway.
+   *
+   * Truncated on write. It feeds a dictionary lookup, not a reader, so the
+   * tail of a long CV changes nothing and an uncapped text column on a free
+   * tier is a bill waiting to happen.
+   */
+  resumeText: string | null;
 
   createdAt: string;
   updatedAt: string;
@@ -368,6 +391,7 @@ export const EMPTY_PROFILE: Omit<Profile, 'id' | 'userId' | 'createdAt' | 'updat
   regions: [],
   onboardingCompletedAt: null,
   resumeFileName: null,
+  resumeText: null,
 };
 
 /** Normalizes a question so the same prompt matches across employers. */
@@ -407,8 +431,20 @@ function educationAt(profile: Profile, level: EducationLevel): Education | null 
   return profile.education.find((entry) => entry.level === level) ?? null;
 }
 
-/** Total months of work experience, from the experience entries. */
-export function totalExperienceMonths(profile: Profile): number {
+/**
+ * Total months of work experience, from the experience entries.
+ *
+ * Typed to what it reads rather than to `Profile`, so the matcher can ask the
+ * same question of the partial profile it works with instead of carrying a
+ * second copy of this date arithmetic that could drift from this one.
+ */
+export function totalExperienceMonths(profile: {
+  experience: readonly {
+    startDate?: string | null;
+    endDate?: string | null;
+    current?: boolean;
+  }[];
+}): number {
   let months = 0;
 
   for (const role of profile.experience) {

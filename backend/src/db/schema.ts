@@ -316,6 +316,12 @@ export const profiles = pgTable(
     onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
     /** Filename only. The file itself is never uploaded; see resume parsing. */
     resumeFileName: text('resume_file_name'),
+    /**
+     * Extracted text of that resume, for skills matching. Written by the
+     * client, which is the only place a PDF can be parsed here — the Worker
+     * caps CPU at 10ms. Capped at 20k characters on the way in.
+     */
+    resumeText: text('resume_text'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
