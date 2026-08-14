@@ -340,6 +340,15 @@ function buildDemoApi(): typeof liveApi {
     ...EMPTY_PROFILE,
     id: 'demo-profile',
     userId: 'demo-user',
+    /*
+     * Onboarded, or demo mode cannot show the thing it exists to show. The app
+     * routes anyone whose profile has no completion timestamp back into
+     * onboarding, and `EMPTY_PROFILE` has none — so "renders the whole UI
+     * against fixtures" landed on step 1 of 5 and stopped there, with the
+     * tracker and the dashboard unreachable behind a five-step form that saves
+     * to a fixture.
+     */
+    onboardingCompletedAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

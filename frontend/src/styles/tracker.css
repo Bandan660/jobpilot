@@ -307,6 +307,43 @@
   opacity: 0.75;
 }
 
+/*
+ * Where the application was made.
+ *
+ * The brand marks are solid glyphs while the icons around them are 1.5px
+ * strokes, so at the same size they read as heavier than the company name they
+ * sit beside — which puts the emphasis on the platform, and the platform is
+ * the least important thing on the row. A hair smaller and dimmer levels them.
+ * Deliberately not brand-coloured: eight applications across four sites would
+ * turn a scannable table into a colour chart, and this table's colour means
+ * status.
+ */
+.source-mark svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.6;
+}
+
+/*
+ * The stand-in for a platform with no mark in the icon set — Naukri today.
+ * Sized to the glyphs beside it so a row with one does not sit taller than a
+ * row without.
+ */
+.source-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .icon-btn {
   background: none;
   border: 1px solid transparent;

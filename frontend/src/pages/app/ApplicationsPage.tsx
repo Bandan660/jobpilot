@@ -13,6 +13,7 @@ import {
 import { api } from '../../api.js';
 import { LoadingSpinner } from '../../components/LoadingSpinner.js';
 import { ArchiveIcon, BuildingIcon, PinIcon, SearchIcon } from '../../components/icons.js';
+import { SourceMark } from '../../components/SourceMark.js';
 import { downloadCsv, parseCsv, toCsv } from '../../csv.js';
 import { usePageMeta } from '../../usePageMeta.js';
 import { BoardView } from './BoardView.js';
@@ -611,6 +612,10 @@ function TrackerRow({
             <BuildingIcon />
             {app.company.name}
           </span>
+          {/* Where it was applied. Second, because the company is the thing
+              being scanned for; the platform is what you check once you have
+              found the row. */}
+          <SourceMark jobUrl={app.jobUrl} ats={app.ats} />
           {app.location && (
             <span className="meta-item">
               <PinIcon />

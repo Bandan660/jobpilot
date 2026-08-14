@@ -60,16 +60,24 @@ export const DEMO_APPLICATIONS: Application[] = [
     firstResponseAt: daysAgo(14),
     location: 'San Francisco, CA',
     remote: false,
+    jobUrl: 'https://www.linkedin.com/jobs/view/3901234567',
+    ats: 'LINKEDIN',
   }),
   app('a2', 'Software Engineer, Platform', 'Linear', 'SCREEN', 9, 'LIVE', {
     firstResponseAt: daysAgo(4),
+    jobUrl: 'https://www.naukri.com/job-listings-software-engineer-platform-linear-9912345',
   }),
-  app('a3', 'Full Stack Engineer', 'Vercel', 'APPLIED', 34, 'REMOVED'),
+  app('a3', 'Full Stack Engineer', 'Vercel', 'APPLIED', 34, 'REMOVED', {
+    jobUrl: 'https://in.indeed.com/viewjob?jk=8f21c0a4b9de',
+  }),
   app('a4', 'Backend Engineer (Payments)', 'Ramp', 'APPLIED', 41, 'CLOSED'),
   app('a5', 'Product Engineer', 'Retool', 'REJECTED', 52, 'REMOVED', {
     firstResponseAt: daysAgo(38),
   }),
-  app('a6', 'Senior Software Engineer', 'Notion', 'APPLIED', 12, 'LIVE'),
+  app('a6', 'Senior Software Engineer', 'Notion', 'APPLIED', 12, 'LIVE', {
+    jobUrl: 'https://boards.greenhouse.io/notion/jobs/5512345',
+    ats: 'GREENHOUSE',
+  }),
   app('a7', 'Infrastructure Engineer', 'Neon', 'OFFER', 60, 'LIVE', {
     firstResponseAt: daysAgo(48),
   }),
