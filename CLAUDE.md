@@ -171,7 +171,8 @@ plainly had. `build.mjs` now watches those three explicitly.
 
 **Skills matching is a dictionary, not a model.** `shared/src/skills.ts` is a
 set intersection: recognised skill names in the posting, against the profile's
-skills list *and* the text of every role. It replaced a Gemini call that worked
+skills list, the text of every role, *and* `resumeText`. It replaced a Gemini
+call that worked
 and cost a request per posting on a free tier that runs out. Instant, free,
 offline, deterministic, and neither the posting nor the profile leaves the
 browser. `/api/analyze` is still deployed and still better at prose — it is
@@ -190,6 +191,28 @@ written *and* commented against:
 `\b` does not work for names ending in punctuation: `\bc\+\+\b` never matches
 "C++". The matcher uses "not flanked by a letter or digit" lookarounds instead.
 
+**The resume is evidence, and it is text on the profile.** `resumeText` holds
+the extracted plain text of the uploaded resume, and matching reads it. Without
+it the evidence was the skills chips — a summary someone typed once — plus role
+descriptions, so a posting asking for something printed on page one of the CV
+scored as a gap. On a realistic posting the same profile moves 36% → 91% once
+its resume is included.
+
+Extraction is client-side and cannot move: the Worker caps CPU at 10ms and PDF
+parsing is nowhere near that. `frontend/src/resume.ts` owns it, both write
+points are in the browser (onboarding, and the Resumes upload), and both fail
+quietly — a scan or a `.docx` costs a match no worse than before, never a
+failed upload. There is no backfill: the text only exists where the file does,
+so existing users get it on their next upload.
+
+**Where onboarding fills the profile from a resume, missing means missing.**
+`extractFields` returns the whole `ProfileInput` shape with `null` for anything
+it could not read. Spreading that into the draft overwrote real answers — the
+email captured at sign-up vanished whenever the regex missed the one printed on
+the resume, and a second upload emptied the roles the first one found.
+`foundOnly()` in `Onboarding.tsx` is the filter. A resume is evidence to add,
+never a reason to forget something already known.
+
 **The match score is requirement overlap, not a chance of being called back.**
 It reports the share of what a posting *asks for* that the profile evidences.
 Nothing here can see the other applicants, the budget, the referral the role is
@@ -197,7 +220,26 @@ already earmarked for, or whether it is filled — so odds would be invented, an
 the cost of inventing them is someone skipping a job they were right for
 because a model said 40%. The prompt says so, the panel says so, and the
 `matched` / `missing` lists are the part actually worth reading. Do not relabel
-it as a callback probability.
+it as a callback probability. This has been asked for directly, in those words,
+and the answer did not change: what ships is a band and a named gap, which
+answer "is this worth my afternoon" out of things that are true.
+
+The overlap is **weighted, not flat**. `MUST_HAVE_CUE` marks requirements the
+posting insisted on — "must have", "strong experience in", "proficient in" —
+and those count double. A flat average scored a candidate holding both
+must-haves and missing three tools named once the same as one who had it
+exactly the other way round, which is the comparison the number exists to make.
+The cue is scoped to its own line: the "Requirements:" heading is *why* those
+skills are in the required bucket at all, and counting it again weights the
+whole list equally, which is where this started.
+
+`fitBand()` is the single definition of strong / worth applying / long shot,
+and both the dial colour and the verdict text read it — two places deciding it
+independently is how they drift. A missing must-have caps the band at "worth
+applying" however high the coverage: 90% missing the one thing the posting
+called essential is not a strong fit. Years sit *beside* the score and never
+inside it, and are omitted entirely when the profile has no dates, because
+unknown is not zero.
 
 It is drawn on arrival, not behind a button — the button only ever existed
 because each check cost a Gemini request. A set intersection costs nothing, so
@@ -205,6 +247,31 @@ asking the user to press something to see an answer already computed was making
 them do the machine's work. `matchCache` in `content.ts` holds it for the
 posting and clears on navigation, because the panel repaints on every form
 change and the description scrape is an `innerText` read that forces layout.
+
+**A cached score must be keyed to the body it was computed from, not only to
+the posting.** The tracking signature carried one bit for the description —
+"has one turned up" — and a bit that has flipped can never flip again. On
+LinkedIn's split view the next posting's title arrives before its body, so a
+score taken in that window was computed from the *previous* posting's text and
+cached under the new posting's key, with nothing left that could notice it: the
+bit was already set so no repaint, and a repaint would have returned the cache.
+Clicking through a list showed one job's skills and score under every title
+after it. `descriptionFingerprint()` moves when the text moves, and
+`matchCacheFingerprint` records what was scored, so a bad read corrects itself
+when the real body lands. It is re-checked *after* the profile await rather
+than restamped — stamping the current value there marks a score drawn from the
+old body as belonging to the new one and disables the correction for good.
+
+**The profile cache in `content.ts` expires, and must.** "Fetched once per
+page" is once per *tab*, and a job tab lives for hours; the only invalidation
+was the saved-answers write. Editing skills on the dashboard and returning left
+every later score computed against the profile from before the edit — a posting
+insisting "JavaScript, HTML, CSS — not in your profile" against a profile
+listing all three. There is a TTL now, and `invalidateProfile()` drops the
+profile and the match together on tab re-focus, which is the one reliable
+signal that an edit happened. Dropping the profile alone is not enough: the
+match is keyed to the posting, so the old score stays on screen until something
+sets `matchDeferred`.
 
 **One application per press, and a blocked job is never skipped.** One click
 applies to the posting on screen and stops. A queue that worked down a whole
@@ -348,8 +415,23 @@ request carrying `Access-Control-Request-Headers`.
 **Quota and size checks must run before the R2 write.** Rejecting an upload
 after `bucket.put()` leaves an object with no row pointing at it, and nothing
 in this system collects orphans. The upload handler's order is: count check,
-read body, size check, magic bytes, then put. Resumes are capped at 3MB and 5
-per account, which bounds free-tier storage at 15MB per user worst case.
+read body, size check, magic bytes, then put.
+
+The limits are **200KB and one resume per account** — `MAX_RESUME_BYTES` and
+`MAX_RESUMES_PER_USER` in `shared/src/types.ts`, with a bucket-wide ceiling in
+`MAX_TOTAL_STORAGE_BYTES` above that. Uploading replaces rather than adds, so
+one user is 200KB and the storage question stops being interesting. Read the
+constants rather than this paragraph before relying on a figure: they moved
+once already and this said "3MB and 5 per account" for months afterwards.
+
+200KB is tight and refuses legitimate files — a resume exported straight from a
+word processor embeds full font files and lands at 150-400KB, while the same
+document with subsetted fonts is nearer 60KB. That is why the error says how to
+fix it rather than only stating the limit, and why anything that reads a resume
+without storing it must not borrow this number: `frontend/src/resume.ts` parses
+up to 10MB, and the two limits are unrelated. Onboarding states both, because a
+file between them fills the profile and is not kept, and someone who is not
+told that assumes their resume is on the account.
 
 **Any API origin the extension uses must be in `host_permissions`.** The
 extension shipped defaulting to `localhost:8787` with no production origin
@@ -440,7 +522,7 @@ dodge this.
 
 ---
 
-## Where things stand — 10 Aug 2026
+## Where things stand — 14 Aug 2026
 
 Everything below is committed on `main` and pushed.
 `docs/PROJECT_HISTORY.md` has the narrative; this is what a new session needs
@@ -453,7 +535,15 @@ before touching anything.
   Apply, and recorded in the tracker. That milestone is passed.
 - Duplicate detection across platforms, CSV import, the tracker, the profile.
 - Local skills matching: a posting's named skills against the profile, drawn on
-  arrival with no model and no network.
+  arrival with no model and no network. Weighted by must-haves, banded, and
+  read against the resume text as well as the chips and the roles.
+
+**Built, not yet run against a live account:**
+
+- Resume text on the profile and the onboarding upload that stores it. Both
+  paths typecheck and build; neither has been through a real sign-in, a real
+  PDF and a real posting end to end. The migration is applied to `neondb`;
+  confirm production points at the same database before assuming it is there.
 
 **Working, thinly:**
 
