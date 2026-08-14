@@ -88,6 +88,54 @@ export function reraise(host: HTMLElement): void {
  * are unaffected. Focus events go too: a focus trap yanking the caret out of
  * the sign-in field is the same bug wearing a hat.
  */
+/**
+ * Activate a control without the host page seeing a mouse press.
+ *
+ * `sealEvents` stops our events at the host, which defeats any listener the
+ * page has on `document` in the **bubble** phase — and that is most of them.
+ * It cannot defeat a capture-phase listener: capture runs from the window
+ * downwards, so the page's handler has already fired by the time the event
+ * reaches anything of ours to stop it. Naukri's chatbot drawer closes on
+ * exactly that, which is why pressing the panel's own minimise button closed
+ * the drawer and lost the application.
+ *
+ * Cancelling `pointerdown` suppresses the compatibility mouse events the
+ * browser would otherwise synthesise from it — `mousedown` and `mouseup` never
+ * exist, so no listener of any phase can see them. A drawer that closes on
+ * mousedown, which is the usual way these are written, never learns the press
+ * happened. Activation moves to `pointerup` because `click` no longer means
+ * what it did.
+ *
+ * What this cannot do: `click` is still dispatched, so a page listening for
+ * click in the capture phase will still see it, and popover light dismiss is
+ * browser behaviour that no listener trick reaches. Anything that must survive
+ * those has to not need a press — see how the panel steps aside from the
+ * drawer rather than asking to be minimised.
+ */
+export function quietPress(element: HTMLElement, run: () => void): void {
+  element.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
+  element.addEventListener('pointerup', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    run();
+  });
+
+  /*
+   * Keyboard activation produces a click with no pointer behind it and
+   * `detail === 0`. It has to keep working — and it cannot be mistaken for a
+   * press outside anything, so there is nothing to defend against here.
+   */
+  element.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.detail === 0) run();
+  });
+}
+
 export function sealEvents(host: HTMLElement): void {
   const types = [
     'pointerdown',

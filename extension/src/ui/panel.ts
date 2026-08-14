@@ -10,7 +10,7 @@ import {
   type ReportCategory,
   type UserReport,
 } from '@jobpilot/shared';
-import { POPOVER_RESET, promoteToTopLayer, reraise, sealEvents } from './topLayer.js';
+import { POPOVER_RESET, promoteToTopLayer, quietPress, reraise, sealEvents } from './topLayer.js';
 import { DEFAULT_WEB_BASE_URL } from '../config.js';
 import { send } from '../messages.js';
 import { getNaukriChatbotContainer } from '../autofill/flows.js';
@@ -166,6 +166,21 @@ let lastHandlers: PanelHandlers | null = null;
  * reason to undo it.
  */
 let collapsed = true;
+
+/** Panel widths, shared by the host style and the drawer-avoidance maths. */
+const PANEL_WIDTH = 372;
+const HANDLE_WIDTH = 200;
+
+/**
+ * Has this drawer already had its one automatic collapse?
+ *
+ * Module-level for the same reason `collapsed` is: the panel is rebuilt on
+ * every repaint, and a flag living inside `paint` would reset with it — which
+ * would re-collapse the panel every few hundred milliseconds and make it
+ * impossible to open deliberately while a drawer is up. Cleared when the
+ * drawer goes away.
+ */
+let naukriAutoCollapsed = false;
 
 /** Selected tab in the side panel ('job' or 'profile'). */
 let activeTab: 'job' | 'profile' = 'job';
@@ -2219,7 +2234,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     'top: 0',
     'right: 0',
     'height: 100vh',
-    'width: 372px',
+    `width: ${PANEL_WIDTH}px`,
     'max-width: 100vw',
     // Kept as the fallback for anywhere the top layer is unavailable.
     'z-index: 2147483647',
@@ -2241,6 +2256,63 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
   let current = state;
   let acts = handlers;
 
+  /**
+   * Sit beside Naukri's chatbot drawer rather than on top of it.
+   *
+   * The drawer is the application form, it opens against the right edge, and
+   * that is where this panel lives — so the panel covered the questions the
+   * user was being asked. The first answer to that was a minimise button, and
+   * it made things worse: pressing anything of ours registers as a press
+   * outside the drawer, Naukri closes the drawer on that, and the application
+   * in progress is gone. A control that destroys what it was meant to reveal
+   * is not a fix.
+   *
+   * So nothing is pressed. The panel moves left of the drawer on its own and
+   * both stay visible and usable — the run keeps reporting, the form keeps its
+   * questions. When there is not enough room to sit beside it, the panel
+   * collapses to its edge handle instead, which is the same reasoning: the
+   * form matters more than the chrome watching it.
+   */
+  const stepAsideFromDrawer = (): void => {
+    const drawer = typeof document !== 'undefined' ? getNaukriChatbotContainer() : null;
+
+    if (!drawer) {
+      host.style.right = '0';
+      // Reset, so the next drawer gets its one automatic collapse.
+      naukriAutoCollapsed = false;
+      return;
+    }
+
+    const rect = drawer.getBoundingClientRect();
+
+    // Mid-animation the drawer can measure as a sliver or as nothing at all.
+    // Acting on that would park the panel at a position the drawer never
+    // settles at; the next repaint measures again.
+    if (rect.width < 80 || rect.height < 80) return;
+
+    const GAP = 12;
+    const room = rect.left - GAP;
+    // Measured against what is actually on screen: a collapsed handle fits
+    // beside a drawer that an open panel would not.
+    const needed = collapsed ? HANDLE_WIDTH : PANEL_WIDTH;
+
+    if (room >= needed) {
+      host.style.right = `${Math.round(window.innerWidth - rect.left + GAP)}px`;
+      return;
+    }
+
+    /*
+     * No room beside it. Collapse once — and only once per drawer, so a user
+     * who deliberately opens the panel over the drawer is not fought by every
+     * repaint that follows.
+     */
+    host.style.right = '0';
+    if (!naukriAutoCollapsed) {
+      naukriAutoCollapsed = true;
+      collapsed = true;
+    }
+  };
+
   const paint = () => {
     root.innerHTML = '';
     // Everything below is about to be recreated; nothing may hold a reference
@@ -2248,6 +2320,9 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
     statusEl = null;
     applyEl = null;
     sessionRoot = null;
+
+    // Before the branch below, because it can decide the panel collapses.
+    stepAsideFromDrawer();
 
     if (collapsed) {
       const handle = document.createElement('button');
@@ -2275,7 +2350,13 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
         handle.append(count);
       }
 
-      handle.addEventListener('click', () => {
+      /*
+       * Quiet, because expanding is a press too. Naukri's drawer closes on a
+       * press outside itself, and re-opening the panel over a live chatbot
+       * form would have thrown the application away just as surely as
+       * minimising it did.
+       */
+      quietPress(handle, () => {
         collapsed = false;
         paint();
       });
@@ -2295,7 +2376,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
         if (collapsed) {
           root.style.pointerEvents = 'none';
           handle.style.pointerEvents = 'auto';
-          host.style.width = '200px';
+          host.style.width = `${HANDLE_WIDTH}px`;
         }
       }, 100);
       return;
@@ -2303,7 +2384,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
 
     // Restore pointer-events when the full panel is open.
     root.style.pointerEvents = 'auto';
-    host.style.width = '372px';
+    host.style.width = `${PANEL_WIDTH}px`;
 
     if (!current.authenticated) {
       root.append(buildAuth(state, handlers, (e) => {
@@ -2492,10 +2573,15 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       const collapseBtn = document.createElement('button');
       collapseBtn.className = 'ghost';
       collapseBtn.style.cssText = 'font-size: 11px; padding: 2px 8px; margin: 0;';
-      collapseBtn.textContent = '👁️ View Drawer (Minimize Panel)';
-      collapseBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      collapseBtn.textContent = 'Get out of the way';
+      /*
+       * Still here, because the panel cannot always find room beside a drawer
+       * and the user may want it gone regardless — but no longer the way this
+       * is meant to work, and no longer a plain click. See `quietPress`: a
+       * normal click on our chrome reads to Naukri as a click outside its
+       * drawer, and it answers that by closing the form mid-application.
+       */
+      quietPress(collapseBtn, () => {
         collapsed = true;
         paint();
       });
@@ -2505,7 +2591,7 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       note.className = 'note';
       note.style.margin = '0';
       note.textContent =
-        'Naukri application drawer is active. Click minimize above anytime to view the un-obscured form.';
+        'The panel moves aside on its own while this form is open, so both stay visible. Nothing here needs pressing.';
 
       naukriBanner.append(head, note);
       body.append(naukriBanner);

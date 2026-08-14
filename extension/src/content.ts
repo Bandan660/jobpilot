@@ -1120,7 +1120,24 @@ function startTracking(adapter: JobAdapter): () => void {
       const jobKey = jobKeyOf(job);
       // The description bit flips once, when a client-rendered pane finishes.
       // That repaint is what lets a first failed scrape try again.
-      const signature = [jobKey, fields, descriptionFingerprint() || '-'].join('|');
+      /*
+       * Naukri's drawer has to be in here too. `fields` counts the LinkedIn
+       * Easy Apply modal and is zero on Naukri whatever happens, so opening
+       * the chatbot moved nothing in this signature — and the panel only
+       * repaints when the signature moves. The panel steps aside from that
+       * drawer during its paint, so without this it would step aside only if
+       * something unrelated happened to repaint it first. Cheap off Naukri:
+       * the detector returns null on the hostname check before touching the
+       * DOM.
+       */
+      const drawerOpen = getNaukriChatbotContainer() !== null;
+
+      const signature = [
+        jobKey,
+        fields,
+        drawerOpen ? 'drawer' : '-',
+        descriptionFingerprint() || '-',
+      ].join('|');
       // `matchDeferred` is the one reason to repaint an unchanged signature:
       // the comparison asked to be tried again and nothing in the signature
       // will ever move to make that happen. See the flag's own note.

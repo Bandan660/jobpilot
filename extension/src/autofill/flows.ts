@@ -123,8 +123,27 @@ function isAtsPageWithoutFormElement(): boolean {
   return false;
 }
 
+/**
+ * Naukri's chatbot drawer, or null.
+ *
+ * HOSTNAME FIRST, AND IT IS NOT OPTIONAL
+ *
+ * Everything below is a guess made of loose selectors — `[contenteditable]`
+ * closest `section, main`, then anything whose class contains "drawer" or
+ * "bot". That is fine on Naukri, where the drawer is the only thing it can
+ * match, and wrong everywhere else. `findApplicationForm` calls this *first*,
+ * so on a LinkedIn listing page the message composer resolved to `main` and
+ * the strict "is there an application form here" test answered yes with the
+ * whole document — which is precisely the failure that function was written to
+ * prevent, arriving through a side door two years later.
+ *
+ * The guard belongs here rather than at each call site: this is named for one
+ * site, so returning something from a different one is the function being
+ * wrong, not the caller.
+ */
 export function getNaukriChatbotContainer(): HTMLElement | null {
-  if (typeof document === 'undefined') return null;
+  if (typeof document === 'undefined' || typeof window === 'undefined') return null;
+  if (!window.location.hostname.toLowerCase().includes('naukri.com')) return null;
 
   const messageInput = document.querySelector<HTMLElement>(
     'input[placeholder*="message" i], textarea[placeholder*="message" i], [contenteditable="true"]'
