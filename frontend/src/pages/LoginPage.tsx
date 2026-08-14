@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent } from 'react';
+﻿import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { api, DEMO } from '../api.js';
 import { useAuth } from '../auth.js';
@@ -55,6 +55,26 @@ export function LoginPage({ mode }: { mode: 'login' | 'signup' }) {
   const [busy, setBusy] = useState(false);
 
   const isSignup = mode === 'signup';
+
+  /*
+   * Clear the last attempt's message when the screen changes purpose.
+   *
+   * `/login` and `/signup` are the same component with a different prop, so
+   * React keeps the instance mounted across the switch and every piece of
+   * state with it. A failed sign-in therefore followed the user to the sign-up
+   * screen and sat there under "Create your account" — telling someone with no
+   * account yet to confirm an email address, about an attempt they had already
+   * navigated away from.
+   *
+   * Email and password deliberately survive: someone who typed an address on
+   * one screen and then realised they wanted the other should not have to type
+   * it again. It is only the transient state that is stale.
+   */
+  useEffect(() => {
+    setError(null);
+    setNotice(null);
+    setBusy(false);
+  }, [mode]);
 
   /*
    * Firebase is the identity provider when this build has its config, and the
