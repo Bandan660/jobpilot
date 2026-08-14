@@ -12,3 +12,8 @@ build/
 .DS_Store
 coverage/
 extension/dist/
+# Store packaging output: a transformed copy of dist plus the zip built from
+# it. Both are derived from `npm run build:store` and neither should be in
+# review — a committed zip is also the easiest way to upload a stale build.
+extension/dist-store/
+extension/*.zip

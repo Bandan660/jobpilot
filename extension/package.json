@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "build:store": "node build.mjs && node store.mjs",
     "dev": "node build.mjs --watch",
     "typecheck": "tsc --noEmit"
   },

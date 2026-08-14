@@ -13,6 +13,9 @@
 **Detailed Description** [REQUIRED]
 BanApply automates the tedious parts of your job hunt. Fill out application forms with one click, track every job you apply to automatically, and get alerted the moment a posting comes down.
 
+Assisted Apply — what it does, stated plainly:
+When you press "Apply with BanApply" on a job posting, the extension fills the application form from your profile and, if every required question can be answered from it, submits the form for you. It only ever does this after you press that button, on the posting you are looking at. If a question cannot be answered from your profile, it stops, names the question, and waits for you to answer it in the page's own form. You can cancel a run at any point. Autofill used on its own never submits anything — filling and sending are separate actions, and only one of them has a button that sends.
+
 Key Features:
 - One-Click Autofill: Detects and fills out fields on LinkedIn Easy Apply, Indeed, Naukri, Greenhouse, Lever, Ashby, and more using your saved master profile.
 - Universal Application Tracker: Applications submit directly into your personal dashboard so you never have to maintain manual spreadsheets.
@@ -61,7 +64,7 @@ Need help or have suggestions? Visit https://banapply.com or email bandanpradhan
 | `storage` | permissions | Persists the user's session token, extension settings, and active auto-apply state locally across browser restarts. |
 | `scripting` | permissions | Injects the content script into open job application tabs when the user grants permission for a specific job board platform. |
 | `https://api.banapply.com/*` | host_permissions | Connects to the BanApply backend API to save captured job applications and synchronize candidate profile data. |
-| `http://localhost:8787/*` | host_permissions | Connects to the local development API server during extension testing and debugging. |
+| `https://jobpilot-api.jobpilot.workers.dev/*` | host_permissions | The same API on its Cloudflare Workers hostname, kept as a fallback so the extension keeps working if the custom domain fails to resolve. |
 | `https://boards.greenhouse.io/*` (and 27 others) | optional_host_permissions | Allows autofill and duplicate detection on applicant tracking systems (Greenhouse, Lever, Workday, etc.) only when requested by the user. |
 
 ---
@@ -102,13 +105,36 @@ Need help or have suggestions? Visit https://banapply.com or email bandanpradhan
 
 ## Pre-Publish Packaging Steps
 
-To build the zip file ready for submission to Chrome Web Store Developer Dashboard:
+One command. It builds, produces a store-shaped copy of the manifest, and
+writes `extension/banapply-v<version>.zip` ready to upload:
 
 ```bash
-# 1. Build the extension bundle
-npm run build:extension
+npm run build:store
+```
 
-# 2. Package extension/dist into a zip file (excluding source / node_modules)
-# Windows PowerShell:
-Compress-Archive -Path extension/dist/* -DestinationPath banapply-extension-v0.1.0.zip -Force
+**Do not hand-zip `extension/dist`.** That was the old instruction here and it
+was wrong in two ways, both silent:
+
+- `dist` carries `http://localhost:8787/*` in `host_permissions`. It belongs in
+  the source manifest — `npm run dev:api` and the popup's API override need it —
+  and it must not ship. The only honest justification for a plain-HTTP
+  localhost grant on a published extension is "used during development", which
+  is an argument for removing it. `store.mjs` strips it and prints what it
+  stripped.
+- `Compress-Archive` writes entry names with backslashes, against the spec.
+  Archives built that way have a history of being rejected or unpacked flat by
+  tools that read the names literally. `store.mjs` writes the zip itself, so
+  the paths are always `icons/icon128.png` and never `icons\icon128.png`.
+
+The `.map` files **do** ship, deliberately — see the comment at the top of
+`build.mjs`. A minified bundle with no map turned a real error report into
+`content.js:322 (se)` and cost a debugging session; a .crx is a zip anyone can
+unpack and Web Store review reads the source regardless, so there is nothing
+protected by leaving them out. They cost ~700KB against a 2GB limit.
+
+Verify before uploading:
+
+```bash
+# entries should use forward slashes, with manifest.json at the root
+unzip -l extension/banapply-v0.1.0.zip
 ```
