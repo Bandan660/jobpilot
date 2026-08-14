@@ -185,6 +185,40 @@ export async function sendPasswordReset(email: string): Promise<void> {
 }
 
 /**
+ * Apply a `verifyEmail` link.
+ *
+ * `oobCode` is the one-time code from the emailed URL. Firebase checks it
+ * server-side, so nothing here needs the user to be signed in — which matters,
+ * because the link is usually opened in whichever browser their mail client
+ * prefers rather than the one they signed up in.
+ */
+export async function applyVerificationCode(oobCode: string): Promise<void> {
+  const auth = await getFirebaseAuth();
+  const { applyActionCode } = await import('firebase/auth');
+  await applyActionCode(auth, oobCode);
+}
+
+/**
+ * Check a `resetPassword` link and return the address it belongs to.
+ *
+ * Shown on the form, because a reset link arriving in a shared or forwarded
+ * inbox should say which account it is about before anyone types a new
+ * password for it.
+ */
+export async function checkPasswordResetCode(oobCode: string): Promise<string> {
+  const auth = await getFirebaseAuth();
+  const { verifyPasswordResetCode } = await import('firebase/auth');
+  return verifyPasswordResetCode(auth, oobCode);
+}
+
+/** Complete a password reset. The code is single-use and dies with it. */
+export async function completePasswordReset(oobCode: string, password: string): Promise<void> {
+  const auth = await getFirebaseAuth();
+  const { confirmPasswordReset } = await import('firebase/auth');
+  await confirmPasswordReset(auth, oobCode, password);
+}
+
+/**
  * Firebase error codes, in words a person can act on.
  *
  * The raw messages are written for developers ("Firebase: Error
@@ -216,6 +250,21 @@ export function describeAuthError(error: unknown): string {
       return 'Your browser blocked the Google sign-in window. Allow popups for this site and try again.';
     case 'auth/unauthorized-domain':
       return 'This domain is not authorised in the Firebase console yet.';
+    /*
+     * Emailed links, not sign-in attempts.
+     *
+     * These reach the user through `/auth/action`, and the generic fallback
+     * below — "could not sign you in" — is both wrong and useless there: they
+     * were not signing in, and it does not say the one thing that helps, which
+     * is that the link is dead and a fresh one is a sign-in away. Both codes
+     * get the same wording because the distinction between "expired" and
+     * "already used" changes nothing about what to do next.
+     */
+    case 'auth/invalid-action-code':
+    case 'auth/expired-action-code':
+      return 'This link has expired or has already been used. Sign in to get a new one.';
+    case 'auth/user-disabled':
+      return 'That account has been disabled. Get in touch if you think that is wrong.';
     default:
       return 'Could not sign you in. Try again in a moment.';
   }

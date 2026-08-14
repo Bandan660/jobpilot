@@ -23,6 +23,14 @@ import { LoadingSpinner } from './components/LoadingSpinner.js';
 const LoginPage = lazy(() =>
   import('./pages/LoginPage.js').then((m) => ({ default: m.LoginPage }))
 );
+/*
+ * Lazy, and safe to be: `/auth/action` is not in the prerender list, so no
+ * static HTML can bake in the Suspense fallback. It also pulls in Firebase's
+ * auth module, which nothing else on a cold public route should pay for.
+ */
+const AuthAction = lazy(() =>
+  import('./pages/AuthAction.js').then((m) => ({ default: m.AuthAction }))
+);
 const AppShell = lazy(() =>
   import('./components/AppShell.js').then((m) => ({ default: m.AppShell }))
 );
@@ -151,6 +159,22 @@ export function AppRoutes() {
             element={
               <Suspense fallback={<LoadingSpinner fullPage />}>
                 <LoginPage mode="signup" />
+              </Suspense>
+            }
+          />
+
+          {/*
+            Where Firebase's emailed links land, once the console's action URL
+            points here. Public and unguarded on purpose: these links are opened
+            in whichever browser the mail client chose, by someone who is by
+            definition not signed in yet. The oobCode in the URL is the
+            credential, and Firebase validates it server-side.
+          */}
+          <Route
+            path="/auth/action"
+            element={
+              <Suspense fallback={<LoadingSpinner fullPage />}>
+                <AuthAction />
               </Suspense>
             }
           />
