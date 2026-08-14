@@ -506,6 +506,21 @@ Adding a value to any `as const` array that backs a `pgEnum` means writing a
 migration in the same change, and `ALTER TYPE … ADD VALUE` cannot be *used* in
 the transaction that adds it.
 
+**And a table in `schema.ts` is not a table in Postgres.** The same mistake,
+one level up, and it went further: `user_reports` was declared when the issue
+reporter shipped and never created, so reporting had never once worked. Zod
+validated the request, the insert hit a missing relation, `onError` returned
+"Something went wrong" — the same sentence every other unhandled error
+produces — and it appeared under a filled-in form on the one screen someone
+reaches *because* something else is already broken. Fixed by
+`0004_add_user_reports`; no code change was needed, which is the tell.
+
+Before assuming a 500 is in the handler, check the table exists. Comparing
+`information_schema.tables` against the exports in `schema.ts` takes one query
+and would have caught both of these on the day they landed. `backend/drizzle`
+is applied by hand here — `meta/_journal.json` lists only two of the five
+migrations, so the journal proves nothing about what a database actually has.
+
 **A generic 500 handler hides exactly the errors worth reading.** `onError`
 returns "Something went wrong" for anything that is not an `HTTPException`,
 which is right — internal detail must not leak — but it means every unhandled
