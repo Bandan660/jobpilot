@@ -207,6 +207,14 @@ const liveApi = {
       body: JSON.stringify({ status }),
     }),
 
+  /**
+   * Ends every session for this account, not just this browser's copy of the
+   * token. See `authRoutes.post('/logout')` — the token itself stays
+   * cryptographically valid for 30 days, so the only way to retire one early
+   * is the server-side cutoff this moves.
+   */
+  logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+
   getProfile: () => request<{ profile: Profile }>('/api/profile'),
 
   updateProfile: (input: ProfileInput & { onboardingComplete?: boolean }) =>

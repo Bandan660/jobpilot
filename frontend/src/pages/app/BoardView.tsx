@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { safeHref } from '../../safeHref.js';
 import { daysBetween, type Application, type ApplicationStatus } from '@jobpilot/shared';
 import { BuildingIcon, PinIcon } from '../../components/icons.js';
 
@@ -127,7 +128,7 @@ function Card({
     >
       <div className="board-card-head">
         {app.jobUrl ? (
-          <a href={app.jobUrl} target="_blank" rel="noreferrer noopener">
+          <a href={safeHref(app.jobUrl)} target="_blank" rel="noreferrer noopener">
             {app.title}
           </a>
         ) : (

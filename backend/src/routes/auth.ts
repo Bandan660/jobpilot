@@ -10,6 +10,7 @@ import { signToken } from '../auth/jwt.js';
 import { verifyFirebaseToken } from '../auth/firebase.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isAdmin } from '../middleware/admin.js';
+import { rateLimit, type RateLimitScope } from '../middleware/rateLimit.js';
 import type { AppContext } from '../env.js';
 
 const credentials = z.object({
@@ -17,9 +18,33 @@ const credentials = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters').max(200),
 });
 
+/**
+ * A hash no password produces, for the "no such account" branch of login.
+ *
+ * Shaped exactly like a real stored hash — same prefix, same iteration count,
+ * a 16-byte salt and a 32-byte digest — so `verifyPassword` runs its full
+ * PBKDF2 derivation against it and takes the time it takes. The digest is all
+ * zeroes, which no derivation returns, so the comparison always fails.
+ */
+const DECOY_HASH = `pbkdf2-sha256$100000$${btoa('\0'.repeat(16))}$${btoa('\0'.repeat(32))}`;
+
 export const authRoutes = new Hono<AppContext>();
 
-authRoutes.post('/signup', async (c) => {
+/*
+ * Keyed by IP *and* email, not IP alone.
+ *
+ * Address-only buckets punish everyone behind one NAT — a college, an office,
+ * a mobile carrier — for one person's typo, and an attacker spreading guesses
+ * across many accounts from one address is exactly the case that needs
+ * catching. Including the email means one attacker cannot lock a whole network
+ * out of sign-in, and cannot get more than ten guesses at any one account.
+ */
+const perEmail: RateLimitScope = async (c) => {
+  const body = (await c.json()) as { email?: unknown } | null;
+  return typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+};
+
+authRoutes.post('/signup', rateLimit('AUTH_LIMITER', perEmail), async (c) => {
   const parsed = credentials.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? 'Invalid input' });
@@ -49,7 +74,7 @@ authRoutes.post('/signup', async (c) => {
   return c.json(body, 201);
 });
 
-authRoutes.post('/login', async (c) => {
+authRoutes.post('/login', rateLimit('AUTH_LIMITER', perEmail), async (c) => {
   const parsed = credentials.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     throw new HTTPException(400, { message: 'Invalid email or password' });
@@ -64,16 +89,28 @@ authRoutes.post('/login', async (c) => {
     .where(sql`lower(${users.email}) = lower(${email})`)
     .limit(1);
 
-  // Same message and roughly the same work whether the account exists or not,
-  // so this endpoint cannot be used to enumerate registered emails.
   /*
+   * The same message *and the same work* whether the account exists or not.
+   *
+   * The message was already identical; the work was not. `user?.passwordHash ?
+   * await verifyPassword(…) : false` skipped 100,000 PBKDF2 iterations
+   * entirely for an unknown address, and that is not a subtle difference — it
+   * is the dominant cost of this endpoint and trivially measurable from
+   * outside. An attacker times a batch of addresses and learns which ones have
+   * accounts, which is exactly what the shared message exists to prevent.
+   *
+   * So a miss verifies against a decoy hash instead. Same algorithm, same
+   * iteration count, same rough duration, and it can never succeed: nothing
+   * hashes to a salt-and-digest of zeroes.
+   *
    * `user.passwordHash` is nullable since Firebase arrived. An account created
    * by Google sign-in has none, and this endpoint must refuse it rather than
    * hand a null to `verifyPassword` — the whole point of the column being
    * nullable is that "no local password" means "cannot log in this way", not
-   * "no password required".
+   * "no password required". Those accounts take the decoy path too, so they
+   * are not distinguishable by timing either.
    */
-  const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : false;
+  const ok = await verifyPassword(password, user?.passwordHash ?? DECOY_HASH);
   if (!user || !ok) {
     throw new HTTPException(401, { message: 'Invalid email or password' });
   }
@@ -105,6 +142,33 @@ authRoutes.get('/session', requireAuth, async (c) => {
 });
 
 /**
+ * End every session for this account.
+ *
+ * Signing out used to be entirely client-side — delete the local copy of the
+ * token and hope. The token itself stayed valid for the rest of its 30 days,
+ * so "sign out" on a shared or stolen machine did nothing an attacker holding
+ * the token would notice.
+ *
+ * Moving the cutoff forward invalidates every token issued before now, on
+ * every device. That is deliberately broader than "this browser": the moment
+ * anyone reaches for sign-out for a security reason, the other copies are
+ * exactly what they want gone. Signing in again is one press.
+ *
+ * A second granted after the last token was issued, because `iat` has
+ * one-second resolution: a token minted in the same second as the cutoff would
+ * otherwise survive its own revocation.
+ */
+authRoutes.post('/logout', requireAuth, async (c) => {
+  const db = createDb(c.env);
+  await db
+    .update(users)
+    .set({ tokensValidFrom: new Date(Date.now() + 1000) })
+    .where(eq(users.id, c.get('userId')));
+
+  return c.json({ ok: true });
+});
+
+/**
  * Exchange a Firebase ID token for a jobpilot session.
  *
  * WHY EXCHANGE RATHER THAN VERIFY PER REQUEST
@@ -129,7 +193,7 @@ authRoutes.get('/session', requireAuth, async (c) => {
  * Firebase itself treats one email as one account by default, and a second row
  * here would silently split someone's tracked applications in two.
  */
-authRoutes.post('/firebase', async (c) => {
+authRoutes.post('/firebase', rateLimit('AUTH_LIMITER'), async (c) => {
   const projectId = (c.env.FIREBASE_PROJECT_ID ?? '').trim();
   if (!projectId) {
     throw new HTTPException(503, { message: 'Google sign-in is not configured' });
@@ -141,6 +205,34 @@ authRoutes.post('/firebase', async (c) => {
   const identity = await verifyFirebaseToken(idToken, projectId);
   if (!identity) {
     throw new HTTPException(401, { message: 'Invalid sign-in token' });
+  }
+
+  /*
+   * An unverified email proves possession of the address to nobody.
+   *
+   * This is the whole security of the match below. Firebase signup is
+   * client-side and self-service, and it issues a fully valid ID token — right
+   * signature, right `aud`, right `iss` — the instant an email/password account
+   * is created, before the address is confirmed. So without this check:
+   *
+   *   1. Attacker registers victim@example.com at *our* Firebase project and
+   *      never opens the verification email.
+   *   2. `verifyFirebaseToken` accepts the token, because it is genuine.
+   *   3. The email lookup below finds the victim's existing account and links
+   *      the attacker's uid to it — permanently, so every later sign-in takes
+   *      the uid path — and returns a 30-day session for the victim's userId.
+   *
+   * That is a full account takeover knowing only an email address. The flag was
+   * being read off the token and thrown away; it is now the gate.
+   *
+   * Google sign-in arrives verified, so the path this product actually leads
+   * people down is unaffected.
+   */
+  if (!identity.emailVerified) {
+    throw new HTTPException(403, {
+      message:
+        'Confirm your email address first — open the verification link Firebase sent you, then sign in again.',
+    });
   }
 
   const db = createDb(c.env);

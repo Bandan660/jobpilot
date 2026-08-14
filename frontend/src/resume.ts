@@ -38,11 +38,34 @@ async function extractPdfText(file: File): Promise<string> {
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
+
+    /*
+     * Line breaks matter, and they were being thrown away.
+     *
+     * This joined every text item on a page with a space, which turned a whole
+     * page of a resume into one enormous line. Everything downstream reads
+     * lines: `guessName` looks at the first four and skips anything over 60
+     * characters, `section` finds headings by matching a line, and
+     * `extractExperience` needs a date range *on* a line. Given one line they
+     * all found nothing, so a parsed resume filled in almost none of the
+     * fields it was supposed to — silently, because "found nothing" and
+     * "there was nothing to find" look identical from the outside.
+     *
+     * pdfjs marks the last item of a visual line with `hasEOL`. Using it costs
+     * nothing and is the difference between this parser working and not.
+     */
+    let text = '';
+    for (const item of content.items) {
+      if (!('str' in item)) continue;
+      text += item.str;
+      text += item.hasEOL ? '\n' : ' ';
+    }
+
     pages.push(
-      content.items
-        .map((item) => ('str' in item ? item.str : ''))
-        .join(' ')
-        .replace(/\s+/g, ' ')
+      text
+        // Collapse runs of spaces without touching the newlines just added.
+        .replace(/[ \t]+/g, ' ')
+        .replace(/ *\n */g, '\n')
     );
   }
 

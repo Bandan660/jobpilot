@@ -11,13 +11,14 @@ import { createDb } from '../db/client.js';
 import { captureApplication } from '../services/capture.js';
 import { findDuplicates } from '../services/duplicates.js';
 import { requireAuth } from '../middleware/auth.js';
+import { httpUrl } from '../validation/url.js';
 import type { AppContext } from '../env.js';
 
 // Limits come from shared so the extension can clamp to the same numbers
 // before sending. Two copies drift, and the drift shows up as a 400 the user
 // cannot act on.
 const capturedJob = z.object({
-  jobUrl: z.string().url().max(CAPTURE_LIMITS.jobUrl),
+  jobUrl: httpUrl(CAPTURE_LIMITS.jobUrl),
   title: z.string().max(CAPTURE_LIMITS.title).nullable(),
   company: z.string().max(CAPTURE_LIMITS.company).nullable(),
   location: z.string().max(CAPTURE_LIMITS.location).nullable(),
@@ -36,7 +37,7 @@ const captureRequest = z.object({
 });
 
 const duplicateCheckRequest = z.object({
-  jobUrl: z.string().url().max(2048),
+  jobUrl: httpUrl(2048),
   company: z.string().max(200).nullable().optional(),
   title: z.string().max(300).nullable().optional(),
 });

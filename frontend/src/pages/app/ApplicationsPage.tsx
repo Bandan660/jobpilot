@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { safeHref } from '../../safeHref.js';
 import {
   APPLICATION_STATUS,
   EMPLOYMENT_TYPE,
@@ -601,7 +602,7 @@ function TrackerRow({
 
       <div className="tracker-main">
         {app.jobUrl ? (
-          <a className="role-link" href={app.jobUrl} target="_blank" rel="noreferrer noopener">
+          <a className="role-link" href={safeHref(app.jobUrl)} target="_blank" rel="noreferrer noopener">
             {app.title}
           </a>
         ) : (

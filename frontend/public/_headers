@@ -10,3 +10,16 @@
   X-Content-Type-Options: nosniff
   X-Frame-Options: SAMEORIGIN
   Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  # The control that matters most here, because this origin holds the session
+  # token in localStorage: anything that manages to execute script on
+  # banapply.com can read it. Two live routes to that were found and fixed —
+  # stored `javascript:` URLs, and a pdfjs advisory covering the version that
+  # parses user-supplied resumes in this very origin — and a third will exist
+  # eventually. This is what stops the payload phoning home.
+  #
+  # 'unsafe-inline' for script-src is not something to be pleased about; it is
+  # required by the inline theme bootstrap that runs before hydration to avoid
+  # a flash of the wrong theme. connect-src is the narrow one, and it is the
+  # half that blocks exfiltration.
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://*.firebaseapp.com https://www.gstatic.com; connect-src 'self' https://api.banapply.com https://*.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-src https://*.firebaseapp.com https://banapply-9da92.firebaseapp.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'

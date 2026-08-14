@@ -158,8 +158,17 @@ export function descriptionFromJsonLd(doc: Document): string | null {
   const raw = posting ? text(posting.description) : null;
   if (!raw) return null;
 
-  const holder = doc.createElement('div');
-  holder.innerHTML = raw;
+  /*
+   * Parsed into an inert document, not into this one.
+   *
+   * `raw` is HTML the page supplied, and `div.innerHTML = raw` on a live
+   * document starts fetching whatever it names — `<img src=...>` fires even
+   * on a detached node — so a posting could make the extension emit requests
+   * of its choosing simply by being read. `DOMParser` builds a document with
+   * no browsing context: no loads, no timers, no handlers, just the tree,
+   * which is all this function ever wanted.
+   */
+  const holder = new DOMParser().parseFromString(raw, 'text/html').body;
 
   for (const item of holder.querySelectorAll('li')) {
     item.textContent = `- ${item.textContent?.trim() ?? ''}`;

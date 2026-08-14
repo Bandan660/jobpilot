@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { safeHref } from '../../safeHref.js';
 import type { AdminMetrics } from '@jobpilot/shared';
 import { api } from '../../api.js';
 import { LoadingSpinner } from '../../components/LoadingSpinner.js';
@@ -577,7 +578,7 @@ export function AdminPage() {
                     </span>
                     {report.pageUrl && (
                       <a
-                        href={report.pageUrl}
+                        href={safeHref(report.pageUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: 'var(--signal)', textDecoration: 'underline' }}

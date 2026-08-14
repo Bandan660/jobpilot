@@ -4,6 +4,7 @@ import { ACTIVE_STATUSES } from '@jobpilot/shared';
 import type { Database } from '../db/client.js';
 import { applicationEvents, applications } from '../db/schema.js';
 import { numberVar, type Env } from '../env.js';
+import { isFetchableUrl } from '../validation/url.js';
 
 /**
  * Dead-posting detector.
@@ -96,6 +97,21 @@ function redirectedToListing(originalUrl: string, finalUrl: string): boolean {
 }
 
 async function checkOne(id: string, jobUrl: string): Promise<Outcome> {
+  /*
+   * The URL came from a user, and this runs on a timer with nobody watching —
+   * so whatever is stored here is a request someone else gets to make from
+   * Cloudflare's network. Rows written before the scheme was validated at the
+   * API are still in the table, which is why this is checked at the point of
+   * use rather than trusted from the column.
+   *
+   * Treated as UNKNOWN rather than as a dead posting: the posting's liveness is
+   * not what failed, our willingness to look at it is, and marking someone's
+   * application dead because of that would be a lie the user has to undo.
+   */
+  if (!isFetchableUrl(jobUrl)) {
+    return { kind: 'failure', id, reason: 'url-not-fetchable' };
+  }
+
   try {
     const response = await fetch(jobUrl, {
       method: 'GET',

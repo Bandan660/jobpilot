@@ -1561,9 +1561,38 @@ function announce(): void {
     chrome.runtime.getManifest().version;
 }
 
-/** jobpilot's own site — the only origin allowed to hand over a session. */
+/**
+ * jobpilot's own site — the only origin allowed to hand over a session.
+ *
+ * EXACT HOSTS, NOT SUFFIXES
+ *
+ * This used to end in `|pages\.dev|localhost)$` with a `(^|\.)` prefix, which
+ * matched **every** `*.pages.dev` hostname on the internet. Anyone can deploy a
+ * free Cloudflare Pages site, and this predicate is the only thing gating
+ * `listenForWebSession` — so such a page could have posted a token of its own
+ * choosing and had the extension adopt it. The victim's captures, saved
+ * answers and applications would then be written into the attacker's account
+ * while their own tracker quietly recorded nothing.
+ *
+ * It was not reachable — `content_scripts.matches` in the manifest does not
+ * include those hosts, so this script never ran there — but the gap was one
+ * manifest edit away from being live, and a preview host is exactly the kind of
+ * thing that gets added to that list. `env.ts` in the backend documents the
+ * same trap for CORS and gets it right; this is that lesson applied here.
+ *
+ * localhost stays for development, and is now the whole hostname rather than
+ * any suffix ending in it.
+ */
+const OWN_HOSTS = new Set([
+  'banapply.com',
+  'www.banapply.com',
+  'jobpilot-3lg.pages.dev',
+  'localhost',
+  '127.0.0.1',
+]);
+
 function onOwnSite(): boolean {
-  return /(^|\.)(banapply\.com|jobpilot-3lg\.pages\.dev|pages\.dev|localhost)$/.test(window.location.hostname);
+  return OWN_HOSTS.has(window.location.hostname.toLowerCase());
 }
 
 /**

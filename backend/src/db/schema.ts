@@ -66,6 +66,23 @@ export const users = pgTable(
      * Firebase, which is what lets the two coexist while any remain.
      */
     firebaseUid: text('firebase_uid'),
+    /**
+     * Sessions issued before this moment are refused.
+     *
+     * The kill switch this system had no version of. Tokens last 30 days on
+     * purpose — `auth/jwt.ts` explains why, and being signed out in the middle
+     * of an application is genuinely the worst moment to interrupt anyone — but
+     * "cannot expire it early" and "long-lived" together mean a leaked token is
+     * simply valid for a month, with signing out doing nothing but delete the
+     * client's copy.
+     *
+     * One UPDATE here ends every session for one account. Compared against the
+     * token's `iat` in `requireAuth`, so it costs the lookup that middleware
+     * already had to do and nothing else.
+     */
+    tokensValidFrom: timestamp('tokens_valid_from', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

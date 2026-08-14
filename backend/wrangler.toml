@@ -18,7 +18,13 @@ crons = ["0 */6 * * *"]
 #   npx wrangler secret put JWT_SECRET
 # For local dev they go in backend/.dev.vars instead.
 # Exact origins allowed to call the API from a browser.
-CORS_ORIGINS = "https://banapply.com,https://www.banapply.com,https://jobpilot-3lg.pages.dev,http://localhost:5173,http://127.0.0.1:5173"
+#
+# Production only. The localhost entries that used to be here let a page served
+# from any local dev server on a user's machine call the live API from their
+# browser — and local development does not need them, because `npm run dev:api`
+# points the site at localhost:8787 rather than at this Worker. Put them in
+# backend/.dev.vars if a local client ever has to talk to production.
+CORS_ORIGINS = "https://banapply.com,https://www.banapply.com,https://jobpilot-3lg.pages.dev"
 
 # Host suffixes, for Pages preview deployments whose hostname is per-build
 # (<hash>.jobpilot-3lg.pages.dev) and cannot be listed in advance.
@@ -35,6 +41,27 @@ GHOST_AFTER_DAYS = "30"
 [[r2_buckets]]
 binding = "RESUMES"
 bucket_name = "jobpilot-resumes"
+
+# Per-IP rate limits. See middleware/rateLimit.ts for what each one defends.
+#
+# namespace_id is an arbitrary number that identifies the counter within this
+# Worker; it is not a resource to create in the dashboard. Changing one resets
+# its counters, which is the only reason to change one.
+#
+# The auth limit is generous enough that a person mistyping a password never
+# meets it, and tight enough that guessing at scale from one address is
+# pointless. Reports are hourly because a human files one every few weeks.
+[[unsafe.bindings]]
+name = "AUTH_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }
+
+[[unsafe.bindings]]
+name = "REPORT_LIMITER"
+type = "ratelimit"
+namespace_id = "1002"
+simple = { limit = 5, period = 3600 }
 
 [observability]
 enabled = true

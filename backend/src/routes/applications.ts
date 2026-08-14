@@ -15,6 +15,7 @@ import { createDb } from '../db/client.js';
 import { applicationEvents, applications, companies, notes } from '../db/schema.js';
 import { toApplicationDto, toEventDto } from '../services/serialize.js';
 import { requireAuth } from '../middleware/auth.js';
+import { httpUrl } from '../validation/url.js';
 import type { AppContext } from '../env.js';
 
 /**
@@ -149,7 +150,7 @@ applicationRoutes.get('/:id', async (c) => {
 const createBody = z.object({
   title: z.string().min(1).max(300),
   company: z.string().min(1).max(200),
-  jobUrl: z.string().url().max(2048).nullable().optional(),
+  jobUrl: httpUrl(2048).nullable().optional(),
   location: z.string().max(200).nullable().optional(),
   employmentType: z.enum(EMPLOYMENT_TYPE).nullable().optional(),
   resumeId: z.string().uuid().nullable().optional(),
@@ -224,7 +225,7 @@ const importBody = z.object({
         company: z.string().min(1).max(200),
         status: z.enum(APPLICATION_STATUS).optional(),
         appliedAt: z.string().max(30).nullable().optional(),
-        jobUrl: z.string().max(2048).nullable().optional(),
+        jobUrl: httpUrl(2048).nullable().optional(),
         location: z.string().max(200).nullable().optional(),
         employmentType: z.enum(EMPLOYMENT_TYPE).nullable().optional(),
       })

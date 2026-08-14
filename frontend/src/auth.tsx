@@ -26,6 +26,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
+    /*
+     * Tell the server first, then forget locally.
+     *
+     * Deleting the local copy was all this used to do, which meant signing out
+     * on a shared machine left a token valid for the rest of its 30 days —
+     * still working for anyone who had captured it. `POST /api/auth/logout`
+     * moves the account's revocation cutoff forward, which ends every session
+     * on every device.
+     *
+     * Not awaited, and failure is ignored on purpose: sign-out must never
+     * appear to fail or hang. The local state is cleared regardless, and a
+     * request that did not land leaves exactly the situation that existed
+     * before this call was added.
+     */
+    void api.logout().catch(() => undefined);
+
     clearToken();
     setTokenState(null);
     setEmail(null);

@@ -39,6 +39,29 @@ app.use('*', (c, next) =>
   })(c, next)
 );
 
+/*
+ * Response headers, on everything this Worker returns.
+ *
+ * The API serves JSON and one file download, so most of the usual suspects do
+ * not apply — but two do, and neither was being sent:
+ *
+ * - `nosniff`, because the resume download endpoint returns a user-uploaded
+ *   file with a user-influenced content type, and content sniffing is how a
+ *   file that claims to be one thing gets executed as another.
+ * - `frame-ancestors 'none'`, because nothing here is ever meant to be framed,
+ *   and a JSON API in an iframe is only ever the start of something.
+ *
+ * HSTS is the third: api.banapply.com is HTTPS-only in practice, and saying so
+ * stops the first request of a session being downgradeable.
+ */
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  c.header('Referrer-Policy', 'no-referrer');
+  c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+});
+
 app.get('/health', (c) => c.json({ ok: true, service: 'jobpilot-api' }));
 
 import { publicBlogRoutes } from './routes/blog.js';

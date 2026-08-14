@@ -31,6 +31,14 @@ export interface Env {
    * `/api/auth/firebase` 503s rather than guessing when it is unset.
    */
   FIREBASE_PROJECT_ID?: string;
+  /**
+   * Comma-separated Chrome extension ids allowed as CORS origins.
+   *
+   * Optional. Absent means "any extension origin", which is where this started
+   * — see `isAllowedOrigin` for why that is survivable and still worth
+   * narrowing. Set it to the published id once the Web Store listing exists.
+   */
+  EXTENSION_IDS?: string;
 }
 
 /** Hono context typing used across every route module. */
@@ -85,9 +93,24 @@ export function adminEmails(env: Env): string[] {
 export function isAllowedOrigin(origin: string, env: Env): boolean {
   if (!origin) return false;
 
-  // The extension's origin is chrome-extension://<id>, and the id differs
-  // between the unpacked dev build and the published one.
-  if (origin.startsWith('chrome-extension://')) return true;
+  /*
+   * The extension's origin is chrome-extension://<id>, and the id differs
+   * between the unpacked dev build and the published one.
+   *
+   * Once EXTENSION_IDS is set, only those ids are allowed. Until then any
+   * extension origin passes, which is how this started and is worth being
+   * precise about: CORS is not what protects this API — every route needs a
+   * bearer token, and another extension cannot read this one's storage — so
+   * the permissive branch grants a stranger's extension nothing it could not
+   * get by calling the API from its own background worker, which CORS does not
+   * govern at all. It is still narrower to name the ids, and once the Web Store
+   * listing exists there is no reason not to.
+   */
+  if (origin.startsWith('chrome-extension://')) {
+    const allowed = list(env.EXTENSION_IDS);
+    if (allowed.length === 0) return true;
+    return allowed.some((id) => origin === `chrome-extension://${id}`);
+  }
 
   if (corsOrigins(env).includes(origin)) return true;
 

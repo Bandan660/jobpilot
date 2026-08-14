@@ -24,14 +24,29 @@ export async function signToken(userId: string, secret: string): Promise<string>
     .sign(key(secret));
 }
 
-/** Returns the user id, or null for any invalid/expired/malformed token. */
-export async function verifyToken(token: string, secret: string): Promise<string | null> {
+export interface VerifiedToken {
+  userId: string;
+  /** When this token was issued, in ms. Checked against `users.tokensValidFrom`. */
+  issuedAt: number | null;
+}
+
+/** Returns the claims, or null for any invalid/expired/malformed token. */
+export async function verifyToken(token: string, secret: string): Promise<VerifiedToken | null> {
   try {
     const { payload } = await jwtVerify(token, key(secret), {
       issuer: ISSUER,
       audience: AUDIENCE,
     });
-    return typeof payload.sub === 'string' ? payload.sub : null;
+
+    if (typeof payload.sub !== 'string') return null;
+
+    return {
+      userId: payload.sub,
+      // `setIssuedAt` always writes one, but a token minted before that did not
+      // have to. Null here is treated as "older than any revocation" by the
+      // caller, which is the safe reading.
+      issuedAt: typeof payload.iat === 'number' ? payload.iat * 1000 : null,
+    };
   } catch {
     return null;
   }
