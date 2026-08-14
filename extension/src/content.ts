@@ -542,6 +542,18 @@ let matchCache: SkillMatch | null | undefined;
 let matchCacheKey: string | null = null;
 
 /**
+ * The body `matchCache` was computed from, as `descriptionFingerprint` sees it.
+ *
+ * The key above answers "whose score is this". This answers "was it computed
+ * from the text that is on screen now", and the two are not the same question:
+ * on a pane swap the new posting's identity arrives before its body, so a score
+ * can be keyed correctly and still be drawn from the previous posting's words.
+ * Without this the mistake was permanent — the cache was keyed only to the job,
+ * so the real body arriving changed nothing.
+ */
+let matchCacheFingerprint: string | null = null;
+
+/**
  * Failed description scrapes, so a client-rendered pane gets a second chance
  * without being re-read forever. `innerText` forces layout; unbounded retries
  * on a posting that genuinely has no description would do it every poll.
@@ -637,11 +649,38 @@ function paneSettled(): boolean | null {
 async function computeMatch(job: CapturedJob): Promise<SkillMatch | null> {
   const key = jobKeyOf(job);
 
+  const fingerprint = descriptionFingerprint();
+
   if (key !== matchCacheKey) {
     matchCacheKey = key;
     matchCache = undefined;
+    matchCacheFingerprint = null;
     matchAttempts = 0;
     matchKeySince = Date.now();
+  }
+
+  /*
+   * Same posting, different body: the pane has finished swapping and what was
+   * scored a moment ago belonged to the posting before this one. Score it
+   * again. The attempt count resets with it, because the reason the earlier
+   * reads failed — a body that had not rendered yet — has just gone away.
+   *
+   * Only a *changed* fingerprint does this, never an absent one. A pane that
+   * momentarily empties itself mid-swap would otherwise throw away a good
+   * comparison and put the "Analysing" card back over a posting that was
+   * already scored.
+   *
+   * The attempt reset is narrower still: it needs a body we actually scored to
+   * have been replaced. Resetting whenever a fingerprint merely exists would
+   * uncap the retry budget on the one posting that needs it capped — a body
+   * long enough to fingerprint but not long enough for `jobDescription` to
+   * accept would never reach ten attempts, and "Analysing" would spin for the
+   * life of the posting instead of standing down.
+   */
+  if (fingerprint && fingerprint !== matchCacheFingerprint) {
+    if (matchCacheFingerprint !== null) matchAttempts = 0;
+    matchCache = undefined;
+    matchCacheFingerprint = null;
   }
 
   matchDeferred = false;
@@ -701,7 +740,24 @@ async function computeMatch(job: CapturedJob): Promise<SkillMatch | null> {
     return null;
   }
 
+  /*
+   * The body must not have moved while the profile was loading.
+   *
+   * `description` was read before that await, so a pane that finished swapping
+   * inside it leaves this holding the previous posting's words. Stamping the
+   * *current* fingerprint here would be worse than not stamping at all: it
+   * would mark a score computed from the old body as belonging to the new one,
+   * and the correction above — the whole point of the fingerprint — would never
+   * fire again for this posting. Defer instead; the next pass reads the body
+   * that is actually on screen.
+   */
+  if (descriptionFingerprint() !== fingerprint) {
+    matchDeferred = true;
+    return null;
+  }
+
   lastScoredDescription = { key, text: description };
+  matchCacheFingerprint = fingerprint || null;
   matchCache = matchSkills(description, profile);
   return matchCache;
 }
@@ -719,7 +775,7 @@ function pageDescription(): string | null {
 }
 
 /**
- * Has a description turned up yet — cheaply enough to ask every poll.
+ * Which description is on screen — cheaply enough to ask every poll.
  *
  * Part of the tracking signature, and it has to be, because nothing else in
  * that signature moves when a description arrives: the id, the title, the
@@ -727,10 +783,47 @@ function pageDescription(): string | null {
  * the pane renders. Without this the repaint that would retry the scrape never
  * happens, and a posting whose body loaded late stays uncompared.
  *
- * `textContent`, not `innerText`: this only needs to know whether text exists,
- * and textContent does not force a layout. The real read stays in
- * `jobDescription`, which runs once per posting rather than once per poll.
+ * WHY IT IDENTIFIES THE BODY RATHER THAN JUST COUNTING IT
+ *
+ * This used to answer "has *a* description turned up", one bit, and a bit that
+ * has already flipped can never flip again. That is what left the same skills
+ * and the same score on screen after clicking the next posting: LinkedIn swaps
+ * the detail pane in place, so for a few hundred milliseconds the new posting's
+ * title sits above the old posting's body. Score inside that window — which
+ * `STALE_BODY_GRACE_MS` bounds but does not prevent — and the wrong result is
+ * cached under the new posting's key, with nothing left that could ever notice:
+ * the bit was already 'd' before the real body arrived, so no repaint, and a
+ * repaint would have returned the cache anyway.
+ *
+ * A fingerprint of the text moves when the text moves. The pane finishing its
+ * swap now changes the signature, which forces the repaint, and `computeMatch`
+ * compares it against the fingerprint of whatever it scored last — so a score
+ * taken from a stale body corrects itself as soon as the real one lands.
+ *
+ * `textContent`, not `innerText`: this runs on every poll and must not force a
+ * layout. The hash is over the first 400 characters, which is enough to tell
+ * two postings apart and short enough to be free. The real read stays in
+ * `jobDescription`, which runs once per posting.
  */
+function descriptionFingerprint(): string {
+  const adapter = findAdapter(new URL(window.location.href));
+  if (!adapter) return '';
+
+  for (const selector of adapter.descriptionSelectors ?? []) {
+    const text = document.querySelector(selector)?.textContent?.trim() ?? '';
+    if (text.length >= 50) return `${text.length}:${hash(text.slice(0, 400))}`;
+  }
+
+  return '';
+}
+
+/** djb2, over at most 400 characters. Not a checksum — just a cheap identity. */
+function hash(value: string): number {
+  let h = 5381;
+  for (let i = 0; i < value.length; i += 1) h = ((h << 5) + h + value.charCodeAt(i)) | 0;
+  return h;
+}
+
 /**
  * Why the description could not be read, in one line the user can screenshot.
  *
@@ -760,17 +853,6 @@ function describeDescriptionMiss(): string[] {
   });
 }
 
-function descriptionArrived(): boolean {
-  const adapter = findAdapter(new URL(window.location.href));
-  if (!adapter) return false;
-
-  for (const selector of adapter.descriptionSelectors ?? []) {
-    const length = document.querySelector(selector)?.textContent?.trim().length ?? 0;
-    if (length >= 50) return true;
-  }
-
-  return false;
-}
 
 let currentDuplicate: DuplicateMatch | null = null;
 
@@ -889,7 +971,7 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
             updateSession({ savingAnswers: false, message: result.error, state: 'error' });
             return;
           }
-          profileCache = undefined;
+          invalidateProfile();
           updateSession({ savingAnswers: false, answersSaved: true });
         }
       );
@@ -1038,7 +1120,7 @@ function startTracking(adapter: JobAdapter): () => void {
       const jobKey = jobKeyOf(job);
       // The description bit flips once, when a client-rendered pane finishes.
       // That repaint is what lets a first failed scrape try again.
-      const signature = [jobKey, fields, descriptionArrived() ? 'd' : '-'].join('|');
+      const signature = [jobKey, fields, descriptionFingerprint() || '-'].join('|');
       // `matchDeferred` is the one reason to repaint an unchanged signature:
       // the comparison asked to be tried again and nothing in the signature
       // will ever move to make that happen. See the flag's own note.
@@ -1277,12 +1359,58 @@ function watchNavigation(): void {
  * cost something: filling a form and running assisted apply both write the
  * profile into someone's application, so they re-read it at the moment of use.
  * The passive coverage count does not need that.
+ *
+ * IT EXPIRES, AND IT HAS TO
+ *
+ * "Once per page" is once per *tab*, and a job tab lives for hours. Add a skill
+ * on the website and the profile in the database changes; the copy this tab
+ * took at load does not, and every score drawn afterwards is against the old
+ * one. That is not a hypothetical — it showed up as a posting reporting
+ * "JavaScript, HTML, CSS — not in your profile" against a profile listing all
+ * three, and nothing short of a reload would clear it, because the only
+ * invalidation was the saved-answers write.
+ *
+ * So the cache is a short one, not a permanent one, and the comparison is
+ * always against the profile as the database has it.
  */
+const PROFILE_TTL_MS = 60_000;
+
 let profileCache: Profile | null | undefined;
+let profileCachedAt = 0;
 let profileInFlight: Promise<Profile | null> | null = null;
 
+/**
+ * The cached profile, if there is one and it is young enough to still be what
+ * the database holds. `undefined` means "ask again" — either nothing is
+ * cached, or what is cached has aged out.
+ */
+function currentProfile(): Profile | null | undefined {
+  if (profileCache === undefined) return undefined;
+  return Date.now() - profileCachedAt < PROFILE_TTL_MS ? profileCache : undefined;
+}
+
+/**
+ * The profile in the database changed — drop what this tab is holding.
+ *
+ * The match goes with it. `matchCache` is keyed to the posting, not to the
+ * profile, so without this the card keeps showing a score computed against the
+ * skills list the user just edited, for as long as they stay on the posting.
+ * `matchDeferred` is what actually gets it back on screen: the tracking
+ * signature is built from the page and nothing in it moves when a profile
+ * changes, so the repaint has to be asked for.
+ */
+function invalidateProfile(): void {
+  profileCache = undefined;
+  profileCachedAt = 0;
+  matchCache = undefined;
+  matchDeferred = true;
+}
+
 async function loadProfile(options: { fresh?: boolean } = {}): Promise<Profile | null> {
-  if (!options.fresh && profileCache !== undefined) return profileCache;
+  if (!options.fresh) {
+    const cached = currentProfile();
+    if (cached !== undefined) return cached;
+  }
 
   /*
    * Share one request between concurrent callers. Without this the first paint
@@ -1296,7 +1424,10 @@ async function loadProfile(options: { fresh?: boolean } = {}): Promise<Profile |
     // A failed read is not cached: it is usually a signed-out state that the
     // user is about to fix from the panel, and caching null would leave the
     // panel insisting there is no profile until the page reloads.
-    if (result.ok) profileCache = profile;
+    if (result.ok) {
+      profileCache = profile;
+      profileCachedAt = Date.now();
+    }
     return profile;
   });
 
@@ -1308,6 +1439,17 @@ async function loadProfile(options: { fresh?: boolean } = {}): Promise<Profile |
     if (!options.fresh) profileInFlight = null;
   }
 }
+
+/*
+ * Coming back to the tab is the moment the profile is most likely to have
+ * changed: editing it means leaving for the dashboard and returning, and the
+ * TTL alone would leave the old score up for up to a minute of that. Cheaper
+ * than polling and tied to the only thing that actually signals an edit.
+ */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') invalidateProfile();
+});
+window.addEventListener('focus', () => invalidateProfile());
 
 /**
  * Fill the application form from the saved profile.
