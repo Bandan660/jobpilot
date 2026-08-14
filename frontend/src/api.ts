@@ -13,7 +13,12 @@ import type {
   ProfileInput,
   Resume,
 } from '@jobpilot/shared';
-import { DEMO_APPLICATIONS, DEMO_DEAD_POSTINGS, DEMO_STATS } from './demo.js';
+import {
+  DEMO_APPLICATIONS,
+  DEMO_DEAD_POSTINGS,
+  DEMO_PROFILE_FIELDS,
+  DEMO_STATS,
+} from './demo.js';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) ?? 'http://localhost:8787';
 const TOKEN_KEY = 'jobpilot.token';
@@ -346,6 +351,9 @@ function buildDemoApi(): typeof liveApi {
   // mode without a database behind it.
   let demoProfile: Profile = {
     ...EMPTY_PROFILE,
+    // Filled in rather than blank: an empty profile demonstrates the empty
+    // state, which is not what a demo is for. See DEMO_PROFILE_FIELDS.
+    ...DEMO_PROFILE_FIELDS,
     id: 'demo-profile',
     userId: 'demo-user',
     /*

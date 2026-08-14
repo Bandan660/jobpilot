@@ -51,9 +51,36 @@ Need help or have suggestions? Visit https://banapply.com or email bandanpradhan
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | `extension/icons/icon128.png` |
-| Screenshot 1 [REQUIRED] | 1280×800 or 640×400 | 🟡 Needs capture | Overlay panel on LinkedIn Easy Apply |
-| Screenshot 2 [RECOMMENDED] | 1280×800 or 640×400 | 🟡 Needs capture | Autofill in action on Greenhouse form |
-| Screenshot 3 [RECOMMENDED] | 1280×800 or 640×400 | 🟡 Needs capture | BanApply Web Dashboard & Tracker |
+| Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | `extension/store-assets/1-tracker.png` — the tracker, with platform marks and dead-posting lamps |
+| Screenshot 2 [RECOMMENDED] | 1280×800 | ✅ Ready | `extension/store-assets/2-dashboard.png` — dashboard, funnel and setup checklist |
+| Screenshot 3 [RECOMMENDED] | 1280×800 | ✅ Ready | `extension/store-assets/3-profile.png` — the one profile that fills every form |
+| Screenshot 4 [RECOMMENDED] | 1280×800 | 🟡 Needs capture | Overlay panel on a live LinkedIn posting — needs a signed-in account, so it cannot be produced from fixtures |
+| Screenshot 5 [OPTIONAL] | 1280×800 | 🟡 Needs capture | Autofill filling a real ATS form |
+
+### How the ready ones were produced
+
+Demo mode against fixtures (`VITE_DEMO=1`), so **no real personal data is in
+them** — the profile shown is `DEMO_PROFILE_FIELDS`, which is fictional by
+construction. That matters more than convenience: a store screenshot is public
+forever, and the easiest way to publish someone's phone number is to screenshot
+a real profile.
+
+They were composed at a true 1280×800 layout and captured scaled, because this
+machine's display is 1280×720 and an 800px-tall viewport does not exist on it.
+Redo them the same way if the UI changes:
+
+```bash
+cd frontend && VITE_DEMO=1 npx vite --host 127.0.0.1
+# then, in the page:
+#   document.getElementById('root').style.cssText =
+#     'width:1280px;height:800px;overflow:hidden;position:fixed;top:0;left:0;' +
+#     'transform:scale(0.66125);transform-origin:0 0;'
+# capture, then resize to exactly 1280x800 — the store validates the dimensions
+```
+
+The two remaining shots need a signed-in LinkedIn session and the extension
+loaded. **Blur or fake anything identifying** before uploading: recruiter names,
+your own contact details in a half-filled form, other tabs in the window.
 
 ---
 
