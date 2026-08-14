@@ -98,17 +98,73 @@ export async function signInWithGoogle(): Promise<string> {
   return idTokenFrom(await signInWithPopup(auth, provider));
 }
 
+/**
+ * Send the "confirm your address" email.
+ *
+ * Firebase does not do this on its own. Creating an account with
+ * `createUserWithEmailAndPassword` sends nothing at all — the address stays
+ * unverified until the app asks for a link — and the API now refuses to trade
+ * an unverified token for a session, because an unverified address proves
+ * possession to nobody and was a route to taking over an existing account.
+ *
+ * So the two halves have to agree: the moment sign-up demands verification,
+ * sign-up has to send the thing being demanded. Without this, an
+ * email/password account was created, refused, and had no way of ever
+ * passing — no email, no button, nothing to click.
+ *
+ * Failure is swallowed. The account exists either way, the user is being told
+ * to check their email either way, and the resend path below covers a link
+ * that never arrived. Turning a mail-delivery hiccup into a failed sign-up
+ * would be the worse outcome.
+ */
+async function requestVerification(user: UserCredential['user']): Promise<void> {
+  try {
+    const { sendEmailVerification } = await import('firebase/auth');
+    await sendEmailVerification(user);
+  } catch {
+    /* Resend covers it. */
+  }
+}
+
 export async function signUpWithPassword(email: string, password: string): Promise<string> {
   const auth = await getFirebaseAuth();
   const { createUserWithEmailAndPassword } = await import('firebase/auth');
-  return idTokenFrom(await createUserWithEmailAndPassword(auth, email, password));
+
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  await requestVerification(credential.user);
+
+  return idTokenFrom(credential);
 }
 
 export async function signInWithPassword(email: string, password: string): Promise<string> {
   const auth = await getFirebaseAuth();
   const { signInWithEmailAndPassword } = await import('firebase/auth');
-  return idTokenFrom(await signInWithEmailAndPassword(auth, email, password));
+
+  const credential = await signInWithEmailAndPassword(auth, email, password);
+
+  /*
+   * Signing in unverified means the last link was never opened — often because
+   * it was never sent, which is every account created before verification was
+   * required. Send a fresh one *now*, so the message the API is about to
+   * return ("check your email") describes something that just happened rather
+   * than something that never did.
+   */
+  if (!credential.user.emailVerified) {
+    await requestVerification(credential.user);
+  }
+
+  return idTokenFrom(credential);
 }
+
+/*
+ * There is deliberately no separate "resend" button.
+ *
+ * Every password sign-in already sends a fresh link when the address is still
+ * unverified, so pressing sign-in again *is* the resend — one control that
+ * does the obvious thing, rather than two that need explaining. An exported
+ * helper nothing called would also be exactly the dead optional member this
+ * codebase has been bitten by before.
+ */
 
 /**
  * Send a reset email. Resolves either way.

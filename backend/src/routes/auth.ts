@@ -229,9 +229,16 @@ authRoutes.post('/firebase', rateLimit('AUTH_LIMITER'), async (c) => {
    * people down is unaffected.
    */
   if (!identity.emailVerified) {
+    /*
+     * The client sends a fresh link immediately before this call, on both
+     * sign-up and sign-in, so this message describes something that has just
+     * happened. It said "the link Firebase sent you" first, which was untrue
+     * and unhelpable: nothing sent one, because `sendEmailVerification` is not
+     * automatic and was never being called.
+     */
     throw new HTTPException(403, {
       message:
-        'Confirm your email address first — open the verification link Firebase sent you, then sign in again.',
+        'Almost there — open the verification link we just emailed you, then sign in again. Check spam if it is not in your inbox.',
     });
   }
 
