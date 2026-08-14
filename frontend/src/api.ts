@@ -221,13 +221,30 @@ const liveApi = {
    * Raw body upload, not multipart — the API takes one file with its name in a
    * header. Content-Type must be set explicitly, since the browser would
    * otherwise leave it off for a File body.
+   *
+   * `file.type` is not reliable. It comes from the OS association rather than
+   * from the bytes, and it is empty often enough to matter — files dragged from
+   * some Windows apps, files with no registered handler, files restored from an
+   * archive. Empty reaches the API as no Content-Type at all and comes back
+   * "Upload a PDF or Word document" about a genuine PDF, which reads as a bug
+   * in the file rather than in the header. The extension decides it when the
+   * browser will not; the server still verifies the magic bytes either way, so
+   * this widens no hole.
    */
   uploadResume: async (file: File) => {
     const token = getToken();
+    const byExtension: Record<string, string> = {
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    };
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+    const contentType = file.type || byExtension[extension] || 'application/octet-stream';
+
     const response = await fetch(`${BASE_URL}/api/resumes`, {
       method: 'POST',
       headers: {
-        'Content-Type': file.type,
+        'Content-Type': contentType,
         'X-File-Name': encodeURIComponent(file.name),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },

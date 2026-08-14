@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  MAX_RESUME_BYTES,
   PROFILE_REGIONS,
+  extractSkills,
   profileReadiness,
   type Profile,
   type ProfileInput,
@@ -169,44 +171,173 @@ interface StepProps {
   patch: (fields: Draft) => void;
 }
 
+/**
+ * Only the fields the parser actually found.
+ *
+ * `extractFields` returns the full shape with null for everything it could not
+ * read, and spreading that into the draft overwrote real answers with those
+ * nulls — the email captured at sign-up disappeared whenever a resume printed
+ * it in a form the regex missed, and a second upload could empty the roles the
+ * first one found. A resume is evidence to add, never a reason to forget
+ * something already known.
+ */
+function foundOnly(fields: ProfileInput): ProfileInput {
+  const kept: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    if (typeof value === 'string' && value.trim() === '') continue;
+    kept[key] = value;
+  }
+
+  return kept as ProfileInput;
+}
+
+/** Case-insensitive union, keeping whatever spelling was already there. */
+function mergeSkills(existing: string[] | undefined, found: string[]): string[] {
+  const seen = new Set((existing ?? []).map((skill) => skill.toLowerCase()));
+  const merged = [...(existing ?? [])];
+
+  for (const skill of found) {
+    if (seen.has(skill.toLowerCase())) continue;
+    seen.add(skill.toLowerCase());
+    merged.push(skill);
+  }
+
+  return merged;
+}
+
+/**
+ * Keep the file itself, so the profile has a resume without a second upload.
+ *
+ * Returns null when it is stored and a sentence when it is not. Not throwing,
+ * and deliberately not `setProblem`: the parsed fields are what this step is
+ * for and they are already saved by the time this runs, so a file that cannot
+ * be stored is a footnote, never a failed step. Silence would be worse than
+ * either — someone who is told nothing assumes their resume is on the account
+ * and finds out otherwise the first time an application needs it.
+ *
+ * The two rejections are known in advance, so they are answered here rather
+ * than as a round trip that comes back 415 or 413:
+ *
+ * - The API takes PDF and Word. The picker also accepts .txt and .md because
+ *   parsing them works fine, and storing them does not.
+ * - `MAX_RESUME_BYTES` is 200KB, far below the 10MB this can *read*. The two
+ *   limits are unrelated — one bounds a parse in this tab, the other bounds
+ *   what the free tier stores — and conflating them would refuse a file the
+ *   user could perfectly well have parsed.
+ */
+async function storeResume(file: File): Promise<string | null> {
+  if (!/\.(pdf|docx?)$/i.test(file.name)) {
+    return 'Read and saved to your profile. The file itself is only kept for PDF and Word — upload one of those later if you want it attached to applications.';
+  }
+
+  if (file.size > MAX_RESUME_BYTES) {
+    return `Read and saved to your profile, but the file is over ${Math.round(
+      MAX_RESUME_BYTES / 1024
+    )}KB so it was not kept. Re-export it smaller from your profile to attach it to applications.`;
+  }
+
+  try {
+    await api.uploadResume(file);
+    return null;
+  } catch (err) {
+    return err instanceof Error
+      ? `Read and saved to your profile, but the file could not be stored: ${err.message}`
+      : 'Read and saved to your profile, but the file could not be stored.';
+  }
+}
+
 function ResumeStep({ draft, patch }: StepProps) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [found, setFound] = useState<string[] | null>(null);
+  const [stored, setStored] = useState(false);
+  /** Why the file was not kept, when the fields were read anyway. */
+  const [note, setNote] = useState<string | null>(null);
+  /*
+   * A ref, not the `busy` state, because the state this closure can see is the
+   * one from its own render. Two drops inside a single tick would both read
+   * false and both start, which is exactly the case the guard exists for.
+   */
+  const running = useRef(false);
 
   async function handleFile(file: File) {
+    /*
+     * One at a time. The button disables itself while this runs but the drop
+     * zone cannot, and two files in flight is a genuine mess: the uploads race,
+     * the API keeps one resume per user so the loser silently wins if it lands
+     * second, and the fields on screen would describe a different document from
+     * the one stored.
+     */
+    if (running.current) return;
+    running.current = true;
+
     setBusy(true);
     setProblem(null);
+    setNote(null);
+    setStored(false);
+
     try {
       const parsed = await parseResume(file);
+
       /*
        * `rawText` was already extracted to find the fields below and was
        * thrown away here. Keeping it is what lets skills matching see the
-       * whole CV rather than only the handful of fields this parser recognises
-       * — and it costs nothing, the work is already done.
+       * whole CV rather than only the handful of fields this parser
+       * recognises — and it costs nothing, the work is already done.
+       *
+       * The skills chips come out of the same text, through the same
+       * dictionary the matcher uses, so what is on the profile and what a
+       * posting is compared against cannot disagree. Merged rather than
+       * assigned: someone re-picking a file after typing a skill by hand
+       * should not lose it.
        */
       patch({
-        ...parsed.fields,
+        ...foundOnly(parsed.fields),
+        skills: mergeSkills(draft.skills, extractSkills(parsed.rawText)),
         resumeFileName: file.name,
         resumeText: parsed.rawText.trim().slice(0, MAX_RESUME_TEXT) || null,
       });
       setFound(parsed.found);
+
+      /*
+       * After the parse, never instead of it. A file that stores but does not
+       * parse leaves someone typing everything by hand with a PDF attached,
+       * which is the wrong half of this step to get right.
+       */
+      const failure = await storeResume(file);
+      setNote(failure);
+      setStored(failure === null);
     } catch (err) {
       setProblem(
         err instanceof ResumeError ? err.message : 'Could not read that file. Try a different PDF.'
       );
     } finally {
+      // Both flags here, and in a finally: an early return that cleared the
+      // state but not the ref would leave the picker dead for the rest of the
+      // step, with a working button that does nothing when pressed.
       setBusy(false);
+      running.current = false;
     }
   }
 
   return (
     <section className="ob-step">
       <h1>Start from your resume</h1>
+      {/*
+        This used to promise the file never leaves the device, which stopped
+        being true the moment it was stored — and a privacy line that has
+        quietly gone stale is worse than none. Reading still happens entirely
+        in this tab; the file is kept so applications can attach it and so
+        nobody has to upload the same document twice.
+      */}
       <p className="ob-sub">
-        We read it in your browser and fill in what we can. The file itself never leaves your
-        device — only the details you confirm on the next screens are saved.
+        We read it in your browser to fill in what we can, and keep a copy on your account so you
+        never have to upload it again. Only the details you confirm on the next screens are saved
+        to your profile.
       </p>
 
       <div
@@ -231,7 +362,10 @@ function ResumeStep({ draft, patch }: StepProps) {
         <button className="btn btn-ghost" onClick={() => input.current?.click()} disabled={busy}>
           {busy ? 'Reading…' : 'Choose a PDF'}
         </button>
-        <span className="ob-drop-hint">or drop it here · PDF or plain text, up to 10MB</span>
+        <span className="ob-drop-hint">
+          or drop it here · PDF or plain text, up to 10MB · kept on your account if it is a PDF or
+          Word file under {Math.round(MAX_RESUME_BYTES / 1024)}KB
+        </span>
       </div>
 
       {problem && <p className="error-text">{problem}</p>}
@@ -241,9 +375,17 @@ function ResumeStep({ draft, patch }: StepProps) {
           <strong>{draft.resumeFileName}</strong>
           <p className="muted">
             Picked up {found.length} field{found.length === 1 ? '' : 's'}
-            {draft.experience?.length ? `, including ${draft.experience.length} roles` : ''}. Check
-            them on the next screens — parsing is a shortcut, not a source of truth.
+            {draft.experience?.length ? `, including ${draft.experience.length} roles` : ''}
+            {draft.skills?.length ? ` and ${draft.skills.length} skills` : ''}. Check them on the
+            next screens — parsing is a shortcut, not a source of truth.
           </p>
+          {/*
+            Said plainly either way. "Saved" is the whole reason this step
+            uploads at all, and the failures are the cases where someone would
+            otherwise believe their resume is on the account when it is not.
+          */}
+          {stored && <p className="muted">Saved to your account — no need to upload it again.</p>}
+          {note && <p className="muted">{note}</p>}
         </div>
       )}
 
