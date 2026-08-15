@@ -231,6 +231,20 @@ export function fillControl(
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Say which dropdown failed and why, in one line.
+ *
+ * The run reports "0 answered, 4 left for you", which is a count and cannot be
+ * acted on. A list that never opened, a list with nothing matching, and a click
+ * the widget rejected are three different bugs wanting three different fixes,
+ * and from outside they are the same number. Naming the failure is what turned
+ * the phantom-step hunt into a single run.
+ */
+function note(control: HTMLInputElement, reason: string): void {
+  const name = control.getAttribute('id') || control.getAttribute('name') || 'combobox';
+  console.info(`[jobpilot] combobox "${name}": ${reason}`);
+}
+
 /** Long enough for a remote typeahead to answer, short enough not to stall a run. */
 const LISTBOX_TIMEOUT_MS = 2500;
 
@@ -353,8 +367,40 @@ function clearControl(control: HTMLInputElement): void {
  * open their listbox on the key event and ignore a programmatic `input`
  * entirely.
  */
+/**
+ * Make the widget render its list.
+ *
+ * Typing is not enough for all of them, and Greenhouse is the case in point:
+ * its dropdowns are react-select, which opens on a *mousedown on the control*
+ * and may render nothing at all for a programmatic `input`. A list that never
+ * renders is a field reported as a question for the user, which is how a form
+ * with seventeen dropdowns comes back with four still blocking it.
+ *
+ * The press goes to the control's container, not the inner input: react-select
+ * listens there, and the input is a one-character-wide box inside it.
+ *
+ * Pressing an already-open widget would toggle it shut, so a widget that has
+ * already opened is left alone.
+ */
+function openWidget(control: HTMLInputElement): void {
+  if (control.getAttribute('aria-expanded') === 'true') return;
+
+  const container =
+    control.closest<HTMLElement>('[class*="select__control"], [class*="control"], [role="combobox"]') ??
+    control;
+
+  for (const type of ['pointerdown', 'mousedown', 'mouseup'] as const) {
+    container.dispatchEvent(
+      type === 'pointerdown'
+        ? new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true })
+        : new MouseEvent(type, { bubbles: true, cancelable: true, detail: 1, view: window })
+    );
+  }
+}
+
 export async function commitCombobox(control: HTMLInputElement, value: string): Promise<boolean> {
   control.focus();
+  openWidget(control);
 
   const setter = nativeSetter(control);
   if (setter) setter(value);
@@ -370,6 +416,19 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
   const deadline = Date.now() + LISTBOX_TIMEOUT_MS;
   let choice: HTMLElement | null = null;
 
+  /*
+   * Why this one failed, for the log.
+   *
+   * "0 answered, 4 left for you" is a count, and a count cannot be acted on:
+   * a list that never opened, a list with nothing matching, and a click the
+   * widget rejected are three different bugs with three different fixes, and
+   * they were indistinguishable from outside. Naming the failure is what
+   * turned the phantom-step hunt from guesswork into one run, and dropdowns
+   * are now the part standing between this and an unattended apply.
+   */
+  let reason = 'no list appeared';
+  let sawOptions = 0;
+
   while (Date.now() < deadline && !choice) {
     await sleep(120);
     const listbox = listboxFor(control);
@@ -381,7 +440,19 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
       ) ?? []),
     ].filter((el) => (el.innerText || el.textContent || '').trim() !== '');
 
-    if (optionEls.length > 0) choice = pickOption(optionEls, value);
+    if (optionEls.length > 0) {
+      sawOptions = optionEls.length;
+      choice = pickOption(optionEls, value);
+
+      if (!choice) {
+        // The first few, so the log shows what it was choosing between.
+        const offered = optionEls
+          .slice(0, 4)
+          .map((el) => (el.innerText || el.textContent || '').trim().slice(0, 24))
+          .join(' / ');
+        reason = `${optionEls.length} options, none matched "${value}" — offered: ${offered}`;
+      }
+    }
 
     /*
      * There is deliberately no "look anywhere in the document" fallback.
@@ -408,6 +479,7 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
      * The form's own validation will catch an uncommitted combobox when the
      * user (or the advance click) tries to move on.
      */
+    note(control, reason);
     return false;
   }
 
@@ -423,7 +495,11 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
   // If the widget cleared the value after our click the commit wasn't taken.
   // Leave whatever text is there — don't wipe it — and let the advance
   // attempt surface the error naturally.
-  if (control.value.trim() === '') return false;
+  if (control.value.trim() === '') {
+    note(control, `picked an option from ${sawOptions} but the widget cleared the field`);
+    return false;
+  }
+
   return true;
 }
 
