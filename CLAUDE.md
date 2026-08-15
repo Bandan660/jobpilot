@@ -642,7 +642,13 @@ before touching anything.
 - **Answer drafting has never produced an answer.** `POST /api/analyze/answer`
   is deployed and the key is valid; the Gemini free tier returns 429. It is the
   only feature still depending on the model — skills matching no longer does.
-- `optional_host_permissions` is declared but not wired to `chrome.scripting`.
+- ~~`optional_host_permissions` is declared but not wired to `chrome.scripting`.~~
+  **Done.** `platforms.ts` holds the registry and the machinery; `popup.ts`
+  renders every entry with request/revoke and injects into open tabs;
+  `background.ts` re-syncs registrations on startup, install, and every
+  permission change. Enabling an opt-in platform is a toggle in the popup, not
+  a code change — so "add Greenhouse" means *verifying* it against a live
+  posting, not building anything. Check here before writing a line of it.
 - Workday matters most among the untested: it emits no JSON-LD at all, so
   `workday.ts` is the only thing standing between it and an empty capture.
 - `myworkdaysite.com` (newer Workday tenants) and `successfactors.eu` (EU-hosted
