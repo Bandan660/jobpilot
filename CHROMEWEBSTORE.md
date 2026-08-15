@@ -54,8 +54,15 @@ Need help or have suggestions? Visit https://banapply.com or email bandanpradhan
 | Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | `extension/store-assets/1-tracker.png` — the tracker, with platform marks and dead-posting lamps |
 | Screenshot 2 [RECOMMENDED] | 1280×800 | ✅ Ready | `extension/store-assets/2-dashboard.png` — dashboard, funnel and setup checklist |
 | Screenshot 3 [RECOMMENDED] | 1280×800 | ✅ Ready | `extension/store-assets/3-profile.png` — the one profile that fills every form |
-| Screenshot 4 [RECOMMENDED] | 1280×800 | 🟡 Needs capture | Overlay panel on a live LinkedIn posting — needs a signed-in account, so it cannot be produced from fixtures |
+| Screenshot 4 [RECOMMENDED] | 1280×800 | ✅ Ready | `extension/store-assets/4-panel.png` — the panel on a live posting, match score and must-have gap |
 | Screenshot 5 [OPTIONAL] | 1280×800 | 🟡 Needs capture | Autofill filling a real ATS form |
+
+Screenshot 4 came from a real capture on a live posting, so it had the signed-in
+account in its header. That is replaced with `you@…` rather than blurred: a blur
+still says something was there and invites the guess, while a neutral address
+says nothing and reads as intended design. **The unmasked original is
+deliberately not in this repo** — a store asset folder is exactly where a real
+address quietly becomes permanent.
 
 ### How the ready ones were produced
 
