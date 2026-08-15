@@ -89,7 +89,7 @@ function applicationFormElement(): HTMLFormElement | null {
       return Boolean(
         candidate.querySelector('input[type="file"]') ||
           candidate.querySelector('input[type="email"]') ||
-          candidate.querySelector('input[name*="resume" i], input[name*="email" i]')
+          candidate.querySelector('input[name*="resume" i], input[id*="resume" i], input[name*="email" i], input[id*="email" i]')
       );
     }) ?? null
   );
@@ -98,6 +98,7 @@ function applicationFormElement(): HTMLFormElement | null {
 function isAtsPageWithoutFormElement(): boolean {
   const host = window.location.hostname.toLowerCase();
   const isAtsHost =
+    host.includes('greenhouse') ||
     host.includes('workday') ||
     host.includes('ashbyhq') ||
     host.includes('icims') ||
@@ -206,10 +207,12 @@ function dialogOrPage(): ParentNode | null {
 
 const SUBMIT = [
   /^submit application$/i,
+  /^submit app$/i,
   /^submit$/i,
   /^send application$/i,
   /^apply$/i,
   /submit your application/i,
+  /submit/i,
 ];
 
 const ADVANCE = [

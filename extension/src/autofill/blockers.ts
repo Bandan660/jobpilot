@@ -141,7 +141,10 @@ function requiredControls(scope: ParentNode): Control[] {
       return (
         wrapper.getAttribute('aria-required') === 'true' ||
         wrapper.hasAttribute('required') === true ||
-        wrapper.getAttribute('data-required') === 'true'
+        wrapper.getAttribute('data-required') === 'true' ||
+        wrapper.classList.contains('required') ||
+        /\brequired\b/i.test(wrapperClass) ||
+        wrapper.querySelector('.asterisk, label.required, [class*="asterisk" i]') !== null
       );
     }
 

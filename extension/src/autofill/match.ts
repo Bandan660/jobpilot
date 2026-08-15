@@ -206,7 +206,7 @@ export function scanForm(root: ParentNode = document): FieldMatch[] {
     if ('readOnly' in control && control.readOnly) continue;
     if (isSearchOrHeaderControl(control)) continue;
 
-    if (!control.offsetParent && control.type !== 'radio' && control.type !== 'checkbox') {
+    if (!control.offsetParent && control.type !== 'radio' && control.type !== 'checkbox' && control.type !== 'file') {
       continue;
     }
 
