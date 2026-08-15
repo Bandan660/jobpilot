@@ -1,4 +1,10 @@
+<!--
+  Same mark as the extension (extension/icons/icon.svg), same geometry, scaled
+  to a 32-unit box. The two drifted once — the site's diamond was 44% wide
+  against the extension's 57% — which is the kind of difference nobody can name
+  but everybody registers as "something is slightly off".
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#080D16"/>
-  <path d="M16 7l7 9-7 9-7-9z" fill="#FFB020"/>
+  <rect width="32" height="32" rx="5.4" fill="#080D16"/>
+  <path d="M16 4.1 L25.1 16 L16 27.9 L6.9 16 Z" fill="#FFB020"/>
 </svg>
