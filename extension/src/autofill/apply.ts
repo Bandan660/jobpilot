@@ -397,6 +397,23 @@ export async function runApply({
         message: `Filling${flow.multiStep ? ` step ${step}` : ''}…`,
       });
 
+      /*
+       * Anything said about waiting is now off the screen.
+       *
+       * The blocker report below is suppressed while its set is unchanged —
+       * rightly, or the panel would repaint the same three questions twice a
+       * second. But a step change re-enters the fill above and reports
+       * "Filling…", and the questions then never came back: the fingerprint
+       * had not changed, so the announcement was skipped, and the panel sat on
+       * "Filling…" over a form that was actually waiting for the user.
+       *
+       * Seen on Greenhouse, where attaching the resume adds a Remove button
+       * and so counts as a step. Clearing the record here means the next pass
+       * says what it is waiting for, and the suppression still holds for the
+       * ticks that follow it.
+       */
+      announced = '';
+
       const filled = autofill(profile, { root: now, showHighlights: true });
       totalFilled += filled.filled;
       trace(`filled ${filled.filled}, skipped ${filled.skipped}`);
