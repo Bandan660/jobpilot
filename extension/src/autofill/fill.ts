@@ -515,16 +515,36 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
    */
   if (control.value.trim() !== '') return true;
 
-  const widget =
-    control.closest<HTMLElement>('[class*="select__control"], [class*="control"], [role="combobox"]')
-      ?.parentElement ?? control.parentElement;
+  /*
+   * Walk up looking for the widget's own display of what was chosen.
+   *
+   * Not `closest()` from the control: `closest` matches the element itself,
+   * and the control *is* `[role="combobox"]`, so it returned the input and its
+   * immediate container — which is the one part of a react-select that does
+   * not hold the selected value. The log said `picked "India +91" from 2 but
+   * the widget kept nothing` while the widget was displaying exactly that
+   * selection one level further out.
+   *
+   * The text comparison runs both ways because the two rarely match exactly:
+   * the option read "India +91" and the control then showed "+91". Either
+   * containing the other is the widget echoing the pick.
+   */
+  const target = normalize(chosen);
 
-  if (widget?.querySelector('[class*="single-value"], [class*="singleValue"], [class*="multi-value"]')) {
-    return true;
+  let node: Element | null = control.parentElement;
+  for (let depth = 0; node && depth < 5; depth += 1) {
+    if (node.querySelector('[class*="single-value"], [class*="singleValue"], [class*="multi-value"]')) {
+      return true;
+    }
+
+    const shown = normalize((node.textContent ?? '').replace(/\s+/g, ' '));
+    if (target && shown) {
+      if (shown.includes(target)) return true;
+      if (shown.length >= 2 && target.includes(shown)) return true;
+    }
+
+    node = node.parentElement;
   }
-
-  const shown = normalize((widget?.textContent ?? '').replace(/\s+/g, ' '));
-  if (chosen && shown.includes(normalize(chosen))) return true;
 
   note(control, `picked "${chosen}" from ${sawOptions} but the widget kept nothing`);
   return false;

@@ -380,7 +380,28 @@ export async function runApply({
       // the page accepting it.
       if (submitClicked && findButton(now, flow.submit) === null) return sent();
 
-      if (step > MAX_STEPS) {
+      /*
+       * A cap on *pages*, and a single-page form has one.
+       *
+       * This counter tracks the form changing shape, which on a paginated flow
+       * means it moved to the next page and is worth bounding — a driver
+       * looping through pages forever is a real failure. On Greenhouse it
+       * means something else entirely: the run sits in `waiting` while the
+       * user answers the questions it could not, and *every answer changes the
+       * form*. Conditional follow-ups appear, the resume attach adds a Remove
+       * button, validation states come and go. Each one counts, and on the
+       * twelfth the run gave up — on the user, for doing exactly what it had
+       * just asked them to do, with the form complete or nearly so.
+       *
+       * That is why this could not be reproduced by watching a run nobody
+       * touched: untouched, the counter stops at two.
+       *
+       * A single-page flow cannot advance, so there is no runaway to bound
+       * here. `IDLE_TIMEOUT_MS` already covers the case that matters — ten
+       * minutes with nothing happening at all — and it resets on activity, so
+       * someone working through the questions is never cut off mid-answer.
+       */
+      if (flow.multiStep && step > MAX_STEPS) {
         return report({
           status: 'error',
           step,
