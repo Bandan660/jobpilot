@@ -50,7 +50,7 @@ Need help or have suggestions? Visit https://banapply.com or email bandanpradhan
 
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
-| Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | `extension/icons/icon128.png` |
+| Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | `extension/icons/icon128.png` — regenerate with `npm run icons` |
 | Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | `extension/store-assets/1-tracker.png` — the tracker, with platform marks and dead-posting lamps |
 | Screenshot 2 [RECOMMENDED] | 1280×800 | ✅ Ready | `extension/store-assets/2-dashboard.png` — dashboard, funnel and setup checklist |
 | Screenshot 3 [RECOMMENDED] | 1280×800 | ✅ Ready | `extension/store-assets/3-profile.png` — the one profile that fills every form |

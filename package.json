@@ -17,9 +17,13 @@
     "build:store": "npm run build:store -w @jobpilot/extension",
     "db:generate": "npm run db:generate -w @jobpilot/backend",
     "db:push": "npm run db:push -w @jobpilot/backend",
-    "setup": "npm install && npm run build:shared"
+    "setup": "npm install && npm run build:shared",
+    "icons": "node scripts/icons.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.3"
   }
 }
