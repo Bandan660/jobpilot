@@ -307,6 +307,8 @@ export async function runApply({
    * `submitClicked` latches, and after it the loop only ever watches.
    */
   let seen = '';
+  /** The step number the combobox pass last ran on. See its call site. */
+  let combosDoneForStep = -1;
   let advanceAttempts = 0;
   let submitClicked = false;
   let ticksSinceSubmit = 0;
@@ -347,7 +349,25 @@ export async function runApply({
 
     /* ------------------------- has anything moved? ------------------------ */
 
-    if (stepSignature(now) !== seen) {
+    const signatureNow = stepSignature(now);
+
+    if (signatureNow !== seen) {
+      /*
+       * Say what moved, not just that something did.
+       *
+       * A run that counts steps it never took ends at `MAX_STEPS` with "gave
+       * up after too many steps", and that message names neither the step nor
+       * the change that produced it — so the report is a screenshot of a shrug
+       * and the next move is guesswork. Reported once from Greenhouse and not
+       * reproducible from the outside, which is exactly the case this exists
+       * for: the difference is printed the moment it happens, on the machine
+       * where it happens.
+       *
+       * Only the difference, and only when there was a previous signature:
+       * printing both in full is 600 characters a tick and nobody reads it.
+       */
+      if (seen) trace(`step ${step} -> ${step + 1}:`, signatureDiff(seen, signatureNow));
+
       step += 1;
       advanceAttempts = 0;
       // A real step change retires the hold: the fields it was watching are
@@ -387,10 +407,29 @@ export async function runApply({
        * cannot answer is left empty deliberately, to be reported as a question
        * rather than carried into a submit as uncommitted text.
        */
-      const combos = await fillComboboxes(profile, { root: now, showHighlights: true });
-      totalFilled += combos.filled;
-      if (combos.filled || combos.failed.length) {
-        trace(`comboboxes: ${combos.filled} answered, ${combos.failed.length} left for you`);
+      /*
+       * Once per step, not once per tick.
+       *
+       * `autofill` above is cheap and idempotent — it never overwrites, so
+       * re-running it costs a scan. The combobox pass is neither: it focuses
+       * each widget and waits up to two and a half seconds for a list. A
+       * dropdown it could not answer on this step it cannot answer on the next
+       * tick either, so retrying is pure churn — and churn with a side effect,
+       * because opening widgets is what made the step signature move and the
+       * run count phantom steps until it gave up.
+       *
+       * Keyed to the step number rather than to `seen`, which at this point in
+       * the pass still holds the *previous* step's signature — gating on that
+       * would skip the first, and only, run on every new step.
+       */
+      if (combosDoneForStep !== step) {
+        combosDoneForStep = step;
+
+        const combos = await fillComboboxes(profile, { root: now, showHighlights: true });
+        totalFilled += combos.filled;
+        if (combos.filled || combos.failed.length) {
+          trace(`comboboxes: ${combos.filled} answered, ${combos.failed.length} left for you`);
+        }
       }
 
       /* ----------------------------- resume ----------------------------- */
@@ -793,14 +832,51 @@ function describeStep(scope: ParentNode): string[] {
  * reported "the form did not move on" — with the panel's own dump showing a
  * complete step and a live `[Review]` button.
  */
+/**
+ * Chrome that belongs to an *open widget*, not to the step.
+ *
+ * A dropdown that is open renders a list, and often a search box and a row of
+ * clickable items with it. None of that is the form moving on — it is a
+ * control being interacted with, and it disappears again the moment focus
+ * leaves. Greenhouse made the difference expensive: the combobox pass opens
+ * seventeen widgets in turn, so the signature changed on almost every tick,
+ * every change counted as a new step, and the run hit `MAX_STEPS` and gave up
+ * on a form it had merely been filling.
+ */
+const WIDGET_CHROME = '[role="listbox"], [role="menu"], [role="option"], [class*="menu"]';
+
+/**
+ * What actually differs between two step signatures, in a line.
+ *
+ * Signatures are pipe-joined field names and button labels, so the useful
+ * answer is which entries appeared and which vanished — not the two strings.
+ */
+function signatureDiff(before: string, after: string): string {
+  const parts = (value: string) => new Set(value.split(/[#|]/).filter(Boolean));
+  const from = parts(before);
+  const to = parts(after);
+
+  const gone = [...from].filter((item) => !to.has(item));
+  const added = [...to].filter((item) => !from.has(item));
+
+  if (!gone.length && !added.length) return 'nothing named changed (heading or ordering)';
+
+  const show = (items: string[]) => items.slice(0, 6).join(', ') + (items.length > 6 ? ` +${items.length - 6}` : '');
+  return [added.length ? `+ ${show(added)}` : '', gone.length ? `- ${show(gone)}` : '']
+    .filter(Boolean)
+    .join('  ');
+}
+
 function stepSignature(scope: ParentNode): string {
+  const stable = (el: HTMLElement) => visible(el) && !el.closest(WIDGET_CHROME);
+
   const controls = [...scope.querySelectorAll<HTMLElement>('input, select, textarea')]
-    .filter((el) => visible(el))
+    .filter(stable)
     .map((el) => el.getAttribute('name') ?? el.getAttribute('id') ?? el.tagName)
     .join('|');
 
   const buttons = [...scope.querySelectorAll<HTMLElement>('button, [role="button"]')]
-    .filter((el) => visible(el))
+    .filter(stable)
     .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 24))
     .join('|');
 
