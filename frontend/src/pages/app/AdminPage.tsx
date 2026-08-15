@@ -472,123 +472,180 @@ export function AdminPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {reports.map((report) => (
-                <div
-                  key={report.id}
-                  style={{
-                    background: 'var(--panel-raised)',
-                    border: '1px solid var(--line)',
-                    borderRadius: '12px',
-                    padding: '18px 20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                  }}
-                >
+              {reports.map((report) => {
+                const categoryConfig = {
+                  autofill: { label: '⚡ AUTOFILL', bg: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.3)' },
+                  bug: { label: '🐛 BUG', bg: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.3)' },
+                  general: { label: '💡 FEEDBACK', bg: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.3)' },
+                }[report.category as 'autofill' | 'bug' | 'general'] || { label: report.category.toUpperCase(), bg: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-dim)', border: 'var(--line)' };
+
+                const statusColor = {
+                  open: '#f59e0b',
+                  investigating: '#3b82f6',
+                  resolved: '#10b981',
+                  closed: '#6b7280',
+                }[report.status] || '#6b7280';
+
+                return (
                   <div
+                    key={report.id}
                     style={{
+                      background: 'var(--panel-raised)',
+                      border: '1px solid var(--line-bright)',
+                      borderRadius: '12px',
+                      padding: '20px',
                       display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      flexWrap: 'wrap',
-                      gap: '8px',
+                      flexDirection: 'column',
+                      gap: '14px',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: 800,
-                          textTransform: 'uppercase',
-                          padding: '3px 8px',
-                          borderRadius: '999px',
-                          background:
-                            report.category === 'autofill'
-                              ? 'rgba(255, 176, 32, 0.15)'
-                              : report.category === 'bug'
-                              ? 'rgba(239, 68, 68, 0.15)'
-                              : 'rgba(59, 130, 246, 0.15)',
-                          color:
-                            report.category === 'autofill'
-                              ? 'var(--warn)'
-                              : report.category === 'bug'
-                              ? '#ef4444'
-                              : '#3b82f6',
-                          border: '1px solid currentColor',
-                        }}
-                      >
-                        {report.category}
-                      </span>
-                      <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0 }}>
-                        {report.subject}
-                      </h3>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            padding: '3px 10px',
+                            borderRadius: '20px',
+                            background: categoryConfig.bg,
+                            color: categoryConfig.color,
+                            border: `1px solid ${categoryConfig.border}`,
+                          }}
+                        >
+                          {categoryConfig.label}
+                        </span>
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-bright)' }}>
+                          {report.subject}
+                        </h3>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                          🕒 {new Date(report.createdAt).toLocaleString()}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span
+                            style={{
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              backgroundColor: statusColor,
+                              display: 'inline-block',
+                            }}
+                          />
+                          <select
+                            value={report.status}
+                            disabled={updatingReportId === report.id}
+                            onChange={(e) => handleUpdateReportStatus(report.id, e.target.value)}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '8px',
+                              background: 'var(--panel)',
+                              color: 'var(--text-bright)',
+                              border: '1px solid var(--line)',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="open">Open</option>
+                            <option value="investigating">Investigating</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-                        {new Date(report.createdAt).toLocaleString()}
-                      </span>
-                      <select
-                        value={report.status}
-                        disabled={updatingReportId === report.id}
-                        onChange={(e) => handleUpdateReportStatus(report.id, e.target.value)}
+                    <div
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        borderRadius: '8px',
+                        padding: '12px 16px',
+                      }}
+                    >
+                      <p
                         style={{
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          background: 'var(--panel)',
+                          fontSize: '14px',
+                          margin: 0,
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: 1.6,
                           color: 'var(--text)',
-                          border: '1px solid var(--line)',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
                         }}
                       >
-                        <option value="open">Open</option>
-                        <option value="investigating">Investigating</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="closed">Closed</option>
-                      </select>
+                        {report.description}
+                      </p>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                        fontSize: '12px',
+                        color: 'var(--text-dim)',
+                        paddingTop: '10px',
+                        borderTop: '1px solid var(--line)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '180px' }}>
+                        <span>👤 User:</span>
+                        <strong style={{ color: 'var(--text-bright)', fontWeight: 600 }}>
+                          {report.userEmail || 'Anonymous'}
+                        </strong>
+                      </div>
+
+                      {report.pageUrl && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            maxWidth: '100%',
+                            minWidth: 0,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <span>📍 URL:</span>
+                          <a
+                            href={safeHref(report.pageUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={report.pageUrl}
+                            style={{
+                              color: '#60a5fa',
+                              textDecoration: 'none',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: '450px',
+                              fontWeight: 500,
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                          >
+                            {report.pageUrl} ↗
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <p
-                    style={{
-                      fontSize: '14px',
-                      margin: 0,
-                      whiteSpace: 'pre-wrap',
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {report.description}
-                  </p>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '12px',
-                      color: 'var(--text-dim)',
-                      paddingTop: '8px',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-                    }}
-                  >
-                    <span>
-                      User: <strong>{report.userEmail || 'Anonymous'}</strong>
-                    </span>
-                    {report.pageUrl && (
-                      <a
-                        href={safeHref(report.pageUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: 'var(--signal)', textDecoration: 'underline' }}
-                      >
-                        {report.pageUrl} ↗
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

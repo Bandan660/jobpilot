@@ -53,14 +53,20 @@ export function ExtensionBanner() {
         </p>
       </div>
 
-      {/*
-        Points at the Copilot page rather than the Web Store: the extension is
-        not published yet, and a button that leads to a 404 is worse than one
-        that explains what it does.
-      */}
-      <Link className="btn btn-primary" to="/copilot">
-        Get the extension
-      </Link>
+      {import.meta.env.VITE_CHROME_STORE_URL ? (
+        <a
+          className="btn btn-primary"
+          href={import.meta.env.VITE_CHROME_STORE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Get extension in Chrome Store ↗
+        </a>
+      ) : (
+        <Link className="btn btn-primary" to="/copilot">
+          Get the extension
+        </Link>
+      )}
     </aside>
   );
 }

@@ -249,7 +249,96 @@ export function ProfilePage() {
               above everything read as a site-wide announcement. */}
           <ExtensionBanner />
 
+          {/* Dedicated Chrome Extension Section */}
+          <div
+            className="panel"
+            style={{
+              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)',
+              border: '1px solid var(--line-bright)',
+              borderRadius: '12px',
+              padding: '22px 24px',
+              marginBottom: '24px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '16px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '120px',
+                height: '100%',
+                background: 'radial-gradient(circle at top right, rgba(255, 176, 32, 0.12), transparent 70%)',
+                pointerEvents: 'none',
+              }}
+            />
 
+            <div style={{ flex: 1, minWidth: '280px', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '3px 10px',
+                    borderRadius: '999px',
+                    background: 'rgba(255, 176, 32, 0.15)',
+                    color: 'var(--warn)',
+                    border: '1px solid rgba(255, 176, 32, 0.3)',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  ⚡ CHROME STORE EXTENSION
+                </span>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    color: 'var(--text-dim)',
+                  }}
+                >
+                  Manifest V3
+                </span>
+              </div>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 4px 0', color: 'var(--text-bright)' }}>
+                BanApply Copilot Extension
+              </h2>
+              <p style={{ color: 'var(--text-dim)', fontSize: '14px', margin: 0, lineHeight: 1.5 }}>
+                Install the extension in Google Chrome to 1-click autofill forms on LinkedIn, Indeed, Greenhouse, Lever & Ashby directly from your profile.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', zIndex: 1 }}>
+              <a
+                href={import.meta.env.VITE_CHROME_STORE_URL || 'https://chromewebstore.google.com'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontWeight: 700,
+                  padding: '10px 18px',
+                  fontSize: '14px',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 14px rgba(245, 158, 11, 0.25)',
+                  textDecoration: 'none',
+                }}
+              >
+                <span>⚡ Get Extension in Chrome Store ↗</span>
+              </a>
+            </div>
+          </div>
       <EditSection
         id="contact"
         title="Contact"
