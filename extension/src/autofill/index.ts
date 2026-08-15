@@ -108,12 +108,52 @@ export function autofill(profile: Profile, options: AutofillOptions = {}): Autof
  * on purpose, so `findBlockers` reports it as a question rather than the run
  * carrying an uncommitted value into a submit.
  */
+/**
+ * Anything the user could be typing into.
+ *
+ * The panel's own controls live in a closed shadow root, so `activeElement`
+ * reports the host element for those — which is not a form control and
+ * correctly does not count as the user typing in the page.
+ */
+function isPageControl(element: Element | null): boolean {
+  if (!element) return false;
+  if (element instanceof HTMLInputElement) return true;
+  if (element instanceof HTMLTextAreaElement) return true;
+  if (element instanceof HTMLSelectElement) return true;
+  return element instanceof HTMLElement && element.isContentEditable;
+}
+
+/**
+ * How long the whole combobox pass may take.
+ *
+ * Each one waits up to `LISTBOX_TIMEOUT_MS` for its options to arrive, and a
+ * modern Greenhouse form has seventeen comboboxes and no native selects at all
+ * — country, location and every screening question. Unbounded, that is the
+ * better part of a minute during which the page keeps taking focus. Whatever
+ * is not answered inside the budget is reported as a question for the user,
+ * which is what happens to an unanswerable one anyway.
+ */
+const COMBOBOX_PASS_BUDGET_MS = 12_000;
+
 export async function fillComboboxes(
   profile: Profile,
   options: AutofillOptions = {}
 ): Promise<{ filled: number; failed: { label: string }[] }> {
   const { overwrite = false, showHighlights = true, root } = options;
   const result = { filled: 0, failed: [] as { label: string }[] };
+
+  const deadline = Date.now() + COMBOBOX_PASS_BUDGET_MS;
+  /** The control this pass focused last, so its own focus is not read as the user's. */
+  let ours: Element | null = null;
+  /**
+   * Set once the user has taken over, and never cleared.
+   *
+   * Resuming when they happen to click away would be worse than not resuming:
+   * the pass would start taking focus again exactly when they returned to the
+   * form, which is the behaviour being fixed. One interruption ends it, and
+   * what is left is reported rather than silently abandoned.
+   */
+  let interrupted = false;
 
   for (const match of scanForm(root)) {
     const control = match.control;
@@ -125,13 +165,44 @@ export async function fillComboboxes(
     const value = resolveValue(profile, match);
     if (value === null) continue;
 
+    /*
+     * Stop the moment the user starts typing somewhere else.
+     *
+     * `commitCombobox` has to focus the control — a typeahead will not open
+     * its listbox otherwise — and each one can hold that focus for two and a
+     * half seconds. Across seventeen fields that is a form which yanks the
+     * caret away every couple of seconds while someone is trying to answer it
+     * by hand. Reported from Greenhouse, where it makes the form unusable.
+     *
+     * Skipping just this one would not help: the next iteration would take the
+     * focus again a moment later. So the pass stops filling altogether, and
+     * everything left goes into `failed`, which the panel already surfaces as
+     * questions to answer.
+     */
+    const active = document.activeElement;
+    if (active !== control && active !== ours && isPageControl(active)) interrupted = true;
+
+    if (interrupted || Date.now() > deadline) {
+      result.failed.push({ label: match.label });
+      continue;
+    }
+
     if (await commitCombobox(control, value)) {
       result.filled += 1;
       if (showHighlights) highlight(control);
     } else {
       result.failed.push({ label: match.label });
     }
+
+    ours = control;
   }
+
+  /*
+   * Hand focus back. Leaving it in the last combobox this touched means the
+   * user's next keystroke lands in a field they did not choose — and if that
+   * field is a typeahead, in one that will reinterpret it.
+   */
+  if (ours && document.activeElement === ours) (ours as HTMLElement).blur();
 
   return result;
 }

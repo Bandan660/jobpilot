@@ -241,6 +241,30 @@ const LISTBOX_TIMEOUT_MS = 2500;
  * because plenty of components render the listbox at the end of `<body>`,
  * outside the dialog entirely, so searching near the input finds nothing.
  */
+/**
+ * The listbox belonging to *this* combobox.
+ *
+ * WHY THE DOCUMENT-WIDE FALLBACK IS GONE
+ *
+ * It used to end with `document.querySelector('[role="listbox"]')`, and on a
+ * modern Greenhouse form that returns the phone number's country picker —
+ * intl-tel-input keeps a listbox of 245 countries in the DOM at all times,
+ * before any dropdown is opened. So filling the *location* field found the
+ * phone widget's list, and `pickOption` then ran a match against country
+ * names. A hit there does not fill the location: it clicks an entry in the
+ * phone widget and changes the dialling code, silently, inside someone's
+ * application. That is the exact failure the strict match ladder was written
+ * to prevent, arriving through the element lookup instead.
+ *
+ * The walk up from the control finds the widget's own listbox — on Greenhouse
+ * at the fourth ancestor, `.select-shell`, holding
+ * `react-select-<field>-option-0` — and cannot reach a different field's,
+ * because it stops long before the two share an ancestor.
+ *
+ * Finding nothing now returns null, which fails the commit and reports the
+ * field as a question for the user. That is the right failure: an unanswered
+ * dropdown is visible and fixable, and a confidently wrong one is neither.
+ */
 function listboxFor(control: HTMLInputElement): Element | null {
   const owned = control.getAttribute('aria-controls') ?? control.getAttribute('aria-owns');
   if (owned) {
@@ -248,12 +272,34 @@ function listboxFor(control: HTMLInputElement): Element | null {
     if (byId) return byId;
   }
 
-  const dialog = control.closest('dialog, [role="dialog"], [aria-modal="true"]');
-  return (
-    dialog?.querySelector('[role="listbox"]') ??
-    control.ownerDocument.querySelector('[role="listbox"]')
-  );
+  // react-select points at the highlighted option rather than the list.
+  const active = control.getAttribute('aria-activedescendant');
+  if (active) {
+    const option = control.ownerDocument.getElementById(active);
+    const box = option?.closest('[role="listbox"]');
+    if (box) return box;
+  }
+
+  let node: Element | null = control.parentElement;
+  for (let depth = 0; node && depth < LISTBOX_ANCESTOR_DEPTH; depth += 1) {
+    if (node === control.ownerDocument.body) break;
+
+    const box = node.querySelector('[role="listbox"]');
+    // A hidden list is a widget that has not opened, not this one's answer.
+    if (box && (box as HTMLElement).offsetParent !== null) return box;
+
+    node = node.parentElement;
+  }
+
+  return null;
 }
+
+/**
+ * How far up to look. Six is comfortably past where the widgets seen here keep
+ * their list — Greenhouse's is four up — and stops well short of the ancestor
+ * a field would share with an unrelated one.
+ */
+const LISTBOX_ANCESTOR_DEPTH = 6;
 
 /**
  * The option that actually means `value`.
@@ -337,18 +383,17 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
 
     if (optionEls.length > 0) choice = pickOption(optionEls, value);
 
-    // Fallback: scan for any listbox anywhere in the document if none found locally.
-    if (!choice && optionEls.length === 0) {
-      const anyListbox = control.ownerDocument.querySelector('[role="listbox"], .suggestions, .autocomplete-dropdown, .dropdown-menu');
-      if (anyListbox) {
-        const anyOptions = [
-          ...anyListbox.querySelectorAll<HTMLElement>(
-            '[role="option"], li, [data-value], [class*="option"], [class*="item"]'
-          ),
-        ].filter((el) => (el.innerText || el.textContent || '').trim() !== '');
-        if (anyOptions.length > 0) choice = pickOption(anyOptions, value);
-      }
-    }
+    /*
+     * There is deliberately no "look anywhere in the document" fallback.
+     *
+     * One used to live here, and it is the same trap `listboxFor` documents:
+     * on Greenhouse the first listbox in the document belongs to the phone
+     * number's country picker, which holds 245 permanently-rendered options.
+     * A widget that has not opened its own list is a field we cannot answer —
+     * and answering it out of a *different* widget's list does not fill this
+     * field at all, it clicks something in that other widget. Leaving it for
+     * the user is the only correct outcome.
+     */
   }
 
   if (!choice) {
