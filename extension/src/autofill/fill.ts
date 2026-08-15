@@ -483,6 +483,8 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
     return false;
   }
 
+  const chosen = (choice.innerText || choice.textContent || '').trim();
+
   // mousedown first: several widgets commit on it and never see the click,
   // and some close the listbox on blur before a click would land.
   choice.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
@@ -492,15 +494,40 @@ export async function commitCombobox(control: HTMLInputElement, value: string): 
   // Give the widget time to settle its internal state.
   await sleep(400);
 
-  // If the widget cleared the value after our click the commit wasn't taken.
-  // Leave whatever text is there — don't wipe it — and let the advance
-  // attempt surface the error naturally.
-  if (control.value.trim() === '') {
-    note(control, `picked an option from ${sawOptions} but the widget cleared the field`);
-    return false;
+  /*
+   * An empty input is not a failed commit.
+   *
+   * It was read as one, and that single line is why every Greenhouse run
+   * reported "0 answered, 4 left for you" over dropdowns it had *correctly
+   * answered*. react-select clears its search input on selection by design and
+   * renders the chosen value in its own element — the log read `picked an
+   * option from 2 but the widget cleared the field`, and the widget had in
+   * fact just accepted the pick.
+   *
+   * The cost of getting this wrong is not cosmetic. A commit reported as a
+   * failure is reported to the user as a question needing their attention, and
+   * the run then waits for something that is already done — which is the whole
+   * of "it fills everything and still will not submit".
+   *
+   * So the check asks the widget what it is showing, in the three shapes these
+   * take: the input still holds the text, the widget renders a selected-value
+   * element, or its container now reads back the option that was picked.
+   */
+  if (control.value.trim() !== '') return true;
+
+  const widget =
+    control.closest<HTMLElement>('[class*="select__control"], [class*="control"], [role="combobox"]')
+      ?.parentElement ?? control.parentElement;
+
+  if (widget?.querySelector('[class*="single-value"], [class*="singleValue"], [class*="multi-value"]')) {
+    return true;
   }
 
-  return true;
+  const shown = normalize((widget?.textContent ?? '').replace(/\s+/g, ' '));
+  if (chosen && shown.includes(normalize(chosen))) return true;
+
+  note(control, `picked "${chosen}" from ${sawOptions} but the widget kept nothing`);
+  return false;
 }
 
 /** Briefly outline what was filled, so the user can see what changed. */
