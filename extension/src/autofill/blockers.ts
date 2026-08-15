@@ -127,7 +127,17 @@ function requiredControls(scope: ParentNode): Control[] {
 
     if (control.required || control.getAttribute('aria-required') === 'true') return true;
 
-    const wrapper = control.closest(FIELD_WRAPPERS);
+    const label = control.labels?.[0] || control.closest('label');
+    if (label) {
+      const labelText = label.textContent || '';
+      if (label.classList.contains('required') || /\*/.test(labelText)) {
+        return true;
+      }
+    }
+
+    const wrapper = control.closest(
+      'fieldset, [role="radiogroup"], [role="group"], [data-test-form-element], .field, .form-group'
+    );
     if (wrapper) {
       const wrapperId = (wrapper.id || '').toLowerCase();
       const wrapperClass = (wrapper.className || '').toString().toLowerCase();
@@ -138,14 +148,20 @@ function requiredControls(scope: ParentNode): Control[] {
         return false;
       }
 
-      return (
+      if (
         wrapper.getAttribute('aria-required') === 'true' ||
         wrapper.hasAttribute('required') === true ||
         wrapper.getAttribute('data-required') === 'true' ||
         wrapper.classList.contains('required') ||
-        /\brequired\b/i.test(wrapperClass) ||
-        wrapper.querySelector('.asterisk, label.required, [class*="asterisk" i]') !== null
-      );
+        /\brequired\b/i.test(wrapperClass)
+      ) {
+        return true;
+      }
+
+      const headerLabel = wrapper.querySelector('legend, label, .label');
+      if (headerLabel && /\*/.test(headerLabel.textContent || '')) {
+        return true;
+      }
     }
 
     return false;
@@ -173,6 +189,18 @@ function isEmpty(control: Control, scope: ParentNode): boolean {
 
   if (type === 'file') {
     return ((control as HTMLInputElement).files?.length ?? 0) === 0;
+  }
+
+  if (control instanceof HTMLSelectElement) {
+    const index = control.selectedIndex;
+    if (index < 0) return true;
+    const opt = control.options[index];
+    if (!opt) return true;
+    const text = (opt.textContent ?? '').trim();
+    if (!text || /^(select|choose|please select|-- select --|-- choose --|--|\s*)$/i.test(text)) {
+      return true;
+    }
+    return false;
   }
 
   if (type === 'radio' || type === 'checkbox') {
@@ -214,7 +242,22 @@ function isEmpty(control: Control, scope: ParentNode): boolean {
     return !input.checked;
   }
 
-  return !String(control.value ?? '').trim();
+  const value = String(control.value ?? '').trim();
+  if (value) return false;
+
+  const wrapper = control.closest(
+    'fieldset, [role="radiogroup"], [role="group"], [role="combobox"], .field, .form-group, [class*="select" i]'
+  );
+  if (wrapper) {
+    const chosenText = wrapper.querySelector(
+      '[class*="chosen" i], [class*="selected" i], [class*="value" i], [class*="single" i]'
+    )?.textContent?.trim();
+    if (chosenText && !/^(select|choose|please select|-- select --|-- choose --|--|\s*)$/i.test(chosenText)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
