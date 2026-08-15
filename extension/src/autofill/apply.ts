@@ -867,18 +867,49 @@ function signatureDiff(before: string, after: string): string {
     .join('  ');
 }
 
+/** Present-or-not, in a stable order. Empty entries carry nothing and go. */
+function unique(values: string[]): string {
+  return [...new Set(values.filter(Boolean))].sort().join('|');
+}
+
 function stepSignature(scope: ParentNode): string {
   const stable = (el: HTMLElement) => visible(el) && !el.closest(WIDGET_CHROME);
 
-  const controls = [...scope.querySelectorAll<HTMLElement>('input, select, textarea')]
-    .filter(stable)
-    .map((el) => el.getAttribute('name') ?? el.getAttribute('id') ?? el.tagName)
-    .join('|');
+  const controls = unique(
+    [...scope.querySelectorAll<HTMLElement>('input, select, textarea')]
+      .filter(stable)
+      .map((el) => el.getAttribute('name') ?? el.getAttribute('id') ?? el.tagName)
+  );
 
-  const buttons = [...scope.querySelectorAll<HTMLElement>('button, [role="button"]')]
-    .filter(stable)
-    .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 24))
-    .join('|');
+  /*
+   * A set, not a list: what is present, not how many or in what order.
+   *
+   * This is the phantom step, measured on a live Greenhouse form. Its buttons
+   * read `|Locate me||Attach|Dropbox|…||||||||||||||Submit application` —
+   * fifteen unlabelled icon controls, react-select's `Toggle flyout` arrows
+   * and the file widget's remove. They come and go with *values* and with
+   * focus rather than with steps, and every appearance shifted the joined
+   * string. Attaching the resume alone was enough: the log read `step 1 -> 2:
+   * nothing named changed`, and a single-page form that should run the loop
+   * once climbed to `MAX_STEPS` and reported "gave up after too many steps".
+   *
+   * Naming them via `aria-label` was the wrong repair and made it worse —
+   * fifteen identical `Toggle flyout` entries are still fifteen positions in a
+   * joined string. Deduplicating removes the whole class: one flyout arrow or
+   * sixteen reads the same, in any order, while a genuinely new control — a
+   * `Next`, a `Submit application`, a field that only the second page has —
+   * still moves it, which is the one thing this has to detect.
+   */
+  const buttons = unique(
+    [...scope.querySelectorAll<HTMLElement>('button, [role="button"]')]
+      .filter(stable)
+      .map((el) =>
+        ((el.textContent ?? '') || el.getAttribute('aria-label') || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 24)
+      )
+  );
 
   const heading = (scope.querySelector('h1, h2, h3')?.textContent ?? '')
     .replace(/\s+/g, ' ')
