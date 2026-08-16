@@ -118,23 +118,27 @@ function requiredControls(scope: ParentNode): Control[] {
       /save-icon|savejob|bookmark|share|search|jobalert|alert-body|report|icon-/i.test(id) ||
       /save-icon|savejob|bookmark|share|search|jobalert|alert-body|report|icon-/i.test(name) ||
       /save-icon|savejob|save job|bookmark|share/i.test(ariaLabel) ||
-      /save-icon|savejob|bookmark/i.test(className)
+      /save-icon|savejob|bookmark/i.test(className) ||
+      /select2-focusser|select2-offscreen|select2-input|select2-search|s2id_autogen|chosen-search|offscreen|combobox-input/i.test(className) ||
+      /select2-focusser|select2-offscreen|select2-input|select2-search|s2id_autogen|chosen-search|offscreen|combobox-input/i.test(id)
     ) {
       return false;
     }
 
-    if (type === 'radio') return true;
-
+    // 1. Explicit HTML attributes on control itself
     if (control.required || control.getAttribute('aria-required') === 'true') return true;
 
-    const label = control.labels?.[0] || control.closest('label');
-    if (label) {
-      const labelText = label.textContent || '';
-      if (label.classList.contains('required') || /\*/.test(labelText)) {
+    // 2. Direct label check for THIS control
+    const labelEl = control.labels?.[0] || control.closest('label');
+    if (labelEl) {
+      const text = labelEl.textContent || '';
+      if (/\(optional\)/i.test(text)) return false;
+      if (labelEl.classList.contains('required') || /\*/.test(text)) {
         return true;
       }
     }
 
+    // 3. Immediate field wrapper (radiogroup or immediate .field / .form-group)
     const wrapper = control.closest(
       'fieldset, [role="radiogroup"], [role="group"], [data-test-form-element], .field, .form-group'
     );
@@ -155,12 +159,20 @@ function requiredControls(scope: ParentNode): Control[] {
         wrapper.classList.contains('required') ||
         /\brequired\b/i.test(wrapperClass)
       ) {
+        const legendOrLabel = wrapper.querySelector('legend, label, .label');
+        if (legendOrLabel && /\(optional\)/i.test(legendOrLabel.textContent || '')) {
+          return false;
+        }
         return true;
       }
 
       const headerLabel = wrapper.querySelector('legend, label, .label');
-      if (headerLabel && /\*/.test(headerLabel.textContent || '')) {
-        return true;
+      if (headerLabel) {
+        const text = headerLabel.textContent || '';
+        if (/\(optional\)/i.test(text)) return false;
+        if (/\*/.test(text) || headerLabel.classList.contains('required')) {
+          return true;
+        }
       }
     }
 
@@ -189,18 +201,6 @@ function isEmpty(control: Control, scope: ParentNode): boolean {
 
   if (type === 'file') {
     return ((control as HTMLInputElement).files?.length ?? 0) === 0;
-  }
-
-  if (control instanceof HTMLSelectElement) {
-    const index = control.selectedIndex;
-    if (index < 0) return true;
-    const opt = control.options[index];
-    if (!opt) return true;
-    const text = (opt.textContent ?? '').trim();
-    if (!text || /^(select|choose|please select|-- select --|-- choose --|--|\s*)$/i.test(text)) {
-      return true;
-    }
-    return false;
   }
 
   if (type === 'radio' || type === 'checkbox') {
@@ -242,17 +242,49 @@ function isEmpty(control: Control, scope: ParentNode): boolean {
     return !input.checked;
   }
 
+  // 1. Raw control value check (e.g. when Select2 or JS updates control.value)
   const value = String(control.value ?? '').trim();
-  if (value) return false;
+  if (value && !/^(select|choose|please select|-- select --|-- choose --|--|0|-1|\s*)$/i.test(value)) {
+    return false;
+  }
 
+  // 2. HTMLSelectElement selectedIndex check
+  if (control instanceof HTMLSelectElement) {
+    const index = control.selectedIndex;
+    if (index > 0) {
+      const opt = control.options[index];
+      if (opt) {
+        const text = (opt.textContent ?? '').trim();
+        const optVal = (opt.value ?? '').trim();
+        if (
+          text &&
+          !/^(select|choose|please select|-- select --|-- choose --|--|\s*)$/i.test(text) &&
+          optVal !== '' &&
+          optVal !== '0' &&
+          optVal !== '-1'
+        ) {
+          return false;
+        }
+      }
+    }
+  }
+
+  // 3. Custom dropdown / Select2 / Chosen container check
   const wrapper = control.closest(
-    'fieldset, [role="radiogroup"], [role="group"], [role="combobox"], .field, .form-group, [class*="select" i]'
+    'fieldset, [role="radiogroup"], [role="group"], [role="combobox"], .field, .form-group, .select2-container, [class*="select" i]'
   );
   if (wrapper) {
-    const chosenText = wrapper.querySelector(
-      '[class*="chosen" i], [class*="selected" i], [class*="value" i], [class*="single" i]'
-    )?.textContent?.trim();
-    if (chosenText && !/^(select|choose|please select|-- select --|-- choose --|--|\s*)$/i.test(chosenText)) {
+    const chosenText = wrapper
+      .querySelector(
+        '.select2-chosen, .select2-selection__rendered, [class*="chosen" i], [class*="selected" i], [class*="value" i], [class*="single" i], [class*="rendered" i]'
+      )
+      ?.textContent?.replace(/[\s×xX]+$/, '')
+      .trim();
+
+    if (
+      chosenText &&
+      !/^(select|choose|please select|-- select --|-- choose --|--|\s*)$/i.test(chosenText)
+    ) {
       return false;
     }
   }

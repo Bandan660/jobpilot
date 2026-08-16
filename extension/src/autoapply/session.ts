@@ -191,6 +191,7 @@ export async function runSession(options: SessionOptions): Promise<SessionProgre
             stage: 'check',
             message: p.message,
             questions: p.blockers ?? [],
+            diagnostic: (p.blockers ?? []).map((b) => b.label),
             answersToSave: [],
           });
           return;

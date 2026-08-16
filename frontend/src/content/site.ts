@@ -12,6 +12,10 @@ export const SITE = {
   /** Used in policy text as the responsible party. */
   legalEntity: 'BanApply',
   contactEmail: 'bandanpradhan456@gmail.com',
+  /** Published Chrome Web Store extension URL. */
+  chromeStoreUrl:
+    import.meta.env.VITE_CHROME_STORE_URL ||
+    'https://chromewebstore.google.com/detail/jgpbodbfgppaghpfmmhnheemflnfdikb?utm_source=item-share-cb',
   /**
    * Drives `SITE_URL`, and through it every canonical link and every
    * structured-data URL on the site. Must be the domain actually serving the

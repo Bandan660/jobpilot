@@ -139,11 +139,16 @@ export function Home() {
               BanApply is your 1-click AI job co-pilot. Fill application forms instantly across LinkedIn, Indeed, Naukri, Greenhouse, Lever, &amp; Workday, calculate skill match scores, and auto-track every role in your dashboard.
             </p>
             <div className="hero-actions">
-              <Link className="btn btn-primary" to="/signup">
+              <a
+                className="btn btn-primary"
+                href={SITE.chromeStoreUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ⚡ Get Chrome Extension ↗
+              </a>
+              <Link className="btn btn-ghost" to="/signup">
                 Join now &mdash; it&rsquo;s free
-              </Link>
-              <Link className="btn btn-ghost" to="/job-application-tracker">
-                See the tracker
               </Link>
             </div>
             <span className="hero-note">
@@ -152,6 +157,104 @@ export function Home() {
           </div>
 
           <TrackerMock />
+        </div>
+      </section>
+
+      {/* Featured Chrome Extension Section */}
+      <section className="section" style={{ paddingTop: '20px', paddingBottom: '30px' }}>
+        <div className="shell">
+          <Reveal>
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                border: '1px solid var(--signal-dim)',
+                borderRadius: '20px',
+                padding: '32px 36px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '24px',
+                boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: '240px',
+                  height: '100%',
+                  background: 'radial-gradient(circle at top right, rgba(255, 176, 32, 0.15), transparent 70%)',
+                  pointerEvents: 'none',
+                }}
+              />
+
+              <div style={{ flex: '1 1 400px', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      padding: '4px 12px',
+                      borderRadius: '999px',
+                      background: 'rgba(255, 176, 32, 0.15)',
+                      color: 'var(--warn)',
+                      border: '1px solid rgba(255, 176, 32, 0.3)',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    ⚡ OFFICIAL CHROME EXTENSION
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      color: 'var(--text-dim)',
+                    }}
+                  >
+                    Manifest V3 Certified
+                  </span>
+                </div>
+                <h2 style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 10px 0', color: 'var(--text-bright)', lineHeight: 1.3 }}>
+                  Get BanApply Copilot for Google Chrome
+                </h2>
+                <p style={{ color: 'var(--text-dim)', fontSize: '15px', margin: 0, lineHeight: 1.6, maxWidth: '640px' }}>
+                  1-Click auto-fill your profile, attach your resume, answer custom questions, and auto-track applications directly inside your browser across LinkedIn, Indeed, Greenhouse, Lever, Workday, Ashby, and Naukri.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '12px', zIndex: 1 }}>
+                <a
+                  href={SITE.chromeStoreUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontWeight: 800,
+                    padding: '14px 24px',
+                    fontSize: '15px',
+                    borderRadius: '10px',
+                    boxShadow: '0 6px 20px rgba(245, 158, 11, 0.3)',
+                    textDecoration: 'none',
+                  }}
+                >
+                  <span>⚡ Add to Chrome &mdash; It&rsquo;s Free ↗</span>
+                </a>
+                <span style={{ fontSize: '12px', color: 'var(--text-dim)', opacity: 0.8 }}>
+                  Free Access · Rated 5.0★ on Chrome Web Store
+                </span>
+              </div>
+            </div>
+          </Reveal>
         </div>
       </section>
 
