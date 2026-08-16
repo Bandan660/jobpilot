@@ -166,7 +166,7 @@ export function Home() {
           <Reveal>
             <div
               style={{
-                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                background: 'linear-gradient(135deg, var(--signal-wash) 0%, var(--panel-raised) 100%)',
                 border: '1px solid var(--signal-dim)',
                 borderRadius: '20px',
                 padding: '32px 36px',
@@ -175,7 +175,7 @@ export function Home() {
                 alignItems: 'center',
                 flexWrap: 'wrap',
                 gap: '24px',
-                boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
+                boxShadow: '0 12px 40px var(--shadow)',
                 position: 'relative',
                 overflow: 'hidden',
               }}
@@ -187,7 +187,7 @@ export function Home() {
                   right: 0,
                   width: '240px',
                   height: '100%',
-                  background: 'radial-gradient(circle at top right, rgba(255, 176, 32, 0.15), transparent 70%)',
+                  background: 'radial-gradient(circle at top right, var(--signal-wash), transparent 70%)',
                   pointerEvents: 'none',
                 }}
               />
@@ -200,9 +200,9 @@ export function Home() {
                       fontWeight: 800,
                       padding: '4px 12px',
                       borderRadius: '999px',
-                      background: 'rgba(255, 176, 32, 0.15)',
-                      color: 'var(--warn)',
-                      border: '1px solid rgba(255, 176, 32, 0.3)',
+                      background: 'var(--signal-wash)',
+                      color: 'var(--signal-text)',
+                      border: '1px solid var(--signal-dim)',
                       letterSpacing: '0.05em',
                     }}
                   >
@@ -214,14 +214,15 @@ export function Home() {
                       fontWeight: 600,
                       padding: '4px 10px',
                       borderRadius: '6px',
-                      background: 'rgba(255, 255, 255, 0.08)',
+                      background: 'var(--hover-wash)',
                       color: 'var(--text-dim)',
+                      border: '1px solid var(--line)',
                     }}
                   >
                     Manifest V3 Certified
                   </span>
                 </div>
-                <h2 style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 10px 0', color: 'var(--text-bright)', lineHeight: 1.3 }}>
+                <h2 style={{ fontSize: '26px', fontWeight: 800, margin: '0 0 10px 0', color: 'var(--text)', lineHeight: 1.3 }}>
                   Get BanApply Copilot for Google Chrome
                 </h2>
                 <p style={{ color: 'var(--text-dim)', fontSize: '15px', margin: 0, lineHeight: 1.6, maxWidth: '640px' }}>
@@ -243,13 +244,13 @@ export function Home() {
                     padding: '14px 24px',
                     fontSize: '15px',
                     borderRadius: '10px',
-                    boxShadow: '0 6px 20px rgba(245, 158, 11, 0.3)',
+                    boxShadow: '0 6px 20px var(--hero-glow)',
                     textDecoration: 'none',
                   }}
                 >
                   <span>⚡ Add to Chrome &mdash; It&rsquo;s Free ↗</span>
                 </a>
-                <span style={{ fontSize: '12px', color: 'var(--text-dim)', opacity: 0.8 }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
                   Free Access · Rated 5.0★ on Chrome Web Store
                 </span>
               </div>

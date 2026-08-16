@@ -253,8 +253,8 @@ export function ProfilePage() {
           <div
             className="panel"
             style={{
-              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)',
-              border: '1px solid var(--line-bright)',
+              background: 'linear-gradient(135deg, var(--signal-wash) 0%, var(--panel-raised) 100%)',
+              border: '1px solid var(--signal-dim)',
               borderRadius: '12px',
               padding: '22px 24px',
               marginBottom: '24px',
@@ -263,7 +263,7 @@ export function ProfilePage() {
               alignItems: 'center',
               flexWrap: 'wrap',
               gap: '16px',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+              boxShadow: '0 4px 20px var(--shadow)',
               position: 'relative',
               overflow: 'hidden',
             }}
@@ -275,7 +275,7 @@ export function ProfilePage() {
                 right: 0,
                 width: '120px',
                 height: '100%',
-                background: 'radial-gradient(circle at top right, rgba(255, 176, 32, 0.12), transparent 70%)',
+                background: 'radial-gradient(circle at top right, var(--signal-wash), transparent 70%)',
                 pointerEvents: 'none',
               }}
             />
@@ -288,9 +288,9 @@ export function ProfilePage() {
                     fontWeight: 800,
                     padding: '3px 10px',
                     borderRadius: '999px',
-                    background: 'rgba(255, 176, 32, 0.15)',
-                    color: 'var(--warn)',
-                    border: '1px solid rgba(255, 176, 32, 0.3)',
+                    background: 'var(--signal-wash)',
+                    color: 'var(--signal-text)',
+                    border: '1px solid var(--signal-dim)',
                     letterSpacing: '0.05em',
                   }}
                 >
@@ -302,14 +302,15 @@ export function ProfilePage() {
                     fontWeight: 600,
                     padding: '3px 8px',
                     borderRadius: '6px',
-                    background: 'rgba(255, 255, 255, 0.08)',
+                    background: 'var(--hover-wash)',
                     color: 'var(--text-dim)',
+                    border: '1px solid var(--line)',
                   }}
                 >
                   Manifest V3
                 </span>
               </div>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 4px 0', color: 'var(--text-bright)' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 4px 0', color: 'var(--text)' }}>
                 BanApply Copilot Extension
               </h2>
               <p style={{ color: 'var(--text-dim)', fontSize: '14px', margin: 0, lineHeight: 1.5 }}>
@@ -331,7 +332,7 @@ export function ProfilePage() {
                   padding: '10px 18px',
                   fontSize: '14px',
                   borderRadius: '8px',
-                  boxShadow: '0 4px 14px rgba(245, 158, 11, 0.25)',
+                  boxShadow: '0 4px 14px var(--hero-glow)',
                   textDecoration: 'none',
                 }}
               >

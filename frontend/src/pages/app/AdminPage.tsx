@@ -477,27 +477,26 @@ export function AdminPage() {
                   autofill: { label: '⚡ AUTOFILL', bg: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.3)' },
                   bug: { label: '🐛 BUG', bg: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.3)' },
                   general: { label: '💡 FEEDBACK', bg: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.3)' },
-                }[report.category as 'autofill' | 'bug' | 'general'] || { label: report.category.toUpperCase(), bg: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-dim)', border: 'var(--line)' };
+                }[report.category as 'autofill' | 'bug' | 'general'] || { label: report.category.toUpperCase(), bg: 'var(--hover-wash)', color: 'var(--text-dim)', border: 'var(--line)' };
 
                 const statusColor = {
                   open: '#f59e0b',
                   investigating: '#3b82f6',
                   resolved: '#10b981',
                   closed: '#6b7280',
-                }[report.status] || '#6b7280';
+                }[report.status as 'open' | 'investigating' | 'resolved' | 'closed'] || '#6b7280';
 
                 return (
                   <div
                     key={report.id}
+                    className="panel"
                     style={{
-                      background: 'var(--panel-raised)',
-                      border: '1px solid var(--line-bright)',
-                      borderRadius: '12px',
                       padding: '20px',
+                      borderRadius: '12px',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '14px',
-                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                      boxShadow: '0 4px 16px var(--shadow)',
                     }}
                   >
                     <div
@@ -514,9 +513,9 @@ export function AdminPage() {
                           style={{
                             fontSize: '11px',
                             fontWeight: 800,
+                            padding: '3px 9px',
+                            borderRadius: '6px',
                             letterSpacing: '0.04em',
-                            padding: '3px 10px',
-                            borderRadius: '20px',
                             background: categoryConfig.bg,
                             color: categoryConfig.color,
                             border: `1px solid ${categoryConfig.border}`,
@@ -524,7 +523,7 @@ export function AdminPage() {
                         >
                           {categoryConfig.label}
                         </span>
-                        <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-bright)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text)' }}>
                           {report.subject}
                         </h3>
                       </div>
@@ -551,7 +550,7 @@ export function AdminPage() {
                               padding: '5px 12px',
                               borderRadius: '8px',
                               background: 'var(--panel)',
-                              color: 'var(--text-bright)',
+                              color: 'var(--text)',
                               border: '1px solid var(--line)',
                               fontSize: '12px',
                               fontWeight: 600,
@@ -570,8 +569,8 @@ export function AdminPage() {
 
                     <div
                       style={{
-                        background: 'rgba(0, 0, 0, 0.25)',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        background: 'var(--panel-raised)',
+                        border: '1px solid var(--line)',
                         borderRadius: '8px',
                         padding: '12px 16px',
                       }}
@@ -604,7 +603,7 @@ export function AdminPage() {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '180px' }}>
                         <span>👤 User:</span>
-                        <strong style={{ color: 'var(--text-bright)', fontWeight: 600 }}>
+                        <strong style={{ color: 'var(--text)', fontWeight: 600 }}>
                           {report.userEmail || 'Anonymous'}
                         </strong>
                       </div>
