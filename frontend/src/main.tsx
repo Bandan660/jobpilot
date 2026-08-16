@@ -20,6 +20,13 @@ import './styles/auth.css';
 import './styles/onboarding.css';
 import './styles/dashboard.css';
 import './styles/tracker.css';
+/*
+ * After the rest, deliberately. The homepage owns a handful of names that
+ * exist nowhere else (`.hx-*`), and loading it last means a future collision
+ * resolves in favour of the page rather than silently against it — the trap
+ * `.modal` / `.sheet` set for the profile dialogs.
+ */
+import './styles/home.css';
 import './styles/app.css';
 
 const container = document.getElementById('root')!;
