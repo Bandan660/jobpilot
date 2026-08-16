@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { POSTS } from './src/content/posts';
 
 /** Update once the real domain is bought; also referenced in public/robots.txt. */
-const SITE_URL = 'https://jobpilot.app';
+const SITE_URL = 'https://banapply.com';
 
 /**
  * Emits sitemap.xml at build time from the actual route list.

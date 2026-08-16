@@ -120,7 +120,7 @@ async function checkOne(id: string, jobUrl: string): Promise<Outcome> {
       headers: {
         // Some ATSs serve a bot wall to unknown agents; identify honestly and
         // let them block us rather than pretending to be a browser.
-        'User-Agent': 'jobpilot-posting-checker/0.1 (+https://jobpilot.app/bot)',
+        'User-Agent': 'banapply-posting-checker/0.1 (+https://banapply.com/bot)',
         Accept: 'text/html,application/xhtml+xml',
       },
     });
