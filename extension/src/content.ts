@@ -20,6 +20,20 @@ import {
   SPA_RENDER_TIMEOUT_MS,
 } from './config.js';
 import { send, type AutofillSummary, type Message, type StoredResumePayload } from './messages.js';
+import {
+  asksAtCompany,
+  asksForProfile,
+  invalidateReferrals,
+  isProfilePage,
+  loadReferrals,
+  warmReferrals,
+} from './referrals.js';
+import { companySlugFrom, referralSearches } from './referralSearch.js';
+import {
+  removeReferralCard,
+  renderReferralCard,
+  resetReferralCard,
+} from './ui/referralCard.js';
 import { renderBanner, removeBanner } from './ui/banner.js';
 import {
   renderPanel,
@@ -934,9 +948,27 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
       ? duplicate
       : null;
 
+  /*
+   * Built once per paint rather than per render, because `companySlugFrom`
+   * walks the detail pane's anchors and the panel repaints on every tracking
+   * signature change — several times per posting on LinkedIn.
+   *
+   * Shown on every posting, applied to or not. A referral submitted alongside
+   * the application beats one chasing it, so waiting until there is an
+   * application to hang it off would put the card up after the moment it was
+   * useful.
+   */
+  const searches = authenticated
+    ? referralSearches(job, profile, companySlugFrom(document))
+    : [];
+  if (authenticated) warmReferrals();
+  const referralsHere = authenticated ? asksAtCompany(job.company) : 0;
+
   const buildJobState = (matchVal: SkillMatch | null, isAnalyzing: boolean): PanelJob => ({
     job,
     coverage,
+    referralSearches: searches,
+    referralsHere,
     email: session.ok && session.data.email ? session.data.email : (profile?.email ?? null),
     profile,
     duplicate: validDuplicate,
@@ -1269,6 +1301,22 @@ async function init(): Promise<void> {
   lastDuplicate = null;
 
   const url = new URL(window.location.href);
+
+  /*
+   * A LinkedIn member profile, which is not a job page and never will be.
+   *
+   * Handled before the adapter gate rather than inside it: `isJobPage` is
+   * false here — correctly — so everything below this point would return
+   * early, and the tracking loop has nothing to track on a profile. The card
+   * answers one question and exits.
+   */
+  if (isProfilePage(url)) {
+    resetReferralCard();
+    void showReferralCard(url);
+    return;
+  }
+  removeReferralCard();
+
   const adapter = findAdapter(url);
   if (!adapter) return debug('no adapter for', url.hostname);
 
@@ -1295,6 +1343,44 @@ async function init(): Promise<void> {
     stopTracking();
     stopSubmit();
   };
+}
+
+/**
+ * Draw the referral card for whoever this profile belongs to.
+ *
+ * Silent when there is no match, and that silence is the common case — most
+ * profiles someone opens are not people they asked for a referral. A card
+ * reading "no asks logged for this person" on every profile on LinkedIn would
+ * be noise on a page the extension has no other business being on.
+ */
+async function showReferralCard(url: URL): Promise<void> {
+  const referrals = await loadReferrals();
+  if (!referrals) return;
+
+  /*
+   * Re-checked after the await. The index load is a round trip through the
+   * service worker, and LinkedIn navigates between profiles client-side — so
+   * the page can be someone else entirely by the time this resolves, and
+   * drawing the previous person's ask under the new person's name is the exact
+   * failure the match cache in this file already had once.
+   */
+  if (window.location.href !== url.href) return;
+
+  const asks = asksForProfile(referrals, url.href);
+  if (asks.length === 0) return debug('no referral asks for this profile');
+
+  renderReferralCard(asks, {
+    async onStatus(ask, status) {
+      const result = await send({
+        type: 'UPDATE_REFERRAL',
+        payload: { applicationId: ask.application.id, referralId: ask.id, status },
+      });
+      // The index still holds the old status, and it is about to be asked
+      // again on the next profile. Drop it rather than patch it in place.
+      if (result.ok) invalidateReferrals();
+      return result.ok;
+    },
+  });
 }
 
 /**

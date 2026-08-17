@@ -83,6 +83,78 @@ export function canonicalizeJobUrl(rawUrl: string | null | undefined): string | 
   return `https://${host}${path}${query}`;
 }
 
+/**
+ * Reduce a LinkedIn profile URL to a stable identity key.
+ *
+ * Here for the same reason `canonicalizeJobUrl` is: the extension asks "is
+ * this person someone I have asked for a referral?" and the API stores the
+ * answer, and if the two spell the key differently the lookup does not error —
+ * it silently shows nothing, on the one screen the whole feature exists for.
+ *
+ * The same person arrives as all of these:
+ *
+ *   linkedin.com/in/priya-raman
+ *   https://www.linkedin.com/in/priya-raman/
+ *   https://in.linkedin.com/in/Priya-Raman
+ *   https://www.linkedin.com/in/priya-raman-1234567/?miniProfileUrn=urn%3Ali…
+ *
+ * so the host, the scheme, the case, the trailing slash, the query and the
+ * fragment all have to go. What is left — `linkedin.com/in/{slug}` — is the
+ * vanity name, which is the only durable identifier LinkedIn exposes in a URL.
+ *
+ * Returns a key, not a browsable URL, and deliberately so: it is only ever
+ * compared, never navigated to. `contacts.linkedinUrl` keeps whatever the user
+ * pasted, because that is the thing they will want to click.
+ *
+ * Null for anything that is not a LinkedIn member profile — a company page, a
+ * job posting, a personal site. A null key must never match another null key,
+ * so callers filter before building an index.
+ */
+export function canonicalizeProfileUrl(rawUrl: string | null | undefined): string | null {
+  const trimmed = rawUrl?.trim();
+  if (!trimmed) return null;
+
+  // People paste "linkedin.com/in/x" far more often than a full URL.
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  let url: URL;
+  try {
+    url = new URL(withScheme);
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+
+  /*
+   * Any LinkedIn host, not just www. Country subdomains (in., uk.) serve the
+   * public version of a profile, and that is exactly the URL a signed-out
+   * visitor or a search result hands over.
+   */
+  const host = url.hostname.toLowerCase();
+  if (host !== 'linkedin.com' && !host.endsWith('.linkedin.com')) return null;
+
+  /*
+   * `/in/{slug}` only. `/pub/`, `/company/`, `/school/` and `/jobs/` are not
+   * members, and `/in/` may be followed by locale segments on public profiles
+   * — the slug is always the segment straight after it.
+   */
+  const slug = url.pathname.match(/\/in\/([^/?#]+)/i)?.[1];
+  if (!slug) return null;
+
+  // Percent-decoded: non-Latin vanity names arrive encoded from the URL bar
+  // and spelled out from a pasted link, and those must not be two people.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(slug);
+  } catch {
+    decoded = slug;
+  }
+
+  const normalized = decoded.toLowerCase().replace(/\/+$/, '');
+  return normalized ? `linkedin.com/in/${normalized}` : null;
+}
+
 /** Legal-entity suffixes that carry no identity. */
 const COMPANY_SUFFIXES = new Set([
   'inc',

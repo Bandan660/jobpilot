@@ -5,6 +5,7 @@ import type {
   DuplicateCheckRequest,
   DuplicateCheckResponse,
   Profile,
+  ReferralStatus,
   UserReport,
 } from '@jobpilot/shared';
 
@@ -62,7 +63,18 @@ export type Message =
   // Handled by the content script, not the worker: only it can touch the page.
   | { type: 'GET_PAGE_JOB' }
   | { type: 'AUTOFILL_PAGE'; payload: { overwrite: boolean } }
-  | { type: 'GET_FORM_COVERAGE' };
+  | { type: 'GET_FORM_COVERAGE' }
+  /** Every referral ask the user has, for the profile-page lookup index. */
+  | { type: 'GET_REFERRALS' }
+  /**
+   * Move one ask along. The only write the profile card makes, and the reason
+   * it is worth being on the page at all: LinkedIn has just said someone
+   * accepted, and recording that has to be cheaper than opening the dashboard.
+   */
+  | {
+      type: 'UPDATE_REFERRAL';
+      payload: { applicationId: string; referralId: string; status: ReferralStatus };
+    };
 
 export interface StoredResumePayload {
   fileName: string;

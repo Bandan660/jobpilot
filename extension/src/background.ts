@@ -2,8 +2,10 @@ import { answerKey } from '@jobpilot/shared';
 import type {
   AuthResponse,
   CaptureResponse,
+  Contact,
   DuplicateCheckResponse,
   Profile,
+  ReferralAsk,
   UserReport,
 } from '@jobpilot/shared';
 import type { Message, Response, SessionState, StoredResumePayload } from './messages.js';
@@ -232,6 +234,23 @@ async function handle(message: WorkerMessage): Promise<unknown> {
 
     case 'GET_PROFILE':
       return api<{ profile: Profile }>('/api/profile');
+
+    case 'GET_REFERRALS':
+      return api<{ referrals: ReferralAsk[] }>('/api/referrals');
+
+    /*
+     * Writes go to the per-application sub-resource, not to /api/referrals.
+     * That route is read-only on purpose — ownership there is enforced by the
+     * join, and a write path would have to re-derive it. `loadOwned` in
+     * applications.ts already answers "is this the caller's application".
+     */
+    case 'UPDATE_REFERRAL':
+      return api<{ referral: Contact }>(
+        `/api/applications/${encodeURIComponent(
+          message.payload.applicationId
+        )}/referrals/${encodeURIComponent(message.payload.referralId)}`,
+        { method: 'PATCH', body: JSON.stringify({ status: message.payload.status }) }
+      );
 
     case 'GET_RESUME':
       return currentResume();

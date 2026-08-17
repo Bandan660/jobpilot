@@ -13,6 +13,7 @@ import {
 import { POPOVER_RESET, promoteToTopLayer, quietPress, reraise, sealEvents } from './topLayer.js';
 import { DEFAULT_WEB_BASE_URL } from '../config.js';
 import { send } from '../messages.js';
+import type { ReferralSearch } from '../referralSearch.js';
 import { getNaukriChatbotContainer } from '../autofill/flows.js';
 
 /**
@@ -107,6 +108,17 @@ export interface PanelJob {
   isExternalJob?: boolean;
   /** Match calculation is in-flight / settling. */
   isAnalyzingMatch?: boolean;
+  /**
+   * Where to look for someone who could refer you here.
+   *
+   * Shown on every posting, not only ones already applied to — a referral
+   * submitted alongside the application beats one chasing it, and that is the
+   * moment the card has to be in front of someone. Empty when the company is
+   * unknown, which is the only case where none of the searches can be built.
+   */
+  referralSearches?: ReferralSearch[];
+  /** Asks already logged against this company, across every application. */
+  referralsHere?: number;
 }
 
 export interface PanelHandlers {
@@ -261,6 +273,81 @@ function reportRunProgress(line: string, tone: 'busy' | 'blocked' | 'ready'): vo
  * set intersection over a dictionary — there is nothing to wait for and
  * nothing to spend.
  */
+/**
+ * Where to look for someone who could refer you.
+ *
+ * NOTHING HERE SENDS ANYTHING
+ *
+ * Every row is a link that opens a LinkedIn search in a new tab. jobpilot does
+ * not name a person, does not open a page the user did not press, and does not
+ * send a connection request or a message — see `docs/REFERRALS.md`. Naming
+ * people would mean reading LinkedIn's member directory, which is scraping;
+ * handing over a search is browsing.
+ *
+ * A new tab rather than this one, because the user is reading a posting and
+ * losing it to a search they may not follow is the wrong trade.
+ */
+function referralCard(searches: ReferralSearch[], loggedHere: number): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const heading = document.createElement('div');
+  heading.className = 'chip-head';
+  heading.textContent = 'Who could refer you here';
+  card.append(heading);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'display: flex; flex-direction: column; gap: 6px; margin-top: 6px;';
+
+  for (const search of searches) {
+    const link = document.createElement('a');
+    link.href = search.url;
+    link.target = '_blank';
+    link.rel = 'noreferrer noopener';
+    link.style.cssText = [
+      'display: flex',
+      'flex-direction: column',
+      'gap: 1px',
+      'padding: 7px 9px',
+      'border: 1px solid var(--line)',
+      'border-radius: 7px',
+      'text-decoration: none',
+      'color: inherit',
+    ].join(';');
+
+    const label = document.createElement('span');
+    label.style.cssText = 'font-size: 12.5px; font-weight: 650; color: var(--signal);';
+    label.textContent = search.label;
+
+    const hint = document.createElement('span');
+    hint.style.cssText = 'font-size: 11px; color: var(--muted);';
+    hint.textContent = search.hint;
+
+    link.append(label, hint);
+    list.append(link);
+  }
+
+  card.append(list);
+
+  const note = document.createElement('p');
+  note.className = 'note';
+  note.style.cssText = 'margin: 8px 0 0;';
+  /*
+   * Says what the tool will and will not do, on the surface where someone is
+   * about to act. "Opens a search" is the whole promise: they send the request
+   * themselves, and then log it — which is the next thing this card will grow.
+   */
+  note.textContent =
+    loggedHere > 0
+      ? `Opens a LinkedIn search — you send the request. ${
+          loggedHere === 1 ? '1 ask' : `${loggedHere} asks`
+        } logged at this company.`
+      : 'Opens a LinkedIn search — you send the request, then log it in your tracker.';
+  card.append(note);
+
+  return card;
+}
+
 function matchCard(match: SkillSummary): HTMLElement {
   const card = document.createElement('div');
   card.className = 'card match';
@@ -2643,6 +2730,21 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
      * bottom edge. Nothing is lost by hiding it; it is unchanged when the run
      * ends, and the posting is the same posting.
      */
+    /*
+     * Below the match card and above nothing, because it answers the question
+     * that follows from it: the score says whether this is worth applying to,
+     * and the very next thought on a job worth applying to is who could get it
+     * looked at. Hidden during a run for the same reason the match card is —
+     * a run needs the panel's height for its own status.
+     */
+    if (
+      current.referralSearches &&
+      current.referralSearches.length > 0 &&
+      session.state === 'idle'
+    ) {
+      body.append(referralCard(current.referralSearches, current.referralsHere ?? 0));
+    }
+
     if (current.match && session.state === 'idle') {
       body.append(matchCard(current.match));
     } else if (current.isAnalyzingMatch && session.state === 'idle') {
