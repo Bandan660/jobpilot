@@ -1,9 +1,30 @@
-import type { Application, ApplicationEvent, ApplicationStatus } from '@jobpilot/shared';
-import type { ApplicationEventRow, ApplicationRow, CompanyRow } from '../db/schema.js';
+import type {
+  Application,
+  ApplicationEvent,
+  ApplicationStatus,
+  Contact,
+  ReferralStatus,
+} from '@jobpilot/shared';
+import type {
+  ApplicationEventRow,
+  ApplicationRow,
+  CompanyRow,
+  ContactRow,
+} from '../db/schema.js';
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
-export function toApplicationDto(row: ApplicationRow, company: CompanyRow): Application {
+/**
+ * `referrals` is optional because only the endpoints that run the aggregate
+ * pass it. Capture, import and the duplicate check all build an `Application`
+ * without one, and leaving the fields absent there is the honest answer —
+ * "not counted" is not "none".
+ */
+export function toApplicationDto(
+  row: ApplicationRow,
+  company: CompanyRow,
+  referrals?: { count: number; accepted: number }
+): Application {
   return {
     id: row.id,
     userId: row.userId,
@@ -37,8 +58,32 @@ export function toApplicationDto(row: ApplicationRow, company: CompanyRow): Appl
     postingStatus: row.postingStatus as Application['postingStatus'],
     postingCheckedAt: iso(row.postingCheckedAt),
     postingCheckFailures: row.postingCheckFailures,
+    ...(referrals
+      ? { referralCount: referrals.count, referralAccepted: referrals.accepted }
+      : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export function toContactDto(row: ContactRow): Contact {
+  return {
+    id: row.id,
+    applicationId: row.applicationId,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    linkedinUrl: row.linkedinUrl,
+    /*
+     * Cast, not validated. `status` is text in Postgres precisely so the set
+     * can grow without a migration, which means a row written by a newer
+     * deploy can carry a value this build does not know. Widening it to a
+     * string in the DTO would push that problem into every consumer; the UI
+     * falls back to the raw value when the label lookup misses.
+     */
+    status: row.status as ReferralStatus,
+    statusAt: row.statusAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
   };
 }
 

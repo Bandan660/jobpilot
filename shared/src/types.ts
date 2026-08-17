@@ -196,6 +196,19 @@ export interface Application {
   /** Consecutive failed checks. Two strikes before we mark a posting dead. */
   postingCheckFailures: number;
 
+  /**
+   * Referral asks logged against this application.
+   *
+   * Optional because only the list and detail endpoints count them — every
+   * other place an `Application` is constructed (capture, import, the demo
+   * fixtures) has no reason to run the aggregate. The row renders nothing when
+   * they are absent, which is right: "no asks" and "not counted" are different
+   * facts and only one of them is worth a line of UI.
+   */
+  referralCount?: number;
+  /** Of those, how many got as far as the contact accepting. */
+  referralAccepted?: number;
+
   createdAt: string;
   updatedAt: string;
 }
@@ -277,14 +290,115 @@ export interface Note {
   createdAt: string;
 }
 
+/**
+ * How far a referral ask has got.
+ *
+ * Stored as `text`, not a `pgEnum`, and that is deliberate. A TypeScript union
+ * is not a Postgres enum: `LINKEDIN` was added to `ATS_PROVIDER` and not to the
+ * database type, zod validated every request against the TS union, and the
+ * insert then died on `invalid input value for enum` behind a generic 500 for
+ * months. This set is small, user-owned and still being designed, so it is
+ * validated at the edge and stored as text where adding a value costs nothing.
+ *
+ * Declared in lifecycle order. `INVITED` and `ASKED` are the two the form can
+ * start from — a first-degree contact skips the invitation entirely, and a
+ * form that cannot say so gets abandoned or lied to.
+ */
+export const REFERRAL_STATUS = [
+  /** Connection request sent, no answer yet. */
+  'INVITED',
+  /** They accepted. Nothing asked of them yet. */
+  'CONNECTED',
+  /** The referral message has gone. */
+  'ASKED',
+  /** One follow-up sent. There is no second one. */
+  'NUDGED',
+  'REFERRED',
+  'DECLINED',
+  /** No reply. Closed by the clock rather than by the user. */
+  'COLD',
+] as const;
+export type ReferralStatus = (typeof REFERRAL_STATUS)[number];
+
+/**
+ * The statuses that mean the person accepted the connection.
+ *
+ * One definition, because the count on the tracker row and the count the API
+ * computes have to be the same number — two places deciding it independently
+ * is how they drift. `REFERRED` is included: they accepted, then went further.
+ */
+export const REFERRAL_ACCEPTED: readonly ReferralStatus[] = [
+  'CONNECTED',
+  'ASKED',
+  'NUDGED',
+  'REFERRED',
+];
+
+export const REFERRAL_STATUS_LABELS: Record<ReferralStatus, string> = {
+  INVITED: 'Request sent',
+  CONNECTED: 'Accepted',
+  ASKED: 'Asked',
+  NUDGED: 'Followed up',
+  REFERRED: 'Referred',
+  DECLINED: 'Declined',
+  COLD: 'No reply',
+};
+
+/**
+ * Someone asked for a referral on one application.
+ *
+ * The grain is per-application on purpose. The ask is about one role, the form
+ * is opened from one role, and the panel answers a question about one role.
+ * The same person asked about two applications is two rows, which is honest —
+ * they are two asks, sent at different times, at different stages.
+ */
 export interface Contact {
   id: string;
   applicationId: string;
   name: string;
   email: string | null;
+  /** Their job title, not the role being applied for. */
   role: string | null;
   linkedinUrl: string | null;
+  status: ReferralStatus;
+  /** When `status` was last set. What the follow-up clock counts from. */
+  statusAt: string;
   createdAt: string;
+}
+
+/**
+ * One referral ask, with just enough of its application to render a card.
+ *
+ * What `GET /api/referrals` returns. The extension needs every ask in one call
+ * to build its lookup index — the per-application sub-resource is right for
+ * the dashboard and useless here, because the question on a LinkedIn profile
+ * is "is this person anywhere in my asks", which spans applications.
+ *
+ * Flattened deliberately. The card shows a name, a role and a company; making
+ * the extension join three payloads to draw three lines would be shape for its
+ * own sake.
+ */
+export interface ReferralAsk extends Contact {
+  /**
+   * `canonicalizeProfileUrl(linkedinUrl)`, computed once by the API.
+   *
+   * Shipped rather than recomputed so the stored side of the comparison is
+   * settled before it reaches the client. The extension still calls the same
+   * function on the page it is looking at — that is the half that has to be
+   * computed live — and both run the one implementation in `shared/`.
+   *
+   * Null when the ask has no profile URL, or has one that is not a member
+   * profile. A null key never matches anything, including another null.
+   */
+  profileKey: string | null;
+  application: {
+    id: string;
+    title: string;
+    company: string;
+    status: ApplicationStatus;
+    appliedAt: string | null;
+    jobUrl: string | null;
+  };
 }
 
 /* -------------------------------------------------------------------------- */

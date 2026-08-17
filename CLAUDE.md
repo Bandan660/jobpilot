@@ -5,8 +5,9 @@ application form; the extension records the application at submit; a scheduled
 worker re-checks saved postings and reports when one comes down.
 
 Modelled on the *shape* of Simplify.jobs, deliberately not on its scope or its
-design. See `ROADMAP.md` for what is planned and `docs/PROJECT_HISTORY.md` for
-how it got here and why.
+design. See `ROADMAP.md` for what is planned, `docs/PROJECT_HISTORY.md` for how
+it got here and why, and `docs/REFERRALS.md` for the referral-ask design —
+proposed, not built.
 
 ---
 

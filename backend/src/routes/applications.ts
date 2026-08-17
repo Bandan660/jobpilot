@@ -5,6 +5,8 @@ import { z } from 'zod';
 import {
   APPLICATION_STATUS,
   EMPLOYMENT_TYPE,
+  REFERRAL_ACCEPTED,
+  REFERRAL_STATUS,
   canonicalizeJobUrl,
   normalizeCompany,
   normalizeTitle,
@@ -12,8 +14,8 @@ import {
   type ApplicationStatus,
 } from '@jobpilot/shared';
 import { createDb } from '../db/client.js';
-import { applicationEvents, applications, companies, notes } from '../db/schema.js';
-import { toApplicationDto, toEventDto } from '../services/serialize.js';
+import { applicationEvents, applications, companies, contacts, notes } from '../db/schema.js';
+import { toApplicationDto, toContactDto, toEventDto } from '../services/serialize.js';
 import { requireAuth } from '../middleware/auth.js';
 import { httpUrl } from '../validation/url.js';
 import type { AppContext } from '../env.js';
@@ -24,6 +26,32 @@ import type { AppContext } from '../env.js';
  * time-to-response stats, so it must be set exactly once, on the first move.
  */
 const RESPONSE_STATUSES: readonly ApplicationStatus[] = ['SCREEN', 'INTERVIEW', 'OFFER', 'REJECTED'];
+
+/**
+ * Referral counts for the tracker row, as correlated subqueries.
+ *
+ * A left join with a GROUP BY would work too and would drag every other
+ * selected column into the grouping — including the whole application row —
+ * for two integers. These stay out of the way of the existing query entirely,
+ * which matters because that query already carries seven optional filters.
+ *
+ * The "accepted" list is built from `REFERRAL_ACCEPTED` rather than written
+ * out here, so the number on the row and the number the UI would compute from
+ * the same statuses cannot drift.
+ */
+const referralCountSql = sql<number>`(
+  select count(*)::int from ${contacts}
+  where ${contacts.applicationId} = ${applications.id}
+)`;
+
+const referralAcceptedSql = sql<number>`(
+  select count(*)::int from ${contacts}
+  where ${contacts.applicationId} = ${applications.id}
+    and ${contacts.status} in (${sql.join(
+      REFERRAL_ACCEPTED.map((status) => sql`${status}`),
+      sql`, `
+    )})
+)`;
 
 export const applicationRoutes = new Hono<AppContext>();
 
@@ -72,7 +100,12 @@ applicationRoutes.get('/', async (c) => {
   }[sort];
 
   const rows = await db
-    .select({ application: applications, company: companies })
+    .select({
+      application: applications,
+      company: companies,
+      referralCount: referralCountSql,
+      referralAccepted: referralAcceptedSql,
+    })
     .from(applications)
     .innerJoin(companies, eq(applications.companyId, companies.id))
     .where(
@@ -92,7 +125,12 @@ applicationRoutes.get('/', async (c) => {
     .offset(offset);
 
   return c.json({
-    applications: rows.map((r) => toApplicationDto(r.application, r.company)),
+    applications: rows.map((r) =>
+      toApplicationDto(r.application, r.company, {
+        count: r.referralCount,
+        accepted: r.referralAccepted,
+      })
+    ),
     limit,
     offset,
   });
@@ -118,7 +156,7 @@ applicationRoutes.get('/:id', async (c) => {
   const db = createDb(c.env);
   const row = await loadOwned(db, c.get('userId'), c.req.param('id'));
 
-  const [eventRows, noteRows] = await Promise.all([
+  const [eventRows, noteRows, contactRows] = await Promise.all([
     db
       .select()
       .from(applicationEvents)
@@ -131,10 +169,24 @@ applicationRoutes.get('/:id', async (c) => {
       .where(eq(notes.applicationId, row.application.id))
       .orderBy(desc(notes.createdAt))
       .limit(100),
+    db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.applicationId, row.application.id))
+      // Oldest first: an ask list reads as a history of who was approached and
+      // when, and reversing it puts the newest name above the one that has
+      // been waiting longest.
+      .orderBy(asc(contacts.createdAt))
+      .limit(100),
   ]);
 
   return c.json({
-    application: toApplicationDto(row.application, row.company),
+    application: toApplicationDto(row.application, row.company, {
+      count: contactRows.length,
+      accepted: contactRows.filter((r) =>
+        (REFERRAL_ACCEPTED as readonly string[]).includes(r.status)
+      ).length,
+    }),
     events: eventRows.map(toEventDto),
     notes: noteRows.map((n) => ({
       id: n.id,
@@ -142,6 +194,7 @@ applicationRoutes.get('/:id', async (c) => {
       body: n.body,
       createdAt: n.createdAt.toISOString(),
     })),
+    referrals: contactRows.map(toContactDto),
   });
 });
 
@@ -441,4 +494,171 @@ applicationRoutes.post('/:id/notes', async (c) => {
     },
     201
   );
+});
+
+/* ----------------------------- referrals -------------------------------- */
+
+/*
+ * Referral asks, as a sub-resource of the application they are about.
+ *
+ * A top-level /api/referrals was the other option and it would have had to
+ * re-derive ownership on every call. Here `loadOwned` already answers "is this
+ * the caller's application", and the ask cannot exist without one — the grain
+ * is deliberately per-application, so the person asked about two roles is two
+ * rows. See docs/REFERRALS.md.
+ *
+ * Every write also appends to `application_events`, which is what makes an ask
+ * show up in the application's own history without a second thing to read.
+ * `CONTACT_ADDED` already exists in EVENT_TYPE, so none of this needs an enum
+ * migration — the trap that took LinkedIn capture down for months.
+ */
+
+/**
+ * A LinkedIn profile URL, or nothing.
+ *
+ * Deliberately not `httpUrl()`: people paste "linkedin.com/in/priya-raman"
+ * without a scheme far more often than they paste a full URL, and rejecting
+ * that is a validation error on the one field the form asked them to copy.
+ * Normalised to https here so the lookup in phase 2 has one shape to match.
+ */
+function normalizeProfileUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(withScheme);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    url.protocol = 'https:';
+    url.hash = '';
+    url.search = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+}
+
+const referralBody = z.object({
+  name: z.string().min(1).max(200),
+  role: z.string().max(200).nullable().optional(),
+  email: z.string().email().max(320).nullable().optional(),
+  linkedinUrl: z.string().max(2048).nullable().optional(),
+  /*
+   * Only the two the form offers. The rest of the lifecycle is reached by
+   * PATCH, because "I sent a request" and "they replied" are different events
+   * with different timestamps, and letting a create claim REFERRED would
+   * record an outcome with no history behind it.
+   */
+  status: z.enum(['INVITED', 'ASKED']).default('INVITED'),
+});
+
+applicationRoutes.post('/:id/referrals', async (c) => {
+  const parsed = referralBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) throw new HTTPException(400, { message: 'A name is required' });
+
+  const db = createDb(c.env);
+  const applicationId = c.req.param('id');
+  await loadOwned(db, c.get('userId'), applicationId);
+
+  const [contact] = await db
+    .insert(contacts)
+    .values({
+      applicationId,
+      name: parsed.data.name.trim(),
+      role: parsed.data.role?.trim() || null,
+      email: parsed.data.email?.trim() || null,
+      linkedinUrl: normalizeProfileUrl(parsed.data.linkedinUrl),
+      status: parsed.data.status,
+    })
+    .returning();
+
+  await db.insert(applicationEvents).values({
+    applicationId,
+    type: 'CONTACT_ADDED',
+    actor: 'USER',
+    payload: { contactId: contact.id, name: contact.name, status: contact.status },
+  });
+
+  return c.json({ referral: toContactDto(contact) }, 201);
+});
+
+const referralPatch = z.object({
+  status: z.enum(REFERRAL_STATUS).optional(),
+  name: z.string().min(1).max(200).optional(),
+  role: z.string().max(200).nullable().optional(),
+  linkedinUrl: z.string().max(2048).nullable().optional(),
+});
+
+applicationRoutes.patch('/:id/referrals/:referralId', async (c) => {
+  const parsed = referralPatch.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) throw new HTTPException(400, { message: 'Invalid referral update' });
+
+  const db = createDb(c.env);
+  const applicationId = c.req.param('id');
+  await loadOwned(db, c.get('userId'), applicationId);
+
+  const [existing] = await db
+    .select()
+    .from(contacts)
+    .where(
+      and(eq(contacts.id, c.req.param('referralId')), eq(contacts.applicationId, applicationId))
+    )
+    .limit(1);
+  if (!existing) throw new HTTPException(404, { message: 'Referral not found' });
+
+  const statusChanged = parsed.data.status !== undefined && parsed.data.status !== existing.status;
+
+  const [updated] = await db
+    .update(contacts)
+    .set({
+      ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
+      ...(parsed.data.role !== undefined ? { role: parsed.data.role?.trim() || null } : {}),
+      ...(parsed.data.linkedinUrl !== undefined
+        ? { linkedinUrl: normalizeProfileUrl(parsed.data.linkedinUrl) }
+        : {}),
+      ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
+      /*
+       * Only moved when the status actually moved. Re-stamping it on a name
+       * correction would restart the follow-up clock on an ask that has been
+       * waiting four days, which is exactly when the reminder matters most.
+       */
+      ...(statusChanged ? { statusAt: new Date() } : {}),
+    })
+    .where(eq(contacts.id, existing.id))
+    .returning();
+
+  if (statusChanged) {
+    await db.insert(applicationEvents).values({
+      applicationId,
+      type: 'CONTACT_ADDED',
+      actor: 'USER',
+      payload: {
+        contactId: updated.id,
+        name: updated.name,
+        fromStatus: existing.status,
+        status: updated.status,
+      },
+    });
+  }
+
+  return c.json({ referral: toContactDto(updated) });
+});
+
+applicationRoutes.delete('/:id/referrals/:referralId', async (c) => {
+  const db = createDb(c.env);
+  const applicationId = c.req.param('id');
+  await loadOwned(db, c.get('userId'), applicationId);
+
+  await db
+    .delete(contacts)
+    .where(
+      and(eq(contacts.id, c.req.param('referralId')), eq(contacts.applicationId, applicationId))
+    );
+
+  /*
+   * The events stay. `application_events` is append-only regardless of cause,
+   * and a deleted ask still happened — the history reading "asked Priya, then
+   * removed the row" is more use than a gap.
+   */
+  return c.body(null, 204);
 });

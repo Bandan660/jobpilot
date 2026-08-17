@@ -136,6 +136,17 @@ export function ArchiveIcon(p: IconProps) {
   );
 }
 
+/** Two people. Marks the referral asks logged against an application. */
+export function PeopleIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 20v-1.2A4.8 4.8 0 017.8 14h2.4a4.8 4.8 0 014.8 4.8V20" />
+      <path d="M16.5 5.6a3.2 3.2 0 010 6.1M18 14.2a4.8 4.8 0 013 4.6V20" />
+    </svg>
+  );
+}
+
 export function SearchIcon(p: IconProps) {
   return (
     <svg {...base} {...p}>

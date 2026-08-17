@@ -1,4 +1,4 @@
-import { EMPTY_PROFILE } from '@jobpilot/shared';
+import { EMPTY_PROFILE, REFERRAL_ACCEPTED } from '@jobpilot/shared';
 import type { ImportRow } from './csv.js';
 import type {
   AdminMetrics,
@@ -6,11 +6,13 @@ import type {
   ApplicationEvent,
   ApplicationStatus,
   AuthResponse,
+  Contact,
   EmploymentType,
   FunnelStats,
   Note,
   Profile,
   ProfileInput,
+  ReferralStatus,
   Resume,
 } from '@jobpilot/shared';
 import {
@@ -136,9 +138,48 @@ const liveApi = {
     ),
 
   getApplication: (id: string) =>
-    request<{ application: Application; events: ApplicationEvent[]; notes: Note[] }>(
-      `/api/applications/${id}`
+    request<{
+      application: Application;
+      events: ApplicationEvent[];
+      notes: Note[];
+      referrals: Contact[];
+    }>(`/api/applications/${id}`),
+
+  /* --------------------------- referral asks --------------------------- */
+
+  listReferrals: (applicationId: string) =>
+    request<{ referrals: Contact[] }>(`/api/applications/${applicationId}`).then(
+      (r) => r.referrals
     ),
+
+  addReferral: (
+    applicationId: string,
+    input: {
+      name: string;
+      role?: string | null;
+      linkedinUrl?: string | null;
+      status?: 'INVITED' | 'ASKED';
+    }
+  ) =>
+    request<{ referral: Contact }>(`/api/applications/${applicationId}/referrals`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  updateReferral: (
+    applicationId: string,
+    referralId: string,
+    patch: { status?: ReferralStatus; name?: string; role?: string | null; linkedinUrl?: string | null }
+  ) =>
+    request<{ referral: Contact }>(
+      `/api/applications/${applicationId}/referrals/${referralId}`,
+      { method: 'PATCH', body: JSON.stringify(patch) }
+    ),
+
+  deleteReferral: (applicationId: string, referralId: string) =>
+    request<void>(`/api/applications/${applicationId}/referrals/${referralId}`, {
+      method: 'DELETE',
+    }),
 
   updateStatus: (id: string, status: ApplicationStatus) =>
     request<{ application: Application }>(`/api/applications/${id}`, {
@@ -342,6 +383,23 @@ function buildDemoApi(): typeof liveApi {
   const delay = <T>(value: T): Promise<T> =>
     new Promise((resolve) => setTimeout(() => resolve(value), 120));
 
+  const demoReferrals = new Map<string, Contact[]>();
+  let demoReferralSeq = 0;
+
+  /** Keeps the row's counts in step with the map, using the shared definition. */
+  const syncDemoCounts = (applicationId: string) => {
+    const list = demoReferrals.get(applicationId) ?? [];
+    rows = rows.map((r) =>
+      r.id === applicationId
+        ? {
+            ...r,
+            referralCount: list.length,
+            referralAccepted: list.filter((x) => REFERRAL_ACCEPTED.includes(x.status)).length,
+          }
+        : r
+    );
+  };
+
   const session = (email: string) => ({
     token: 'demo-token',
     user: { id: 'demo-user', email, createdAt: new Date().toISOString() },
@@ -421,6 +479,82 @@ function buildDemoApi(): typeof liveApi {
     // rather than routing to a page that cannot load.
     session: () => delay({ userId: 'demo', isAdmin: false }),
     listResumes: () => delay({ resumes: [] as Resume[] }),
+
+    /*
+     * Referrals are held in memory so the whole log-an-ask flow can be walked
+     * end to end with no API and no database, the same way onboarding can.
+     * The counts on the tracker row are recomputed from this map on every
+     * list, because a stale count is the one bug this screen can have that
+     * looks like working software.
+     */
+    getApplication: (id: string) =>
+      delay({
+        application: rows.find((r) => r.id === id)!,
+        events: [] as ApplicationEvent[],
+        notes: [] as Note[],
+        referrals: demoReferrals.get(id) ?? [],
+      }),
+
+    listReferrals: (applicationId: string) => delay(demoReferrals.get(applicationId) ?? []),
+
+    addReferral: (
+      applicationId: string,
+      input: {
+        name: string;
+        role?: string | null;
+        linkedinUrl?: string | null;
+        status?: 'INVITED' | 'ASKED';
+      }
+    ) => {
+      const referral: Contact = {
+        id: `demo-ref-${(demoReferralSeq += 1)}`,
+        applicationId,
+        name: input.name,
+        email: null,
+        role: input.role ?? null,
+        linkedinUrl: input.linkedinUrl ?? null,
+        status: input.status ?? 'INVITED',
+        statusAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+      demoReferrals.set(applicationId, [...(demoReferrals.get(applicationId) ?? []), referral]);
+      syncDemoCounts(applicationId);
+      return delay({ referral });
+    },
+
+    updateReferral: (
+      applicationId: string,
+      referralId: string,
+      patch: {
+        status?: ReferralStatus;
+        name?: string;
+        role?: string | null;
+        linkedinUrl?: string | null;
+      }
+    ) => {
+      const list = (demoReferrals.get(applicationId) ?? []).map((r) =>
+        r.id === referralId
+          ? {
+              ...r,
+              ...patch,
+              statusAt:
+                patch.status && patch.status !== r.status ? new Date().toISOString() : r.statusAt,
+            }
+          : r
+      );
+      demoReferrals.set(applicationId, list);
+      syncDemoCounts(applicationId);
+      return delay({ referral: list.find((r) => r.id === referralId)! });
+    },
+
+    deleteReferral: (applicationId: string, referralId: string) => {
+      demoReferrals.set(
+        applicationId,
+        (demoReferrals.get(applicationId) ?? []).filter((r) => r.id !== referralId)
+      );
+      syncDemoCounts(applicationId);
+      return delay(undefined as void);
+    },
     submitReport: (input: import('@jobpilot/shared').CreateReportInput) =>
       delay({
         report: {

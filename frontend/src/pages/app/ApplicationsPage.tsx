@@ -4,16 +4,27 @@ import {
   APPLICATION_STATUS,
   EMPLOYMENT_TYPE,
   EMPLOYMENT_TYPE_LABELS,
+  REFERRAL_ACCEPTED,
+  REFERRAL_STATUS,
+  REFERRAL_STATUS_LABELS,
   daysBetween,
   formatDate,
   type Application,
   type ApplicationStatus,
+  type Contact,
   type EmploymentType,
+  type ReferralStatus,
   type Resume,
 } from '@jobpilot/shared';
 import { api } from '../../api.js';
 import { LoadingSpinner } from '../../components/LoadingSpinner.js';
-import { ArchiveIcon, BuildingIcon, PinIcon, SearchIcon } from '../../components/icons.js';
+import {
+  ArchiveIcon,
+  BuildingIcon,
+  PeopleIcon,
+  PinIcon,
+  SearchIcon,
+} from '../../components/icons.js';
 import { SourceMark } from '../../components/SourceMark.js';
 import { downloadCsv, parseCsv, toCsv } from '../../csv.js';
 import { usePageMeta } from '../../usePageMeta.js';
@@ -89,6 +100,18 @@ export function ApplicationsPage() {
     const handle = setTimeout(() => void load(), query ? 300 : 0);
     return () => clearTimeout(handle);
   }, [load, query]);
+
+  /**
+   * A change the server has already accepted, applied without a round trip.
+   *
+   * Separate from `update` because that one PATCHes the application; referral
+   * counts are computed by the server from a different table and arrive as a
+   * side effect of the dialog's own writes. Sending them back as an
+   * application patch would be asking the API to store a derived number.
+   */
+  const patchLocal = useCallback((id: string, patch: Partial<Application>) => {
+    setApplications((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, []);
 
   /** Optimistic, reverting on failure — the row must feel immediate. */
   async function update(id: string, patch: Partial<Application>) {
@@ -260,7 +283,7 @@ export function ApplicationsPage() {
       ) : (
         <ul className="tracker-list">
           {applications.map((app) => (
-            <TrackerRow key={app.id} app={app} onUpdate={update} />
+            <TrackerRow key={app.id} app={app} onUpdate={update} onLocalPatch={patchLocal} />
           ))}
         </ul>
       )}
@@ -600,10 +623,14 @@ function Avatar({ name }: { name: string }) {
 function TrackerRow({
   app,
   onUpdate,
+  onLocalPatch,
 }: {
   app: Application;
   onUpdate: (id: string, patch: Partial<Application>) => void;
+  /** Applies a change the server already accepted, without a round trip. */
+  onLocalPatch: (id: string, patch: Partial<Application>) => void;
 }) {
+  const [referralsOpen, setReferralsOpen] = useState(false);
   const currentIndex = STAGES.findIndex((s) => s.status === app.status);
   const isTerminal = TERMINAL.includes(app.status);
 
@@ -702,6 +729,19 @@ function TrackerRow({
             </option>
           ))}
         </select>
+        {/* The count is the reason this is not a menu item. "Have I asked
+            anyone here yet" is the question the row has to answer at a glance;
+            hiding it one click deep makes it a thing to remember to check. */}
+        <button
+          className="icon-btn referral-btn"
+          data-has={(app.referralCount ?? 0) > 0}
+          title={referralButtonLabel(app)}
+          aria-label={referralButtonLabel(app)}
+          onClick={() => setReferralsOpen(true)}
+        >
+          <PeopleIcon />
+          {app.referralCount ? <span className="referral-n">{app.referralCount}</span> : null}
+        </button>
         <button
           className="icon-btn"
           title={app.archived ? 'Restore' : 'Archive'}
@@ -711,6 +751,300 @@ function TrackerRow({
           <ArchiveIcon />
         </button>
       </div>
+
+      {referralsOpen && (
+        <ReferralsDialog
+          app={app}
+          onClose={() => setReferralsOpen(false)}
+          onCounts={(counts) => onLocalPatch(app.id, counts)}
+        />
+      )}
     </li>
+  );
+}
+
+/** Spoken by a screen reader and shown on hover, so it says the whole state. */
+function referralButtonLabel(app: Application): string {
+  const total = app.referralCount ?? 0;
+  if (total === 0) return `Referrals for ${app.title} — none logged`;
+
+  const accepted = app.referralAccepted ?? 0;
+  const asks = total === 1 ? '1 ask' : `${total} asks`;
+  return `Referrals for ${app.title} — ${asks}, ${accepted} accepted`;
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Referral asks for one application.
+ *
+ * Phase 1 of docs/REFERRALS.md: the record. The user does the sending on
+ * LinkedIn themselves and logs what they did here, which is why there is a
+ * form and no "send" button anywhere in this file.
+ *
+ * The company is deliberately not a field. It is the application's company and
+ * the user already told the system once; every field that can be filled in
+ * advance is one fewer reason to abandon the form halfway.
+ */
+function ReferralsDialog({
+  app,
+  onClose,
+  onCounts,
+}: {
+  app: Application;
+  onClose: () => void;
+  onCounts: (counts: { referralCount: number; referralAccepted: number }) => void;
+}) {
+  const [referrals, setReferrals] = useState<Contact[] | null>(null);
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [status, setStatus] = useState<'INVITED' | 'ASKED'>('INVITED');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  useEffect(() => {
+    api
+      .listReferrals(app.id)
+      .then(setReferrals)
+      .catch((err) => {
+        setReferrals([]);
+        setError(err instanceof Error ? err.message : 'Could not load referrals');
+      });
+  }, [app.id]);
+
+  /** Counts are recomputed from the list, never incremented, so they cannot drift. */
+  const publish = (list: Contact[]) => {
+    setReferrals(list);
+    onCounts({
+      referralCount: list.length,
+      referralAccepted: list.filter((r) => REFERRAL_ACCEPTED.includes(r.status)).length,
+    });
+  };
+
+  async function add() {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { referral } = await api.addReferral(app.id, {
+        name: name.trim(),
+        role: role.trim() || null,
+        linkedinUrl: linkedinUrl.trim() || null,
+        status,
+      });
+      publish([...(referrals ?? []), referral]);
+      setName('');
+      setRole('');
+      setLinkedinUrl('');
+      setStatus('INVITED');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeStatus(referral: Contact, next: ReferralStatus) {
+    const previous = referrals ?? [];
+    publish(previous.map((r) => (r.id === referral.id ? { ...r, status: next } : r)));
+    try {
+      const { referral: saved } = await api.updateReferral(app.id, referral.id, { status: next });
+      publish(previous.map((r) => (r.id === referral.id ? saved : r)));
+    } catch (err) {
+      publish(previous);
+      setError(err instanceof Error ? err.message : 'Could not update');
+    }
+  }
+
+  async function remove(referral: Contact) {
+    const previous = referrals ?? [];
+    publish(previous.filter((r) => r.id !== referral.id));
+    try {
+      await api.deleteReferral(app.id, referral.id);
+    } catch (err) {
+      publish(previous);
+      setError(err instanceof Error ? err.message : 'Could not remove');
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div
+        className="modal modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Referrals for ${app.title}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="modal-head">
+          <h2>Referrals</h2>
+          <button className="icon-btn" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </header>
+
+        <div className="modal-body">
+          <p className="muted ref-context">
+            {app.title} — {app.company.name}
+          </p>
+
+          <div className="ref-form">
+            <h3 className="ref-heading">Log an ask</h3>
+            <p className="muted ref-hint">
+              Send the connection request on LinkedIn yourself, then record it here.
+            </p>
+
+            <label className="ob-field">
+              Person <span className="req">*</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Who did you contact?"
+                autoFocus
+              />
+            </label>
+
+            <div className="modal-grid">
+              <label className="ob-field">
+                Their role
+                <input
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  placeholder="Engineering Manager"
+                />
+              </label>
+
+              <label className="ob-field">
+                Profile URL
+                <input
+                  value={linkedinUrl}
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                  placeholder="linkedin.com/in/…"
+                />
+              </label>
+            </div>
+
+            {/* Two starting points, because a first-degree contact skips the
+                invitation entirely and a form that cannot say so gets lied to. */}
+            <fieldset className="ref-status">
+              <legend>What did you do?</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="ref-start"
+                  checked={status === 'INVITED'}
+                  onChange={() => setStatus('INVITED')}
+                />
+                Sent a connection request
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="ref-start"
+                  checked={status === 'ASKED'}
+                  onChange={() => setStatus('ASKED')}
+                />
+                Already connected — sent the message
+              </label>
+            </fieldset>
+
+            <div className="ref-form-actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => void add()}
+                disabled={saving || !name.trim()}
+              >
+                {saving ? 'Saving…' : 'Add ask'}
+              </button>
+            </div>
+          </div>
+
+          <h3 className="ref-heading">
+            Logged {referrals && referrals.length > 0 ? `(${referrals.length})` : ''}
+          </h3>
+
+          {referrals === null ? (
+            <p className="muted">Loading…</p>
+          ) : referrals.length === 0 ? (
+            <p className="muted">
+              Nothing logged for this application yet. The first one you add shows on the
+              tracker row.
+            </p>
+          ) : (
+            <ul className="ref-list">
+              {referrals.map((referral) => (
+                <li key={referral.id} className="ref-item">
+                  <div className="ref-who">
+                    {referral.linkedinUrl ? (
+                      <a
+                        href={safeHref(referral.linkedinUrl)}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        {referral.name}
+                      </a>
+                    ) : (
+                      <span className="ref-name">{referral.name}</span>
+                    )}
+                    <span className="ref-sub">
+                      {referral.role ? `${referral.role} · ` : ''}
+                      {REFERRAL_STATUS_LABELS[referral.status] ?? referral.status} on{' '}
+                      {formatDate(referral.statusAt)}
+                    </span>
+                  </div>
+
+                  <select
+                    aria-label={`Status for ${referral.name}`}
+                    value={referral.status}
+                    onChange={(e) => void changeStatus(referral, e.target.value as ReferralStatus)}
+                  >
+                    {REFERRAL_STATUS.map((s) => (
+                      <option key={s} value={s}>
+                        {REFERRAL_STATUS_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    className="icon-btn"
+                    title={`Remove ${referral.name}`}
+                    aria-label={`Remove ${referral.name}`}
+                    onClick={() => void remove(referral)}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {error && <p className="error-text">{error}</p>}
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -399,12 +399,22 @@ export const contacts = pgTable(
       .references(() => applications.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     email: text('email'),
+    /** Their job title, not the role being applied for. */
     role: text('role'),
     linkedinUrl: text('linkedin_url'),
+    /**
+     * A `ReferralStatus`, as text rather than a pgEnum — see
+     * `0006_add_referral_status.sql` for why, and validate with zod at the
+     * edge. Adding a value belongs in `REFERRAL_STATUS` in shared/, alone.
+     */
+    status: text('status').notNull().default('INVITED'),
+    /** When `status` was last set. What the follow-up clock counts from. */
+    statusAt: timestamp('status_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     appIdx: index('contacts_app_idx').on(t.applicationId),
+    statusIdx: index('contacts_status_idx').on(t.status, t.statusAt),
   })
 );
 
@@ -451,6 +461,7 @@ export type UserRow = typeof users.$inferSelect;
 export type CompanyRow = typeof companies.$inferSelect;
 export type ApplicationRow = typeof applications.$inferSelect;
 export type ApplicationEventRow = typeof applicationEvents.$inferSelect;
+export type ContactRow = typeof contacts.$inferSelect;
 export type BlogPostRow = typeof blogPosts.$inferSelect;
 export type UserReportRow = typeof userReports.$inferSelect;
 
