@@ -385,6 +385,38 @@ function AddApplication({
       .catch(() => setResumes([]));
   }, []);
 
+  /*
+   * Escape closes, and the tracker behind the backdrop holds still.
+   *
+   * Both were missing here while the profile and resume dialogs already had
+   * them, and the second one is what made this look broken: the only thing
+   * that moved when the form was too tall for the screen was the list of
+   * applications underneath it, so the wheel appeared to do nothing to the
+   * dialog and the Add button stayed off the bottom of the page.
+   */
+  /*
+   * Through a ref, so the lock is taken once on mount and released once on
+   * unmount. `onClose` is an inline arrow in the parent and so has a new
+   * identity every render — depending on it directly would tear the lock down
+   * and rebuild it each time the tracker behind the dialog re-rendered.
+   */
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
   // Saved jobs have not been applied to, so a date would be a lie.
   const needsDate = status !== 'SAVED';
 
@@ -425,106 +457,108 @@ function AddApplication({
           </button>
         </header>
 
-        <p className="muted">For anything the extension did not capture.</p>
+        <div className="modal-body">
+          <p className="muted">For anything the extension did not capture.</p>
 
-        <label className="ob-field">
-          Position title <span className="req">*</span>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
-        </label>
-
-        <label className="ob-field">
-          Company <span className="req">*</span>
-          {/* Suggests companies already in the tracker so the same employer
-              does not end up under three spellings. Free text either way. */}
-          <input
-            list="known-companies"
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-          />
-          <datalist id="known-companies">
-            {companies.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
-        </label>
-
-        <div className="modal-grid">
           <label className="ob-field">
-            Location
-            <input value={location} onChange={(e) => setLocation(e.target.value)} />
+            Position title <span className="req">*</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
           </label>
 
           <label className="ob-field">
-            Job type
-            <select
-              value={employmentType}
-              onChange={(e) => setEmploymentType(e.target.value as EmploymentType | '')}
-            >
-              <option value="">Not specified</option>
-              {EMPLOYMENT_TYPE.map((type) => (
-                <option key={type} value={type}>
-                  {EMPLOYMENT_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="ob-field">
-            Status
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ApplicationStatus)}
-            >
-              {APPLICATION_STATUS.map((s) => (
-                <option key={s} value={s}>
-                  {s.toLowerCase()}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="ob-field" data-disabled={resumes.length === 0}>
-            Resume sent
-            <select
-              value={resumeId}
-              disabled={resumes.length === 0}
-              onChange={(e) => setResumeId(e.target.value)}
-            >
-              <option value="">
-                {resumes.length === 0 ? 'None uploaded' : 'Not recorded'}
-              </option>
-              {resumes.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.fileName}
-                  {r.isDefault ? ' (default)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="ob-field" data-disabled={!needsDate}>
-            Date applied
+            Company <span className="req">*</span>
+            {/* Suggests companies already in the tracker so the same employer
+                does not end up under three spellings. Free text either way. */}
             <input
-              type="date"
-              value={needsDate ? appliedAt : ''}
-              disabled={!needsDate}
-              onChange={(e) => setAppliedAt(e.target.value)}
+              list="known-companies"
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
             />
+            <datalist id="known-companies">
+              {companies.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </label>
+
+          <div className="modal-grid">
+            <label className="ob-field">
+              Location
+              <input value={location} onChange={(e) => setLocation(e.target.value)} />
+            </label>
+
+            <label className="ob-field">
+              Job type
+              <select
+                value={employmentType}
+                onChange={(e) => setEmploymentType(e.target.value as EmploymentType | '')}
+              >
+                <option value="">Not specified</option>
+                {EMPLOYMENT_TYPE.map((type) => (
+                  <option key={type} value={type}>
+                    {EMPLOYMENT_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="ob-field">
+              Status
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as ApplicationStatus)}
+              >
+                {APPLICATION_STATUS.map((s) => (
+                  <option key={s} value={s}>
+                    {s.toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="ob-field" data-disabled={resumes.length === 0}>
+              Resume sent
+              <select
+                value={resumeId}
+                disabled={resumes.length === 0}
+                onChange={(e) => setResumeId(e.target.value)}
+              >
+                <option value="">
+                  {resumes.length === 0 ? 'None uploaded' : 'Not recorded'}
+                </option>
+                {resumes.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.fileName}
+                    {r.isDefault ? ' (default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="ob-field" data-disabled={!needsDate}>
+              Date applied
+              <input
+                type="date"
+                value={needsDate ? appliedAt : ''}
+                disabled={!needsDate}
+                onChange={(e) => setAppliedAt(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <label className="ob-field">
+            Posting URL
+            <input
+              type="url"
+              value={jobUrl}
+              onChange={(e) => setJobUrl(e.target.value)}
+              placeholder="https://…"
+            />
+            <small>Adding it lets jobpilot tell you when the posting comes down.</small>
+          </label>
+
+          {error && <p className="error-text">{error}</p>}
         </div>
-
-        <label className="ob-field">
-          Posting URL
-          <input
-            type="url"
-            value={jobUrl}
-            onChange={(e) => setJobUrl(e.target.value)}
-            placeholder="https://…"
-          />
-          <small>Adding it lets jobpilot tell you when the posting comes down.</small>
-        </label>
-
-        {error && <p className="error-text">{error}</p>}
 
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose}>

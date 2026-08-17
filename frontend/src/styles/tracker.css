@@ -672,7 +672,24 @@
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(3px);
   display: grid;
+  /*
+   * `safe center` rather than `center`.
+   *
+   * A centred grid item taller than its container overflows in both
+   * directions, and the half above the top edge cannot be scrolled to — the
+   * scroll range starts at the container, not at the item. `safe` drops the
+   * centring the moment the item stops fitting and aligns it to the start
+   * instead, which keeps every edge reachable.
+   *
+   * `place-items` stays as the first declaration. An engine that does not
+   * understand the `safe` keyword throws the whole declaration away, and
+   * without something before it the fallback is `normal` — which stretches the
+   * dialog to the full height of the screen.
+   */
   place-items: center;
+  align-items: safe center;
+  justify-items: safe center;
+  overflow-y: auto;
   padding: 20px;
   z-index: 100;
 }
@@ -680,6 +697,23 @@
 .modal {
   width: 100%;
   max-width: 420px;
+  /*
+   * Bounded to the viewport, so a form longer than the screen scrolls inside
+   * the dialog instead of running off the bottom of it.
+   *
+   * Add application did exactly that: eight fields, no height limit, and the
+   * grid centring above put half of them past the fold with the Add button
+   * among them. The only scrollbar on screen belonged to the tracker behind
+   * the backdrop, so the dialog looked frozen — the page moved and the form
+   * did not.
+   *
+   * `dvh` after `vh`: mobile browsers shrink the visual viewport when the
+   * address bar is showing, and `vh` keeps measuring the tall version, which
+   * puts the actions back under the chrome. Older engines take the `vh` line
+   * and ignore the one they cannot parse.
+   */
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   background: var(--panel);
   border: 1px solid var(--line-bright);
   border-radius: var(--radius);
@@ -688,6 +722,13 @@
   flex-direction: column;
   gap: var(--gap-md);
   box-shadow: 0 30px 70px -28px var(--shadow);
+  /*
+   * The baseline for the short dialogs, which are a sentence and two buttons
+   * and have no reason to carry a scroll region of their own. `.modal-wide`
+   * overrides this — see below.
+   */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal h2 {
@@ -708,6 +749,9 @@
 
 .modal-wide {
   max-width: 560px;
+  /* The body scrolls instead, so the title and the actions stay put. Two
+     nested scroll regions would fight over the same wheel event. */
+  overflow: hidden;
 }
 
 .modal-head {
@@ -715,6 +759,43 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--gap-md);
+}
+
+/*
+ * The scrolling middle of a long dialog.
+ *
+ * Pinning the head and the actions is not decoration: the Add button is the
+ * thing the user is scrolling to find, and a form that scrolls it out of view
+ * to reveal more form reads as one that cannot be submitted. `min-height: 0`
+ * is what makes the flex child actually shrink — without it the default
+ * `min-height: auto` sizes it to its content and the overflow moves straight
+ * back out to the dialog.
+ */
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  /* A focus ring is drawn outside the input's border box. Against the edge of
+     a scroll container it clips; the padding gives it the two pixels it needs
+     and the matching negative margin keeps the fields aligned with the head. */
+  padding: 2px;
+  margin: -2px;
+}
+
+.modal-head,
+.modal-wide > .modal-actions {
+  flex-shrink: 0;
+}
+
+/* Separated from the fields it is anchored below, so a form scrolled halfway
+   does not look like it continues underneath the buttons. */
+.modal-wide > .modal-actions {
+  padding-top: var(--gap-md);
+  border-top: 1px solid var(--line);
 }
 
 /* Two columns for the short fields, so a seven-field form does not read as a
