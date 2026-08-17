@@ -339,6 +339,35 @@ without notice, so `adapters/linkedin.ts` carries several fallbacks per field
 ending in something structural. When capture starts returning nulls there,
 suspect the selectors before anything else.
 
+**The description scrape must strip the page around the posting.** A React
+role reported nine required skills; its body names two. Angular, Flutter,
+`.NET` and UI/UX came from the titles in "More jobs for you" and "Similar
+jobs"; JavaScript, TypeScript and Accessibility from LinkedIn's own skills
+widget and the "Accessibility" link in LinkedIn's global footer. Seven of the
+nine "requirements" were page furniture, and the 56% under them was computed
+from other people's job titles.
+
+The structural fallback in `description.ts` had budgeted for exactly this and
+called it cheap — "the top card is a job title and a company name, which cost
+the match a couple of stray skill names at worst". True of the top card, false
+of every other module in the pane. `NOT_THE_POSTING` now strips other
+postings, LinkedIn's skills widget and page chrome on *every* path, not just
+the guess, and `textWithout` walks the tree rather than cloning so `innerText`
+still hides the "read more" duplicate — a detached clone has no layout, so
+innerText on one degrades to textContent and the description comes back twice.
+
+Two things this replaced, deliberately: the guess no longer refuses outright
+when it sees a results list (stripping keeps the posting *and* drops the forty
+others, and the refusal only ever knew three class names, two of them already
+stale), and `contentNode` will not descend into a dominant child that is
+itself stripped. A bare `header` is **not** in the strip list — a semantic ATS
+opens its `<article>` with one.
+
+Failure here is worse than a blank, because it produces a confident number
+instead of an obvious gap. `descriptionSource()` and the `[banapply] scored N
+requirements from …` log say which container was read and what text was
+scored; reach for those before the dictionary in `shared/src/skills.ts`.
+
 **The panel is opaque. Glass was tried and removed.** `backdrop-filter` pulls
 the host page's brightness through whatever tint sits on top, so over a light
 ATS form the panel read as washed-out grey rather than as dark chrome — the

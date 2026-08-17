@@ -11,7 +11,7 @@ import { findAdapter, type JobAdapter } from './adapters/index.js';
 import { easyApplyModal } from './adapters/linkedin.js';
 import { runApply, type ApplyFlow } from './autofill/apply.js';
 import { findApplicationForm, flowFor, linkedinFlow, isNonApplicationForm, getNaukriChatbotContainer } from './autofill/flows.js';
-import { jobDescription } from './adapters/description.js';
+import { descriptionSource, jobDescription } from './adapters/description.js';
 import { extractFromJsonLd } from './adapters/jsonld.js';
 import { autofill, fillComboboxes, previewCoverage } from './autofill/index.js';
 import {
@@ -759,6 +759,22 @@ async function computeMatch(job: CapturedJob): Promise<SkillMatch | null> {
   lastScoredDescription = { key, text: description };
   matchCacheFingerprint = fingerprint || null;
   matchCache = matchSkills(description, profile);
+
+  /*
+   * What was actually scored, in one greppable line.
+   *
+   * A wrong score is harder to report than a missing one — the panel looks
+   * like it worked — and the only way to tell a bad scrape from a bad
+   * dictionary is to see the text and the container it came from. Both are on
+   * a page only the person reporting it can see. Logged once per posting, on
+   * the path that already did the expensive read.
+   */
+  debug(
+    `scored ${matchCache.matched.length + matchCache.missing.length} requirements` +
+      ` from ${descriptionSource() || '?'} (${description.length} chars)`,
+    { required: [...matchCache.matched, ...matchCache.missing], description }
+  );
+
   return matchCache;
 }
 
