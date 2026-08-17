@@ -5,7 +5,12 @@ import type {
   CaptureResponse,
   Profile,
 } from '@jobpilot/shared';
-import { clampCapturedJob, matchSkills, type SkillMatch } from '@jobpilot/shared';
+import {
+  canonicalizeJobUrl,
+  clampCapturedJob,
+  matchSkills,
+  type SkillMatch,
+} from '@jobpilot/shared';
 
 import { findAdapter, type JobAdapter } from './adapters/index.js';
 import { easyApplyModal } from './adapters/linkedin.js';
@@ -26,8 +31,10 @@ import {
   invalidateReferrals,
   isProfilePage,
   loadReferrals,
+  readProfilePage,
   warmReferrals,
 } from './referrals.js';
+import { clearIntent, currentIntent, rememberIntent } from './referralIntent.js';
 import { companySlugFrom, referralSearches } from './referralSearch.js';
 import {
   removeReferralCard,
@@ -987,6 +994,15 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
   });
 
   const handlers: PanelHandlers = {
+    /*
+     * Leaves a note saying which posting the user went looking from, so the
+     * profile they land on can offer to log the ask without asking for the
+     * company and role again. Fire and forget — a failed write costs the
+     * prefilled form, never the click that opened the search.
+     */
+    onReferralSearch: (label) => {
+      void rememberIntent(job, label);
+    },
     onFill: async (overwrite) => {
       const summary = await runAutofill(overwrite, {
         silent: true,
@@ -1354,8 +1370,8 @@ async function init(): Promise<void> {
  * be noise on a page the extension has no other business being on.
  */
 async function showReferralCard(url: URL): Promise<void> {
-  const referrals = await loadReferrals();
-  if (!referrals) return;
+  const [referrals, intent] = await Promise.all([loadReferrals(), currentIntent()]);
+  if (!referrals && !intent) return;
 
   /*
    * Re-checked after the await. The index load is a round trip through the
@@ -1366,10 +1382,30 @@ async function showReferralCard(url: URL): Promise<void> {
    */
   if (window.location.href !== url.href) return;
 
-  const asks = asksForProfile(referrals, url.href);
-  if (asks.length === 0) return debug('no referral asks for this profile');
+  const asks = referrals ? asksForProfile(referrals, url.href) : [];
 
-  renderReferralCard(asks, {
+  /*
+   * The form is offered only for an intent the profile is not already answered
+   * by. Having asked this person about this exact posting, offering to log it
+   * again is how a tracker ends up with two rows for one conversation.
+   */
+  const intentJobKey = intent ? canonicalizeJobUrl(intent.job.jobUrl) : null;
+  const alreadyAsked = asks.some(
+    (ask) => intentJobKey !== null && canonicalizeJobUrl(ask.application.jobUrl) === intentJobKey
+  );
+  const openIntent = intent && !alreadyAsked ? intent : null;
+
+  if (asks.length === 0 && !openIntent) return debug('nothing to say about this profile');
+
+  const card = openIntent
+    ? {
+        title: openIntent.job.title ?? 'this role',
+        company: openIntent.job.company ?? 'this company',
+        prefill: readProfilePage(document),
+      }
+    : null;
+
+  renderReferralCard(asks, card, {
     async onStatus(ask, status) {
       const result = await send({
         type: 'UPDATE_REFERRAL',
@@ -1379,6 +1415,41 @@ async function showReferralCard(url: URL): Promise<void> {
       // again on the next profile. Drop it rather than patch it in place.
       if (result.ok) invalidateReferrals();
       return result.ok;
+    },
+
+    async onLog({ name, role, status }) {
+      if (!openIntent) return false;
+
+      const result = await send<{ applicationCreated: boolean }>({
+        type: 'LOG_REFERRAL_ASK',
+        payload: {
+          job: clampCapturedJob(openIntent.job),
+          name,
+          role,
+          // From the address bar, never from the DOM. This is the one field
+          // the later lookup matches on, so it must not depend on a selector.
+          linkedinUrl: window.location.href,
+          status,
+        },
+      });
+      if (!result.ok) return false;
+
+      /*
+       * The intent is spent. One press logs one ask, and leaving it set would
+       * offer the form again on the next profile the user opens — which is
+       * sometimes right, and is not something to assume on their behalf.
+       */
+      await clearIntent();
+      invalidateReferrals();
+
+      // Repaint from the refreshed index, so the form is replaced by the
+      // "you asked about…" card it just created.
+      void showReferralCard(new URL(window.location.href));
+      return true;
+    },
+
+    onDismissIntent() {
+      void clearIntent();
     },
   });
 }

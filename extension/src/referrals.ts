@@ -145,3 +145,51 @@ export function warmReferrals(): void {
 export function isProfilePage(url: URL): boolean {
   return canonicalizeProfileUrl(url.href) !== null;
 }
+
+/**
+ * Whoever this profile page is about, read off the page.
+ *
+ * Only ever used to prefill the log form, and every field it returns lands in
+ * an editable input. That is the whole safety story: these selectors are on a
+ * LinkedIn surface that gets redesigned, and when they stop matching the form
+ * still opens — with two more fields to type. A prefill that rots degrades to
+ * the manual path it was saving the user from, which is the correct failure.
+ *
+ * The URL is not read from here. It comes from `location.href` and goes
+ * through `canonicalizeProfileUrl`, so the one field the lookup depends on
+ * cannot be broken by a class-name change.
+ */
+export function readProfilePage(doc: Document): { name: string | null; headline: string | null } {
+  const scope = doc.querySelector('main') ?? doc.body;
+
+  /*
+   * `h1` last, and it is the one that will still work. LinkedIn puts exactly
+   * one h1 on a profile and it is the member's name; the hashed classes above
+   * it are more precise while they last.
+   */
+  const name =
+    text(scope.querySelector('.text-heading-xlarge')) ??
+    text(scope.querySelector('[class*="top-card"] h1')) ??
+    text(scope.querySelector('h1'));
+
+  /*
+   * The headline sits directly under the name. `.text-body-medium` also
+   * matches other things on the page, so it is scoped to the top card first
+   * and length-capped — a headline is a line, and anything longer is a
+   * container that happened to match.
+   */
+  const headline =
+    text(scope.querySelector('.text-body-medium.break-words')) ??
+    text(scope.querySelector('[class*="top-card"] .text-body-medium')) ??
+    null;
+
+  return {
+    name: name && name.length <= 120 ? name : null,
+    headline: headline && headline.length <= 220 ? headline : null,
+  };
+}
+
+function text(el: Element | null): string | null {
+  const value = el?.textContent?.replace(/\s+/g, ' ').trim();
+  return value ? value : null;
+}

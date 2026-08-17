@@ -341,12 +341,22 @@ fix, and neither half needs a manifest change.
 card in `ui/referralCard.ts`, and the suggestion card in the panel fed by
 `referralSearch.ts`.
 
-**Not built yet:** logging an ask from the extension — the panel can point at a
-search but cannot yet record what the user did with it, so the loop still ends
-on the dashboard. Blocked on the `SAVED` question below. And the messaging
-surface, which is deliberately last: `/messaging/thread/…` carries no profile
-id in the URL, so it needs a DOM read and would drag a rot-proof feature down
-to a fragile one's lifespan.
+Also built: **logging an ask from the profile page**. Pressing one of the
+panel's searches records an *intent* — the posting the user went looking from —
+in `chrome.storage.local` for thirty minutes. Every profile opened in that
+window offers a two-field form, prefilled from the page, and one press logs the
+ask. `POST /api/referrals` resolves the application from the posting and
+creates it as `SAVED` when there is none.
+
+The intent is what keeps this from being noise. A form on every LinkedIn
+profile is what makes an extension feel like spyware; a form on the profiles
+someone opened straight after pressing "Recruiters at Acme" is the thing they
+wanted. It also avoids reading the company off the profile page — a rot-prone
+selector recovering a fact the user's own click already established.
+
+**Not built yet:** the messaging surface, deliberately last. `/messaging/thread/…`
+carries no profile id in the URL, so it needs a DOM read and would drag a
+rot-proof feature down to a fragile one's lifespan.
 
 ### Phase 3 — the reminder
 
@@ -366,10 +376,13 @@ the lookup in Phase 2 makes this a convenience rather than a requirement.
 
 ## Open decisions
 
-- **Is an ask always tied to an application?** Modelled as yes, which is what
-  makes the existing `contacts` grain work. Building a relationship at a company
-  *before* applying would need a nullable `applicationId` and a second shape for
-  the panel card.
+- ~~**Is an ask always tied to an application?**~~ **Decided: yes, and the
+  application is created if it does not exist.** `POST /api/referrals` calls
+  `captureApplication` with `applied: false`, which creates the row as `SAVED`
+  — the status that already means "tracking, not applied". Blocking a referral
+  on paperwork is backwards: the ask is the time-sensitive half. On an existing
+  row `applied: false` leaves the status alone, so logging an ask can never
+  downgrade something already marked `APPLIED`.
 - **Does the queue live inside the tracker row or beside it?** Recommendation is
   inside — the application row grows a line reading
   `2 asks · 1 accepted · nudge due` — so it never becomes a separate app that

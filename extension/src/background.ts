@@ -244,6 +244,12 @@ async function handle(message: WorkerMessage): Promise<unknown> {
      * join, and a write path would have to re-derive it. `loadOwned` in
      * applications.ts already answers "is this the caller's application".
      */
+    case 'LOG_REFERRAL_ASK':
+      return api<{ referral: ReferralAsk; applicationCreated: boolean }>('/api/referrals', {
+        method: 'POST',
+        body: JSON.stringify(message.payload),
+      });
+
     case 'UPDATE_REFERRAL':
       return api<{ referral: Contact }>(
         `/api/applications/${encodeURIComponent(

@@ -117,6 +117,37 @@ select:disabled { opacity: 0.6; cursor: progress; }
 
 .err { font-size: 11.5px; color: #ff8f8f; }
 
+.field {
+  font: inherit;
+  font-size: 12.5px;
+  background: #162134;
+  color: #e8edf7;
+  border: 1px solid #2b3c59;
+  border-radius: 6px;
+  padding: 7px 9px;
+  width: 100%;
+}
+.field::placeholder { color: #7e91b0; }
+.field:focus-visible { outline: 2px solid #ffb020; outline-offset: 1px; }
+
+.btns { display: flex; gap: 8px; }
+.b {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 640;
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid #2b3c59;
+  background: transparent;
+  color: #e8edf7;
+  cursor: pointer;
+  flex: 1 1 auto;
+}
+.b:hover:not(:disabled) { border-color: #ffb020; }
+.b:focus-visible { outline: 2px solid #ffb020; outline-offset: 1px; }
+.b:disabled { opacity: 0.6; cursor: progress; }
+.b.primary { background: #ffb020; color: #1a1204; border-color: #ffb020; }
+
 @media (prefers-reduced-motion: no-preference) {
   .card { animation: rise 180ms ease-out; }
   @keyframes rise {
@@ -129,6 +160,25 @@ select:disabled { opacity: 0.6; cursor: progress; }
 export interface ReferralCardHandlers {
   /** Persist a status change. Resolves false when the write failed. */
   onStatus(ask: ReferralAsk, next: ReferralStatus): Promise<boolean>;
+  /**
+   * Log a new ask against the posting the intent came from. Resolves false on
+   * failure; the form stays open with what the user typed still in it.
+   */
+  onLog(input: {
+    name: string;
+    role: string | null;
+    status: 'INVITED' | 'ASKED';
+  }): Promise<boolean>;
+  /** The user is not going to log this one. Drops the intent. */
+  onDismissIntent(): void;
+}
+
+/** What the user was looking for when they left the posting. */
+export interface CardIntent {
+  title: string;
+  company: string;
+  /** Read off this profile page, and editable. Either may be null. */
+  prefill: { name: string | null; headline: string | null };
 }
 
 /**
@@ -150,9 +200,18 @@ export function removeReferralCard(): void {
   document.getElementById(HOST_ID)?.remove();
 }
 
-export function renderReferralCard(asks: ReferralAsk[], handlers: ReferralCardHandlers): void {
+export function renderReferralCard(
+  asks: ReferralAsk[],
+  intent: CardIntent | null,
+  handlers: ReferralCardHandlers
+): void {
   removeReferralCard();
-  if (dismissed || asks.length === 0) return;
+  /*
+   * Nothing to say, so nothing is drawn. Most profiles a person opens have no
+   * ask against them and were not reached from a referral search, and a card
+   * on every profile on LinkedIn is what makes an extension feel like spyware.
+   */
+  if (dismissed || (asks.length === 0 && !intent)) return;
 
   const host = document.createElement('div');
   host.id = HOST_ID;
@@ -179,7 +238,8 @@ export function renderReferralCard(asks: ReferralAsk[], handlers: ReferralCardHa
 
   const brand = document.createElement('span');
   brand.className = 'brand';
-  brand.textContent = asks.length > 1 ? `BanApply · ${asks.length} asks` : 'BanApply · referral';
+  brand.textContent =
+    asks.length > 1 ? `BanApply · ${asks.length} asks` : 'BanApply · referral';
 
   const close = document.createElement('button');
   close.className = 'close';
@@ -188,6 +248,10 @@ export function renderReferralCard(asks: ReferralAsk[], handlers: ReferralCardHa
   close.setAttribute('aria-label', 'Dismiss');
   close.addEventListener('click', () => {
     dismissed = true;
+    // Dismissing the form is a decision about the intent, not just this paint.
+    // Left alone it would reappear on the next profile, having already been
+    // turned down once.
+    if (intent) handlers.onDismissIntent();
     removeReferralCard();
   });
 
@@ -201,6 +265,8 @@ export function renderReferralCard(asks: ReferralAsk[], handlers: ReferralCardHa
   for (const ask of asks) {
     card.append(askBlock(ask, handlers, error));
   }
+
+  if (intent) card.append(logBlock(intent, handlers, error));
 
   card.append(error);
   shadow.append(style, card);
@@ -290,6 +356,111 @@ function askBlock(
 
   row.append(label, select);
   block.append(eyebrow, role, company, tele, row);
+  return block;
+}
+
+/**
+ * The log form, shown when the user came here from a referral search.
+ *
+ * The moment this exists for: they have just pressed Connect, the person's
+ * name and headline are on the screen behind this card, and the alternative is
+ * switching to the dashboard and typing both again. Nobody does that
+ * reliably — and if the ask never gets logged, none of the rest of this
+ * feature has anything to work with.
+ *
+ * Neither the company nor the role is a field. Both came from the posting the
+ * user was reading when they pressed the search, so asking again would be
+ * asking them to retype something the tool already knows.
+ */
+function logBlock(
+  intent: CardIntent,
+  handlers: ReferralCardHandlers,
+  error: HTMLElement
+): HTMLElement {
+  const block = document.createElement('div');
+  block.className = 'ask';
+
+  const eyebrow = document.createElement('div');
+  eyebrow.className = 'eyebrow';
+  eyebrow.textContent = 'Log an ask for';
+
+  const role = document.createElement('div');
+  role.className = 'role';
+  role.textContent = intent.title;
+
+  const company = document.createElement('div');
+  company.className = 'company';
+  company.textContent = intent.company;
+
+  const name = document.createElement('input');
+  name.className = 'field';
+  name.type = 'text';
+  name.placeholder = 'Their name';
+  name.value = intent.prefill.name ?? '';
+  name.setAttribute('aria-label', 'Their name');
+
+  const headline = document.createElement('input');
+  headline.className = 'field';
+  headline.type = 'text';
+  headline.placeholder = 'Their role (optional)';
+  headline.value = intent.prefill.headline ?? '';
+  headline.setAttribute('aria-label', 'Their role');
+
+  const buttons = document.createElement('div');
+  buttons.className = 'btns';
+
+  const save = (status: 'INVITED' | 'ASKED', button: HTMLButtonElement) => {
+    if (!name.value.trim()) {
+      error.textContent = 'Their name, at least — the rest is optional.';
+      error.hidden = false;
+      name.focus();
+      return;
+    }
+
+    for (const b of buttons.querySelectorAll('button')) b.disabled = true;
+    const label = button.textContent;
+    button.textContent = 'Saving…';
+    error.hidden = true;
+
+    void handlers
+      .onLog({
+        name: name.value.trim(),
+        role: headline.value.trim() || null,
+        status,
+      })
+      .then((ok) => {
+        if (ok) {
+          // The caller repaints from the refreshed index, so this card is
+          // replaced by the "you asked about…" one. Nothing to reset here.
+          return;
+        }
+        for (const b of buttons.querySelectorAll('button')) b.disabled = false;
+        button.textContent = label;
+        error.textContent = 'Could not save that. Try again, or use the dashboard.';
+        error.hidden = false;
+      });
+  };
+
+  /*
+   * Two buttons rather than a dropdown and a submit. There are exactly two
+   * things that just happened — a request went out, or they were already
+   * connected and got the message — and each is one press.
+   */
+  const sent = document.createElement('button');
+  sent.type = 'button';
+  sent.className = 'b primary';
+  sent.textContent = 'Sent a request';
+  sent.addEventListener('click', () => save('INVITED', sent));
+
+  const messaged = document.createElement('button');
+  messaged.type = 'button';
+  messaged.className = 'b';
+  messaged.textContent = 'Messaged them';
+  messaged.title = 'Already connected — you sent the referral message';
+  messaged.addEventListener('click', () => save('ASKED', messaged));
+
+  buttons.append(sent, messaged);
+  block.append(eyebrow, role, company, name, headline, buttons);
   return block;
 }
 

@@ -1,4 +1,5 @@
 import type {
+  CapturedJob,
   CaptureRequest,
   CaptureResponse,
   CreateReportInput,
@@ -74,6 +75,21 @@ export type Message =
   | {
       type: 'UPDATE_REFERRAL';
       payload: { applicationId: string; referralId: string; status: ReferralStatus };
+    }
+  /**
+   * Log an ask against whatever application this posting maps to, creating a
+   * SAVED one when the posting is not tracked yet. Sent from the profile page
+   * the user is standing on right after pressing Connect.
+   */
+  | {
+      type: 'LOG_REFERRAL_ASK';
+      payload: {
+        job: CapturedJob;
+        name: string;
+        role: string | null;
+        linkedinUrl: string | null;
+        status: 'INVITED' | 'ASKED';
+      };
     };
 
 export interface StoredResumePayload {

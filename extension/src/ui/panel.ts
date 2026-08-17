@@ -122,6 +122,8 @@ export interface PanelJob {
 }
 
 export interface PanelHandlers {
+  /** A referral search was opened. Records which posting it was opened from. */
+  onReferralSearch: (label: string) => void;
   onFill: (overwrite: boolean) => Promise<{ filled: number; unanswered: number }>;
   onSave: () => Promise<boolean>;
   onSignOut: () => void;
@@ -287,7 +289,11 @@ function reportRunProgress(line: string, tone: 'busy' | 'blocked' | 'ready'): vo
  * A new tab rather than this one, because the user is reading a posting and
  * losing it to a search they may not follow is the wrong trade.
  */
-function referralCard(searches: ReferralSearch[], loggedHere: number): HTMLElement {
+function referralCard(
+  searches: ReferralSearch[],
+  loggedHere: number,
+  onOpen: (label: string) => void
+): HTMLElement {
   const card = document.createElement('div');
   card.className = 'card';
 
@@ -322,6 +328,15 @@ function referralCard(searches: ReferralSearch[], loggedHere: number): HTMLEleme
     const hint = document.createElement('span');
     hint.style.cssText = 'font-size: 11px; color: var(--muted);';
     hint.textContent = search.hint;
+
+    /*
+     * Records the intent; never prevents the navigation. The link is a plain
+     * anchor so a middle-click or a copied address behaves exactly as the user
+     * expects, and the click handler only leaves a note behind saying which
+     * posting they went looking from — which is what lets the profile page
+     * offer to log the ask a minute later without asking for the company again.
+     */
+    link.addEventListener('click', () => onOpen(search.label));
 
     link.append(label, hint);
     list.append(link);
@@ -2742,7 +2757,11 @@ export async function renderPanel(state: PanelJob, handlers: PanelHandlers): Pro
       current.referralSearches.length > 0 &&
       session.state === 'idle'
     ) {
-      body.append(referralCard(current.referralSearches, current.referralsHere ?? 0));
+      body.append(
+        referralCard(current.referralSearches, current.referralsHere ?? 0, (label) =>
+          acts.onReferralSearch(label)
+        )
+      );
     }
 
     if (current.match && session.state === 'idle') {

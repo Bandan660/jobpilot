@@ -1,34 +1,14 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
-import {
-  ATS_PROVIDER,
-  CAPTURE_LIMITS,
-  EMPLOYMENT_TYPE,
-  type DuplicateCheckResponse,
-} from '@jobpilot/shared';
+import type { DuplicateCheckResponse } from '@jobpilot/shared';
 import { createDb } from '../db/client.js';
 import { captureApplication } from '../services/capture.js';
 import { findDuplicates } from '../services/duplicates.js';
 import { requireAuth } from '../middleware/auth.js';
 import { httpUrl } from '../validation/url.js';
+import { capturedJob } from '../validation/job.js';
 import type { AppContext } from '../env.js';
-
-// Limits come from shared so the extension can clamp to the same numbers
-// before sending. Two copies drift, and the drift shows up as a 400 the user
-// cannot act on.
-const capturedJob = z.object({
-  jobUrl: httpUrl(CAPTURE_LIMITS.jobUrl),
-  title: z.string().max(CAPTURE_LIMITS.title).nullable(),
-  company: z.string().max(CAPTURE_LIMITS.company).nullable(),
-  location: z.string().max(CAPTURE_LIMITS.location).nullable(),
-  remote: z.boolean().nullable(),
-  employmentType: z.enum(EMPLOYMENT_TYPE).nullable(),
-  externalId: z.string().max(CAPTURE_LIMITS.externalId).nullable(),
-  ats: z.enum(ATS_PROVIDER),
-  compRaw: z.string().max(CAPTURE_LIMITS.compRaw).nullable(),
-  adapterVersion: z.string().max(CAPTURE_LIMITS.adapterVersion),
-});
 
 const captureRequest = z.object({
   job: capturedJob,

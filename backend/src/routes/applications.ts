@@ -17,7 +17,7 @@ import { createDb } from '../db/client.js';
 import { applicationEvents, applications, companies, contacts, notes } from '../db/schema.js';
 import { toApplicationDto, toContactDto, toEventDto } from '../services/serialize.js';
 import { requireAuth } from '../middleware/auth.js';
-import { httpUrl } from '../validation/url.js';
+import { httpUrl, normalizeProfileUrl } from '../validation/url.js';
 import type { AppContext } from '../env.js';
 
 /**
@@ -512,31 +512,6 @@ applicationRoutes.post('/:id/notes', async (c) => {
  * `CONTACT_ADDED` already exists in EVENT_TYPE, so none of this needs an enum
  * migration — the trap that took LinkedIn capture down for months.
  */
-
-/**
- * A LinkedIn profile URL, or nothing.
- *
- * Deliberately not `httpUrl()`: people paste "linkedin.com/in/priya-raman"
- * without a scheme far more often than they paste a full URL, and rejecting
- * that is a validation error on the one field the form asked them to copy.
- * Normalised to https here so the lookup in phase 2 has one shape to match.
- */
-function normalizeProfileUrl(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  try {
-    const url = new URL(withScheme);
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
-    url.protocol = 'https:';
-    url.hash = '';
-    url.search = '';
-    return url.toString().replace(/\/$/, '');
-  } catch {
-    return null;
-  }
-}
 
 const referralBody = z.object({
   name: z.string().min(1).max(200),
