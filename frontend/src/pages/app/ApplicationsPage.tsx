@@ -5,8 +5,11 @@ import {
   EMPLOYMENT_TYPE,
   EMPLOYMENT_TYPE_LABELS,
   REFERRAL_ACCEPTED,
+  REFERRAL_ACTION_LABEL,
   REFERRAL_STATUS,
   REFERRAL_STATUS_LABELS,
+  referralDue,
+  relativeTime,
   daysBetween,
   formatDate,
   type Application,
@@ -773,6 +776,36 @@ function referralButtonLabel(app: Application): string {
   return `Referrals for ${app.title} — ${asks}, ${accepted} accepted`;
 }
 
+/**
+ * One line saying what an ask needs, or nothing.
+ *
+ * `referralDue` is the same rule the toolbar badge and the LinkedIn card read.
+ * Three surfaces deciding independently is how they drift, and a dashboard
+ * disagreeing with the badge above it is a dashboard that stops being checked.
+ */
+function DueFlag({ referral }: { referral: Contact }) {
+  const due = referralDue(referral);
+
+  if (due.action && due.isDue) {
+    return (
+      <span className="ref-due">
+        {REFERRAL_ACTION_LABEL[due.action]}
+        {due.overdueDays > 0 ? ` · ${due.overdueDays}d overdue` : ' · due now'}
+      </span>
+    );
+  }
+
+  // Only after a follow-up. One nudge is the limit, so this is an ending
+  // rather than a task — said quietly, and never as a number anywhere.
+  if (due.stale) return <span className="ref-quiet">no reply</span>;
+
+  if (due.action && due.dueAt) {
+    return <span className="ref-quiet">{REFERRAL_ACTION_LABEL[due.action].toLowerCase()} {relativeTime(due.dueAt)}</span>;
+  }
+
+  return null;
+}
+
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -1009,6 +1042,7 @@ function ReferralsDialog({
                       {REFERRAL_STATUS_LABELS[referral.status] ?? referral.status} on{' '}
                       {formatDate(referral.statusAt)}
                     </span>
+                    <DueFlag referral={referral} />
                   </div>
 
                   <select

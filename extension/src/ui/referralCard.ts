@@ -1,6 +1,9 @@
 import {
+  REFERRAL_ACTION_LABEL,
   REFERRAL_STATUS,
   REFERRAL_STATUS_LABELS,
+  draftFor,
+  referralDue,
   relativeTime,
   type ReferralAsk,
   type ReferralStatus,
@@ -117,6 +120,36 @@ select:disabled { opacity: 0.6; cursor: progress; }
 
 .err { font-size: 11.5px; color: #ff8f8f; }
 
+.due {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffb020;
+}
+.quiet { font-size: 11.5px; color: #7e91b0; }
+
+.draft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px;
+  border: 1px solid #1e2b42;
+  border-radius: 8px;
+  background: #0b1220;
+}
+.draft-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7e91b0;
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+}
+.count { font-variant-numeric: tabular-nums; }
+.count[data-over="true"] { color: #ff8f8f; font-weight: 700; }
+.draft-body { resize: vertical; line-height: 1.5; min-height: 60px; }
+
 .field {
   font: inherit;
   font-size: 12.5px;
@@ -203,7 +236,9 @@ export function removeReferralCard(): void {
 export function renderReferralCard(
   asks: ReferralAsk[],
   intent: CardIntent | null,
-  handlers: ReferralCardHandlers
+  handlers: ReferralCardHandlers,
+  /** Signs off the drafts. Omitted rather than guessed when it is unknown. */
+  userName: string | null = null
 ): void {
   removeReferralCard();
   /*
@@ -263,7 +298,7 @@ export function renderReferralCard(
   error.hidden = true;
 
   for (const ask of asks) {
-    card.append(askBlock(ask, handlers, error));
+    card.append(askBlock(ask, handlers, error, userName));
   }
 
   if (intent) card.append(logBlock(intent, handlers, error));
@@ -279,7 +314,8 @@ export function renderReferralCard(
 function askBlock(
   ask: ReferralAsk,
   handlers: ReferralCardHandlers,
-  error: HTMLElement
+  error: HTMLElement,
+  userName: string | null
 ): HTMLElement {
   const block = document.createElement('div');
   block.className = 'ask';
@@ -307,6 +343,39 @@ function askBlock(
       relativeTime(ask.statusAt)
     )
   );
+
+  /*
+   * What is owed, and the words to say it in.
+   *
+   * The draft is the point of the card being here at all once the ask exists.
+   * The user is on the profile, the message box is one click away, and the
+   * alternative is writing the same four sentences from scratch for the
+   * fortieth time — which is how a referral push quietly stops happening.
+   *
+   * Nothing sends. Copy, paste, edit, press send: the operating rule of this
+   * whole feature, and also why the message has a chance of working.
+   */
+  const due = referralDue(ask);
+  const draft = draftFor(ask.status, { ask, from: userName });
+
+  if (due.action && due.isDue) {
+    const flag = document.createElement('div');
+    flag.className = 'due';
+    flag.textContent =
+      due.overdueDays > 0
+        ? `${REFERRAL_ACTION_LABEL[due.action]} — ${due.overdueDays}d overdue`
+        : `${REFERRAL_ACTION_LABEL[due.action]} — due now`;
+    block.append(flag);
+  } else if (due.stale) {
+    const flag = document.createElement('div');
+    flag.className = 'quiet';
+    flag.textContent = 'No reply. Nothing more to send — one follow-up is the limit.';
+    block.append(flag);
+  }
+
+  if (draft) {
+    block.append(draftBlock(draft, error));
+  }
 
   const row = document.createElement('div');
   row.className = 'row';
@@ -462,6 +531,83 @@ function logBlock(
   buttons.append(sent, messaged);
   block.append(eyebrow, role, company, name, headline, buttons);
   return block;
+}
+
+/**
+ * The draft, with a copy button and nothing that sends.
+ *
+ * Editable in place, because the sentence only the user can write — why this
+ * company, what they actually did — is the difference between a message that
+ * gets a reply and one that reads as generated. The character counter only
+ * appears where there is a real cap: LinkedIn silently rejects a connection
+ * note over 200, and discovering that with the dialog already open is the
+ * failure this prevents.
+ */
+function draftBlock(
+  draft: { title: string; body: string; limit: number | null },
+  error: HTMLElement
+): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'draft';
+
+  const head = document.createElement('div');
+  head.className = 'draft-head';
+
+  const title = document.createElement('span');
+  title.textContent = draft.title;
+
+  const count = document.createElement('span');
+  count.className = 'count';
+
+  const area = document.createElement('textarea');
+  area.className = 'field draft-body';
+  area.value = draft.body;
+  area.rows = draft.limit ? 3 : 5;
+  area.setAttribute('aria-label', draft.title);
+
+  const sync = () => {
+    if (!draft.limit) return;
+    const length = area.value.trim().length;
+    count.textContent = `${length}/${draft.limit}`;
+    count.dataset.over = String(length > draft.limit);
+  };
+  area.addEventListener('input', sync);
+  sync();
+
+  head.append(title, count);
+
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'b';
+  copy.textContent = 'Copy';
+  copy.addEventListener('click', () => {
+    void navigator.clipboard
+      .writeText(area.value)
+      .then(() => {
+        copy.textContent = 'Copied';
+        // Back to a button that looks pressable. Leaving it as "Copied"
+        // reads as done, and this is a thing people press twice.
+        setTimeout(() => {
+          copy.textContent = 'Copy';
+        }, 1600);
+      })
+      .catch(() => {
+        // Clipboard writes need a user gesture and a focused document, and
+        // both are true here — but a host page can still refuse via
+        // permissions policy, and silently doing nothing is the worst
+        // outcome for a button whose whole job is one action.
+        area.select();
+        error.textContent = 'Could not copy — the text is selected, press Ctrl+C.';
+        error.hidden = false;
+      });
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'btns';
+  actions.append(copy);
+
+  wrap.append(head, area, actions);
+  return wrap;
 }
 
 function teleLine(name: string, value: string): HTMLElement {

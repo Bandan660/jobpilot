@@ -252,9 +252,14 @@ disables the extension for every existing install until re-accepted. Not worth
 spending on a reminder. Bundle it into some later release that is already
 asking for consent.
 
-The existing **6-hourly cron** writes `FOLLOW_UP_DUE` events — another enum
-value that already exists and is unused — so the dashboard and the extension
-agree on what is due.
+**The cron write was dropped, deliberately.** The plan was for the existing
+6-hourly sweep to write `FOLLOW_UP_DUE` rows so both surfaces agreed on what
+was due. Once the rule moved into `shared/src/referrals.ts`, that stopped
+buying anything: every surface computes the same answer from data it already
+has, and a cron writing rows would add a second source of truth plus a dedupe
+problem, for no reader that cannot already answer the question. `FOLLOW_UP_DUE`
+stays unused. It becomes worth building the day there is a push channel —
+email — and not before.
 
 One batched item: "4 referral follow-ups due", never one per contact.
 Per-contact pings are how a tool built to reduce the hectic feeling becomes the
@@ -358,9 +363,27 @@ selector recovering a fact the user's own click already established.
 carries no profile id in the URL, so it needs a DOM read and would drag a
 rot-proof feature down to a fragile one's lifespan.
 
-### Phase 3 — the reminder
+### Phase 3 — the reminder ✅
 
-Badge count, due-list query, the `FOLLOW_UP_DUE` cron write, templates.
+**Built.** `referralDue` and `dueReferrals` in `shared/src/referrals.ts` are
+the single definition of what is owed, read by all three surfaces — the
+toolbar badge, the LinkedIn card and the tracker dialog. Three places deciding
+it independently is how they drift, and a badge saying 3 over a dashboard
+showing 2 does not error, it just stops being believed.
+
+Nothing is stored. "Gone cold" is computed from the clock the same way
+ghosting is derived from posting liveness against application status, so a
+reply on day six clears it by itself with nothing to un-set.
+
+The badge is painted from the list the worker already has whenever the content
+script warms the index, which is several times a session — so it stays current
+with no polling and no `chrome.alarms`, and therefore no permission increase.
+
+Templates live in `shared/src/referralDrafts.ts`: three drafts, slot-filled,
+editable, copy-to-clipboard, nothing that sends. The connection note is under
+200 characters by construction and counts up as the user edits, because a
+draft that silently exceeds the cap is one discovered with the dialog already
+open.
 
 ### Later, and optional — automatic acceptance detection
 

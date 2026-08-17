@@ -1,4 +1,4 @@
-import { answerKey } from '@jobpilot/shared';
+import { answerKey, dueReferrals } from '@jobpilot/shared';
 import type {
   AuthResponse,
   CaptureResponse,
@@ -195,6 +195,8 @@ async function handle(message: WorkerMessage): Promise<unknown> {
 
     case 'LOGOUT':
       await clearSession();
+      // A count carried over from the previous account is worse than none.
+      clearBadge();
       return currentSession();
 
     /*
@@ -235,8 +237,13 @@ async function handle(message: WorkerMessage): Promise<unknown> {
     case 'GET_PROFILE':
       return api<{ profile: Profile }>('/api/profile');
 
-    case 'GET_REFERRALS':
-      return api<{ referrals: ReferralAsk[] }>('/api/referrals');
+    case 'GET_REFERRALS': {
+      const result = await api<{ referrals: ReferralAsk[] }>('/api/referrals');
+      // Free: the list is already here, so the badge costs a filter rather
+      // than a request. This is what keeps it current without an alarm.
+      paintBadge(result.referrals);
+      return result;
+    }
 
     /*
      * Writes go to the per-application sub-resource, not to /api/referrals.
@@ -244,19 +251,26 @@ async function handle(message: WorkerMessage): Promise<unknown> {
      * join, and a write path would have to re-derive it. `loadOwned` in
      * applications.ts already answers "is this the caller's application".
      */
-    case 'LOG_REFERRAL_ASK':
-      return api<{ referral: ReferralAsk; applicationCreated: boolean }>('/api/referrals', {
-        method: 'POST',
-        body: JSON.stringify(message.payload),
-      });
+    case 'LOG_REFERRAL_ASK': {
+      const logged = await api<{ referral: ReferralAsk; applicationCreated: boolean }>(
+        '/api/referrals',
+        { method: 'POST', body: JSON.stringify(message.payload) }
+      );
+      void refreshBadge();
+      return logged;
+    }
 
-    case 'UPDATE_REFERRAL':
-      return api<{ referral: Contact }>(
+    case 'UPDATE_REFERRAL': {
+      const updated = await api<{ referral: Contact }>(
         `/api/applications/${encodeURIComponent(
           message.payload.applicationId
         )}/referrals/${encodeURIComponent(message.payload.referralId)}`,
         { method: 'PATCH', body: JSON.stringify({ status: message.payload.status }) }
       );
+      // The status just moved, so what is due moved with it.
+      void refreshBadge();
+      return updated;
+    }
 
     case 'GET_RESUME':
       return currentResume();
@@ -328,5 +342,62 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
  */
 chrome.runtime.onStartup.addListener(() => void syncContentScripts());
 chrome.runtime.onInstalled.addListener(() => void syncContentScripts());
+
+/* -------------------------------- badge --------------------------------- */
+
+/**
+ * How many referral asks need something doing, on the toolbar icon.
+ *
+ * WHY THE BADGE AND NOT `chrome.alarms`
+ *
+ * An alarm is the obvious way to run a daily check, and it is a new permission
+ * — which disables the extension for every existing install until each user
+ * re-accepts it. That is far too much to spend on a reminder. Bundle it into
+ * some later release that is already asking for consent.
+ *
+ * `chrome.action.setBadgeText` needs no permission at all, and there is a free
+ * moment to compute it: the content script already warms the referral index on
+ * every job page and every LinkedIn profile, so the worker holds a fresh list
+ * several times a session without asking for one.
+ *
+ * The count is the same `dueReferrals` the dashboard and the profile card use.
+ * Three surfaces deciding independently is how they drift, and a badge saying
+ * 3 over a dashboard showing 2 does not error — it just stops being believed.
+ */
+function paintBadge(referrals: ReferralAsk[]): void {
+  const due = dueReferrals(referrals).length;
+
+  void chrome.action.setBadgeText({ text: due > 0 ? String(due) : '' });
+  void chrome.action.setBadgeBackgroundColor({ color: '#ffb020' });
+  void chrome.action.setTitle({
+    title:
+      due === 0
+        ? 'BanApply'
+        : `BanApply — ${due === 1 ? '1 referral needs' : `${due} referrals need`} following up`,
+  });
+}
+
+/** Cleared on sign-out: a count from the previous account is worse than none. */
+function clearBadge(): void {
+  void chrome.action.setBadgeText({ text: '' });
+  void chrome.action.setTitle({ title: 'BanApply' });
+}
+
+/**
+ * Best-effort refresh at startup, so the badge is right before the user opens
+ * anything. Silent on failure — not signed in yet is the normal case here, and
+ * the next content-script wake fills it in anyway.
+ */
+async function refreshBadge(): Promise<void> {
+  try {
+    const { referrals } = await api<{ referrals: ReferralAsk[] }>('/api/referrals');
+    paintBadge(referrals);
+  } catch {
+    clearBadge();
+  }
+}
+
+chrome.runtime.onStartup.addListener(() => void refreshBadge());
+chrome.runtime.onInstalled.addListener(() => void refreshBadge());
 chrome.permissions.onAdded.addListener(() => void syncContentScripts());
 chrome.permissions.onRemoved.addListener(() => void syncContentScripts());

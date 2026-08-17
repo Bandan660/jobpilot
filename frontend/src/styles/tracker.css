@@ -1003,3 +1003,16 @@
     flex-basis: 100%;
   }
 }
+
+/* Due state. The same rule the toolbar badge and the LinkedIn card read —
+   see referralDue() in shared. Amber for a task, muted for an ending. */
+.ref-due {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--signal-text);
+}
+
+.ref-quiet {
+  font-size: 0.76rem;
+  color: var(--muted);
+}

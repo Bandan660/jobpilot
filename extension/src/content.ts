@@ -1370,8 +1370,21 @@ async function init(): Promise<void> {
  * be noise on a page the extension has no other business being on.
  */
 async function showReferralCard(url: URL): Promise<void> {
-  const [referrals, intent] = await Promise.all([loadReferrals(), currentIntent()]);
+  const [referrals, intent, profile] = await Promise.all([
+    loadReferrals(),
+    currentIntent(),
+    // Only for the draft sign-off. Cached and shared with the panel, so on a
+    // profile page this is almost always free.
+    loadProfile(),
+  ]);
   if (!referrals && !intent) return;
+
+  /*
+   * Null rather than a guess. A draft signed "there" because the profile has
+   * no first name is worse than one with no sign-off at all — the templates
+   * omit the whole line when this is absent.
+   */
+  const userName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || null;
 
   /*
    * Re-checked after the await. The index load is a round trip through the
@@ -1451,7 +1464,7 @@ async function showReferralCard(url: URL): Promise<void> {
     onDismissIntent() {
       void clearIntent();
     },
-  });
+  }, userName);
 }
 
 /**
