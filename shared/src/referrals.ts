@@ -26,6 +26,25 @@ import type { ReferralAsk, ReferralStatus } from './types.js';
  * before.
  */
 
+/**
+ * The statuses that end an ask.
+ *
+ * One definition, because three places ask the question and they must agree:
+ * `referralDue` returns nothing for these, the badge therefore never counts
+ * them, and the profile card refuses to draw for them at all.
+ *
+ * `COLD` is here as a status the *user* set — "no response, I am done with
+ * this". It is not written by anything automatic; the derived version of gone
+ * quiet is `ReferralDue.stale`, which is computed from the clock so a late
+ * reply clears it by itself.
+ */
+export const REFERRAL_CLOSED: readonly ReferralStatus[] = ['REFERRED', 'DECLINED', 'COLD'];
+
+/** Is this ask finished — referred, declined, or given up on? */
+export function isReferralClosed(status: ReferralStatus): boolean {
+  return REFERRAL_CLOSED.includes(status);
+}
+
 /** What the user should do next, when anything. */
 export type ReferralAction =
   /** They accepted and have not been asked yet. */
@@ -99,9 +118,7 @@ export function referralDue(
   now: Date = new Date()
 ): ReferralDue {
   // A user-set ending. Nothing is due on an ask that has an answer.
-  if (ask.status === 'REFERRED' || ask.status === 'DECLINED' || ask.status === 'COLD') {
-    return NOTHING;
-  }
+  if (isReferralClosed(ask.status)) return NOTHING;
 
   const since = Date.parse(ask.statusAt);
   // An unparseable timestamp must not produce a due date from NaN, which

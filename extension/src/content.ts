@@ -8,6 +8,7 @@ import type {
 import {
   canonicalizeJobUrl,
   clampCapturedJob,
+  isReferralClosed,
   matchSkills,
   type SkillMatch,
 } from '@jobpilot/shared';
@@ -1325,6 +1326,13 @@ async function init(): Promise<void> {
    * answers one question and exits.
    */
   if (isProfilePage(url)) {
+    /*
+     * Removed before the async read, not after it. LinkedIn moves between
+     * profiles client-side, so without this the previous person's card stays
+     * on screen for as long as the index takes to answer — and if the new
+     * profile has nothing to show, forever.
+     */
+    removeReferralCard();
     resetReferralCard();
     void showReferralCard(url);
     return;
@@ -1393,12 +1401,36 @@ async function showReferralCard(url: URL): Promise<void> {
    */
   if (window.location.href !== url.href) return;
 
+  /*
+   * Every ask against this person, closed ones included. This list is what the
+   * duplicate check below reads, and it has to see the closed ones — see there.
+   */
   const asks = referrals ? asksForProfile(referrals, url.href) : [];
+
+  /*
+   * What the card draws: the asks still going somewhere.
+   *
+   * Once the user has marked an ask REFERRED, DECLINED or COLD there is
+   * nothing left to do with it and nothing left to say — so the card does not
+   * appear at all on that profile. It is a prompt to act, and a closed ask has
+   * no action; leaving it up would put a permanent panel on the profile of
+   * everyone who ever turned the user down.
+   *
+   * The record is not lost, only this surface. The ask is still in the tracker
+   * dialog, which is the history view and where a status set by mistake gets
+   * corrected.
+   */
+  const open = asks.filter((ask) => !isReferralClosed(ask.status));
 
   /*
    * The form is offered only for an intent the profile is not already answered
    * by. Having asked this person about this exact posting, offering to log it
    * again is how a tracker ends up with two rows for one conversation.
+   *
+   * Deliberately checked against `asks` and not `open`. A declined ask still
+   * answers "have I asked them about this job" — with a yes — and testing the
+   * filtered list would offer to log a second ask to the one person known to
+   * have said no.
    */
   const intentJobKey = intent ? canonicalizeJobUrl(intent.job.jobUrl) : null;
   const alreadyAsked = asks.some(
@@ -1406,7 +1438,12 @@ async function showReferralCard(url: URL): Promise<void> {
   );
   const openIntent = intent && !alreadyAsked ? intent : null;
 
-  if (asks.length === 0 && !openIntent) return debug('nothing to say about this profile');
+  if (open.length === 0 && !openIntent) {
+    // Also clears a card this same profile was showing a moment ago — which
+    // is what happens the instant the last open ask is marked referred.
+    removeReferralCard();
+    return debug('nothing to say about this profile');
+  }
 
   const card = openIntent
     ? {
@@ -1416,16 +1453,28 @@ async function showReferralCard(url: URL): Promise<void> {
       }
     : null;
 
-  renderReferralCard(asks, card, {
+  renderReferralCard(open, card, {
     async onStatus(ask, status) {
       const result = await send({
         type: 'UPDATE_REFERRAL',
         payload: { applicationId: ask.application.id, referralId: ask.id, status },
       });
+      if (!result.ok) return false;
+
       // The index still holds the old status, and it is about to be asked
       // again on the next profile. Drop it rather than patch it in place.
-      if (result.ok) invalidateReferrals();
-      return result.ok;
+      invalidateReferrals();
+
+      /*
+       * Referred, declined or given up on: there is nothing left to do with
+       * this ask, so the card goes now rather than on the next visit. Waiting
+       * would leave a panel up offering a draft for a conversation the user
+       * has just told us is over.
+       */
+      if (isReferralClosed(status)) {
+        void showReferralCard(new URL(window.location.href));
+      }
+      return true;
     },
 
     async onLog({ name, role, status }) {

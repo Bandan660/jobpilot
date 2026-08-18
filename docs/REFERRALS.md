@@ -183,6 +183,27 @@ give it a TTL plus a re-focus invalidation**, exactly as the profile cache in
 on someone messaged this morning is the same class of bug as the stale match
 score.
 
+### A closed ask takes the card with it
+
+Once an ask is `REFERRED`, `DECLINED` or `COLD` the card stops appearing on
+that person's profile — immediately if the status was set from the card, and on
+every visit after. It is a prompt to act, and a closed ask has no action;
+leaving it up would put a permanent panel on the profile of everyone who ever
+turned the user down.
+
+`REFERRAL_CLOSED` in `shared/src/referrals.ts` is the one definition, so the
+card, `referralDue` and the badge cannot disagree about what "finished" means.
+
+Two details that are easy to get wrong here:
+
+- **The duplicate check reads the unfiltered list.** A declined ask still
+  answers "have I asked them about this job" — with a yes — so testing the
+  filtered list would offer to log a second ask to the one person known to
+  have said no.
+- **The record is not hidden, only this surface.** The ask stays in the tracker
+  dialog, which is the history view and where a status set by mistake gets
+  corrected.
+
 ### The user marks acceptance, and that is fine
 
 LinkedIn already tells them someone accepted — by notification and by email.
