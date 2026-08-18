@@ -965,9 +965,7 @@ async function maybeShowPanel(job: CapturedJob, duplicate: DuplicateMatch | null
    * application to hang it off would put the card up after the moment it was
    * useful.
    */
-  const searches = authenticated
-    ? referralSearches(job, profile, companySlugFrom(document))
-    : [];
+  const searches = authenticated ? referralSearches(job, companySlugFrom(document)) : [];
   if (authenticated) warmReferrals();
   const referralsHere = authenticated ? asksAtCompany(job.company) : 0;
 

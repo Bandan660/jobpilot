@@ -48,10 +48,9 @@ On a job posting the panel gains one card:
 ```
 WHO COULD HELP HERE                    Tata Consultancy
 
-→ Recruiters at Tata Consultancy
+→ People you know at Tata Consultancy
 → People doing this job there
-→ Alumni of Kalinga Institute there
-→ People you already know there
+→ Recruiters & HR at Tata Consultancy
 
 You have applied to 2 roles here · 0 asks logged
 ```
@@ -63,10 +62,22 @@ it. `chrome.tabs.create`, or a plain `target="_blank"` link.
 
 | Suggestion | Built from | URL shape |
 | --- | --- | --- |
-| Recruiters | company slug | `/company/{slug}/people/?keywords=recruiter` |
-| People doing this job | company slug + captured job title | `/company/{slug}/people/?keywords=frontend%20engineer` |
-| Alumni there | company slug + `profile.education[].school` | `/company/{slug}/people/?keywords={school}` |
 | People you know there | company slug | `/company/{slug}/people/` — LinkedIn surfaces 1st-degree first |
+| People doing this job | company slug + captured job title | `/company/{slug}/people/?keywords=frontend%20engineer` |
+| Recruiters & HR | company slug | `/company/{slug}/people/?keywords=recruiter%20OR%20HR` |
+
+**Recruiter and HR are one row, not two.** Which of the two exists is a fact
+about the company's size rather than about who to approach: a large employer
+staffs a recruiting function, a smaller one hands the whole job to an HR
+generalist under that title. Two rows would make the user choose between them
+without telling them which applies, and at any given company one of the two
+returns an empty page — which reads as "nobody here can help".
+
+`OR` is LinkedIn's own boolean operator and must be uppercase. On the company
+People tab no company term is needed, because the page is already scoped to it.
+The no-slug fallback does need one, and there the operator has to be
+bracketed — `Acme Labs recruiter OR HR` parses as *(Acme Labs recruiter)* OR
+*(HR)* and returns every HR person on LinkedIn.
 
 **Prefer the `keywords` parameter over facet ids.** Facets like `facetSchool`
 take opaque numeric ids that have to be looked up and that LinkedIn changes;
@@ -83,12 +94,14 @@ useful.
 Keep every URL template in one file, the way `platforms.ts` holds the platform
 registry. When LinkedIn changes a path, that is one edit and not a hunt.
 
-### Why the alumni row is worth building first
+### Three rows, not four
 
-The profile already stores `education[].school`, and in India a shared college
-is the single strongest opener for a cold referral ask — far ahead of a
-stranger with the right job title. It costs one more entry in the table above
-and it is the row most likely to get a reply.
+An alumni row was built and removed. A shared college is a strong opener, but
+the row only appears when the profile carries education, it names a school in a
+panel the user is reading for a job, and it made four link rows in a panel that
+also carries a match score and an apply button. Four rows is a menu, and a menu
+gets scrolled past; three obvious choices get pressed. `primarySchool` went
+with it rather than staying as an export nothing calls.
 
 ---
 
@@ -403,10 +416,10 @@ the lookup in Phase 2 makes this a convenience rather than a requirement.
   application is created if it does not exist.** `POST /api/referrals` calls
   `captureApplication` with `applied: false`, which creates the row as `SAVED`
   — the status that already means "tracking, not applied". Blocking a referral
-  on paperwork is backwards: the ask is the time-sensitive half. On an existing
+  on paperwork is backwards: the ask is the time-sensitive half. On an existing  
   row `applied: false` leaves the status alone, so logging an ask can never
   downgrade something already marked `APPLIED`.
-- **Does the queue live inside the tracker row or beside it?** Recommendation is
+ - **Does the queue live inside the tracker row or beside it?** Recommendation is
   inside — the application row grows a line reading
   `2 asks · 1 accepted · nudge due` — so it never becomes a separate app that
   has to be remembered.

@@ -1,4 +1,4 @@
-import type { CapturedJob, Profile } from '@jobpilot/shared';
+import type { CapturedJob } from '@jobpilot/shared';
 
 /**
  * Where to look for someone who could refer you.
@@ -16,11 +16,11 @@ import type { CapturedJob, Profile } from '@jobpilot/shared';
  *
  * KEYWORDS, NOT FACETS
  *
- * LinkedIn's faceted filters take opaque numeric ids — `facetSchool=12345`,
- * `facetGeoRegion=…` — which have to be looked up per school and which
- * LinkedIn changes. `keywords` is a plain string, has worked for years, and
- * degrades to a broader result set rather than to an error page. Where there
- * is a choice, this file takes the durable one.
+ * LinkedIn's faceted filters take opaque numeric ids — `facetGeoRegion=…`,
+ * `facetSchool=…` — which have to be looked up and which LinkedIn changes.
+ * `keywords` is a plain string, has worked for years, supports LinkedIn's own
+ * boolean operators, and degrades to a broader result set rather than to an
+ * error page. Where there is a choice, this file takes the durable one.
  */
 
 export interface ReferralSearch {
@@ -64,6 +64,16 @@ export function companySlugFrom(doc: Document): string | null {
   return null;
 }
 
+/**
+ * Who to ask when there is nobody warmer.
+ *
+ * Both titles, because which one exists is a property of the company: a large
+ * employer has recruiters, a small one has an HR generalist doing the same
+ * work. Searching only one of them returns an empty page at half of all
+ * companies, and an empty page reads as "nobody here can help".
+ */
+const HIRING_KEYWORDS = 'recruiter OR HR';
+
 /** LinkedIn's people search, used wherever there is no company slug to scope to. */
 function peopleSearch(terms: string[]): string {
   const keywords = terms.filter(Boolean).join(' ');
@@ -103,38 +113,19 @@ export function titleKeywords(title: string | null): string | null {
 }
 
 /**
- * The most recent school on the profile.
- *
- * Recency rather than highest qualification: the alumni network someone can
- * actually call on is the one they left most recently, and a postgraduate
- * course is both more recent and a smaller, warmer group than an undergraduate
- * one. Falls back to the first entry when nothing carries a date.
- */
-export function primarySchool(profile: Profile | null): string | null {
-  const entries = (profile?.education ?? []).filter((e) => e.school?.trim());
-  if (entries.length === 0) return null;
-
-  const dated = entries.filter((e) => e.endDate ?? e.startDate);
-  if (dated.length === 0) return entries[0].school.trim();
-
-  return dated
-    .slice()
-    .sort((a, b) => (b.endDate ?? b.startDate ?? '').localeCompare(a.endDate ?? a.startDate ?? ''))[0]
-    .school.trim();
-}
-
-/**
  * The searches to offer for this posting.
  *
- * Ordered by how likely a reply is, not by how obvious the search is. The
- * alumni row is second rather than last on purpose: in India a shared college
- * outperforms a stranger with the right job title by a wide margin, and it
- * costs nothing to put it where it will be seen. People already in the
- * network come first because they are not a cold ask at all.
+ * Three, ordered by how likely a reply is rather than by how obvious the
+ * search is. People already in the network come first because they are not a
+ * cold ask at all; the people doing the job know the team and the req; hiring
+ * staff field the most of these and answer the fewest.
+ *
+ * A short list on purpose. Four rows of links in a panel that also carries a
+ * match score and an apply button is a menu, and a menu gets scrolled past —
+ * whereas three obvious choices get pressed.
  */
 export function referralSearches(
   job: Pick<CapturedJob, 'title' | 'company'>,
-  profile: Profile | null,
   slug: string | null
 ): ReferralSearch[] {
   const company = job.company?.trim();
@@ -149,15 +140,6 @@ export function referralSearches(
     url: slug ? companyPeople(slug) : peopleSearch([name]),
   });
 
-  const school = primarySchool(profile);
-  if (school) {
-    searches.push({
-      label: `${school} alumni there`,
-      hint: 'A shared college answers far more often than a cold ask',
-      url: slug ? companyPeople(slug, school) : peopleSearch([name, school]),
-    });
-  }
-
   const discipline = titleKeywords(job.title);
   if (discipline) {
     searches.push({
@@ -167,10 +149,34 @@ export function referralSearches(
     });
   }
 
+  /*
+   * One row, both words.
+   *
+   * Whether hiring sits with a "recruiter" or with "HR" is a fact about the
+   * company's size, not about who the user should approach: large employers
+   * staff a recruiting function, and smaller ones give the whole job to HR
+   * under that title. Splitting them into two rows would make the user pick
+   * between them without telling them which applies — and on any given company
+   * one of the two returns nothing.
+   *
+   * `OR` is LinkedIn's own boolean keyword operator and must be uppercase;
+   * lowercase "or" is matched as a word. It degrades safely: an engine that
+   * ignores the operator sees ordinary keywords and returns a wider set, which
+   * is still hiring staff at the right company.
+   *
+   * The company People tab needs no company term — the page is already scoped
+   * to it. The fallback search does, and there the operator has to be bracketed
+   * or precedence eats it: `Acme Labs recruiter OR HR` reads as
+   * "(Acme Labs recruiter) OR (HR)" and returns every HR person on LinkedIn.
+   * The company name is quoted for the same class of reason — two bare words
+   * would match either.
+   */
   searches.push({
-    label: `Recruiters at ${name}`,
-    hint: 'Last resort — they field the most of these',
-    url: slug ? companyPeople(slug, 'recruiter') : peopleSearch([name, 'recruiter']),
+    label: `Recruiters & HR at ${name}`,
+    hint: 'They field the most of these — and answer the fewest',
+    url: slug
+      ? companyPeople(slug, HIRING_KEYWORDS)
+      : peopleSearch([`"${name}"`, `(${HIRING_KEYWORDS})`]),
   });
 
   return searches;
