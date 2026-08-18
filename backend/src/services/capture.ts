@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, or } from 'drizzle-orm';
 import {
   canonicalizeJobUrl,
   normalizeCompany,
@@ -84,14 +84,50 @@ export async function captureApplication(
 
   const company = await upsertCompany(db, companyName, companySlug);
 
-  const existing = canonicalUrl
+  /*
+   * Is this posting already tracked?
+   *
+   * TWO KEYS, BECAUSE ONE POSTING HAS MANY URLS
+   *
+   * The canonical URL alone was not enough, and LinkedIn shows why: the same
+   * job is reachable as /jobs/search?currentJobId=123 with whatever keywords,
+   * geoId and filter params the search happened to carry, as /jobs/view/123,
+   * and as /jobs/view/{slug}-123 from any shared link. Those canonicalise to
+   * four different keys, so saving a job from the search pane and applying to
+   * it from the posting page produced two rows — one SAVED, one APPLIED, for
+   * one job.
+   *
+   * It became routine rather than occasional when logging a referral ask
+   * started creating the SAVED row: the ask is logged from wherever the user
+   * was browsing, and the application is submitted from the posting page.
+   *
+   * `externalId` is the ATS's own id for the job and every path captures it,
+   * so it survives the URL varying. Scoped to the company as well as the ATS
+   * because it is only unique *within* an employer — `genericAdapter` reads it
+   * from JSON-LD `identifier`, where "1" is a perfectly ordinary value, and
+   * two employers both using it must not collapse into one application.
+   *
+   * Oldest first: if both keys somehow find different rows, the row that has
+   * been accumulating history is the one to keep.
+   */
+  const identityMatch = or(
+    canonicalUrl ? eq(applications.jobUrlCanonical, canonicalUrl) : undefined,
+    job.externalId
+      ? and(
+          eq(applications.ats, job.ats),
+          eq(applications.companyId, company.id),
+          eq(applications.externalId, job.externalId)
+        )
+      : undefined
+  );
+
+  const existing = identityMatch
     ? (
         await db
           .select()
           .from(applications)
-          .where(
-            and(eq(applications.userId, userId), eq(applications.jobUrlCanonical, canonicalUrl))
-          )
+          .where(and(eq(applications.userId, userId), identityMatch))
+          .orderBy(asc(applications.createdAt))
           .limit(1)
       )[0]
     : undefined;
@@ -113,10 +149,16 @@ export async function captureApplication(
         status: nextStatus,
         appliedAt: shouldPromote ? (existing.appliedAt ?? capturedAt) : existing.appliedAt,
         // Only fill gaps; never clobber data the user may have corrected by hand.
+        // jobUrl in particular: the row may have been created from a search-pane
+        // URL and this capture may be the posting's own page, which is the
+        // better link — but the first one recorded is the one the user has been
+        // clicking, so it stays.
+        jobUrl: existing.jobUrl ?? job.jobUrl,
+        jobUrlCanonical: existing.jobUrlCanonical ?? canonicalUrl,
+        externalId: existing.externalId ?? job.externalId,
         location: existing.location ?? job.location,
         remote: existing.remote ?? job.remote,
         employmentType: existing.employmentType ?? job.employmentType,
-        externalId: existing.externalId ?? job.externalId,
         compRaw: existing.compRaw ?? job.compRaw,
         compMinCents: existing.compMinCents ?? comp.minCents,
         compMaxCents: existing.compMaxCents ?? comp.maxCents,
