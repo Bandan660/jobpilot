@@ -1016,3 +1016,52 @@
   font-size: 0.76rem;
   color: var(--muted);
 }
+
+/* Pager --------------------------------------------------------------------- */
+
+/*
+ * Under the list, not above it. The controls belong where the reader runs out
+ * of rows, and putting them at the top as well doubles a control that is only
+ * reached one way.
+ */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  padding-block: var(--gap-md);
+  border-top: 1px solid var(--line);
+}
+
+.pager .btn {
+  /* Smaller than a page action: this moves a viewport, it does not commit
+     anything. Matches the density of the view toggle above the list. */
+  padding: 0.45rem 0.9rem;
+  font-size: var(--step--2);
+}
+
+/*
+ * Telemetry, so it reads as a position rather than as a label — the same
+ * treatment the count strip gets. Tabular figures because the numbers change
+ * under the reader's eye and proportional digits make them jump.
+ */
+.pager-range {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+@media (max-width: 420px) {
+  .pager {
+    /* Two buttons and a readout stop fitting; the readout leads. */
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .pager-range {
+    order: -1;
+    flex-basis: 100%;
+    text-align: center;
+  }
+}

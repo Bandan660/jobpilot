@@ -53,6 +53,20 @@ const referralAcceptedSql = sql<number>`(
     )})
 )`;
 
+/**
+ * How many rows the filters match, before the page is taken.
+ *
+ * A window function rather than a second `count(*)` query. Postgres evaluates
+ * it after WHERE and before LIMIT/OFFSET, so it is the total the pager needs,
+ * and it costs nothing extra: a separate count would be a second round trip to
+ * Neon over HTTP, and every one of those counts against the Worker's 50
+ * subrequest budget.
+ *
+ * The price is that it rides on every row of the page and is absent when the
+ * page is empty. See the note where it is returned.
+ */
+const totalSql = sql<number>`count(*) over()`;
+
 export const applicationRoutes = new Hono<AppContext>();
 
 applicationRoutes.use('*', requireAuth);
@@ -105,6 +119,7 @@ applicationRoutes.get('/', async (c) => {
       company: companies,
       referralCount: referralCountSql,
       referralAccepted: referralAcceptedSql,
+      total: totalSql,
     })
     .from(applications)
     .innerJoin(companies, eq(applications.companyId, companies.id))
@@ -131,6 +146,14 @@ applicationRoutes.get('/', async (c) => {
         accepted: r.referralAccepted,
       })
     ),
+    /*
+     * Row count before the page was taken, from the window function above.
+     *
+     * Zero when the page is past the end — there is no row to carry the count
+     * on. Callers must treat an empty page at a non-zero offset as "step back",
+     * not as "you have no applications"; the tracker does exactly that.
+     */
+    total: rows[0]?.total ?? 0,
     limit,
     offset,
   });

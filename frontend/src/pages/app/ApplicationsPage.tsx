@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { safeHref } from '../../safeHref.js';
 import {
   APPLICATION_STATUS,
@@ -59,6 +59,37 @@ type View = 'list' | 'board';
 
 const VIEW_KEY = 'jobpilot.trackerView';
 
+/**
+ * Rows per page in the list view.
+ *
+ * The list was capped at the API's default of 200 and rendered every one of
+ * them, so a year of applying is 200 rows of DOM under a filter strip and the
+ * thing you tracked in March is a scroll away with no way to ask for it.
+ *
+ * 25 because a tracker row is a small dashboard rather than a line — stage
+ * track, silence counter, posting status — and about that many fit a laptop
+ * screen before the filters scroll out of reach.
+ *
+ * The board is deliberately not paged. Its columns are the pipeline, and a
+ * page boundary through them shows an arbitrary slice of each stage while
+ * looking like the whole of it.
+ */
+const PAGE_SIZE = 25;
+
+/**
+ * Page size for the CSV export, which is a different question from the one the
+ * pager answers.
+ *
+ * Export means "everything matching these filters", and it meant that before
+ * this page had pages — so it pulls the whole result set in chunks rather than
+ * writing out whichever 25 rows happen to be on screen. 500 is the API's
+ * documented ceiling for `limit`; the loop is what covers the rest.
+ */
+const EXPORT_PAGE = 500;
+
+/** Refuses to loop forever if the server ever stops shrinking the page. */
+const EXPORT_MAX_ROWS = 20_000;
+
 export function ApplicationsPage() {
   usePageMeta('Job tracker', undefined, '/dashboard/applications');
 
@@ -78,31 +109,94 @@ export function ApplicationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  /** Rows matching the filters, not rows on screen. What the pager counts. */
+  const [total, setTotal] = useState(0);
+
+  /** Everything the server needs to answer "which rows", minus which page. */
+  const filters = useMemo(
+    () => ({
+      q: query || undefined,
+      status: view === 'board' || status === 'ALL' ? undefined : status,
+      archived: (tab === 'archived' ? 'true' : 'false') as 'true' | 'false',
+      starred: (starredOnly ? 'true' : undefined) as 'true' | undefined,
+      from: from || undefined,
+      to: to || undefined,
+      sort,
+    }),
+    [query, status, view, tab, starredOnly, from, to, sort]
+  );
+
+  /*
+   * Page 0 whenever the filters change, decided during render rather than in an
+   * effect.
+   *
+   * An effect would run after this render has already fired `load` with the
+   * old page against the new filters — one wasted request, and a visible flash
+   * of page 4 of a result set that now has one page. Setting state during
+   * render re-renders before any effect runs, so the fetch below only ever sees
+   * a page that belongs to these filters.
+   */
+  const filterKey = JSON.stringify(filters);
+  const lastFilterKey = useRef(filterKey);
+  if (lastFilterKey.current !== filterKey) {
+    lastFilterKey.current = filterKey;
+    if (page !== 0) setPage(0);
+  }
 
   const load = useCallback(async () => {
     setError(null);
     try {
       const list = await api.listApplications({
-        q: query || undefined,
-        status: view === 'board' || status === 'ALL' ? undefined : status,
-        archived: tab === 'archived' ? 'true' : 'false',
-        starred: starredOnly ? 'true' : undefined,
-        from: from || undefined,
-        to: to || undefined,
-        sort,
+        ...filters,
+        // The board is not paged: it needs every row to fill its columns.
+        ...(view === 'board' ? {} : { limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
       });
+
+      /*
+       * An empty page that is not the first one means the rows underneath moved
+       * — archiving the last row of the last page does it — and `total` cannot
+       * correct us, because the server has no row to hang the count on. Step
+       * back and let the effect refetch rather than showing "nothing matches
+       * those filters" over a tracker that is full.
+       */
+      if (list.applications.length === 0 && page > 0) {
+        setPage((p) => Math.max(0, p - 1));
+        return;
+      }
+
       setApplications(list.applications);
+      setTotal(view === 'board' ? list.applications.length : list.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
       setLoading(false);
     }
-  }, [query, status, view, tab, starredOnly, from, to, sort]);
+  }, [filters, view, page]);
 
   useEffect(() => {
     const handle = setTimeout(() => void load(), query ? 300 : 0);
     return () => clearTimeout(handle);
   }, [load, query]);
+
+  /**
+   * Every row matching the current filters, for the CSV export.
+   *
+   * Paged through rather than asked for in one request, because `limit` is
+   * capped at 500 server-side and someone with more than that applied is
+   * exactly the person who wants a spreadsheet of it.
+   */
+  const fetchAllMatching = useCallback(async () => {
+    const rows: Application[] = [];
+
+    for (let offset = 0; offset < EXPORT_MAX_ROWS; offset += EXPORT_PAGE) {
+      const batch = await api.listApplications({ ...filters, limit: EXPORT_PAGE, offset });
+      rows.push(...batch.applications);
+      if (batch.applications.length < EXPORT_PAGE || rows.length >= batch.total) break;
+    }
+
+    return rows;
+  }, [filters]);
 
   /**
    * A change the server has already accepted, applied without a round trip.
@@ -148,6 +242,7 @@ export function ApplicationsPage() {
         <h1>Your job tracker</h1>
         <Toolbar
           applications={applications}
+          exportRows={fetchAllMatching}
           onImported={(msg) => {
             setNotice(msg);
             void load();
@@ -158,8 +253,10 @@ export function ApplicationsPage() {
       {/* Count, tabs and filters read as one control strip rather than three
           stacked blocks with gaps between them. */}
       <div className="tracker-bar">
+        {/* The total, never the page length: "25 active" under a pager reading
+            "1–25 of 213" is the page describing itself as the tracker. */}
         <span className="tracker-count">
-          <strong>{applications.length}</strong>
+          <strong>{total}</strong>
           {filtersActive ? ' matching' : tab === 'archived' ? ' archived' : ' active'}
         </span>
 
@@ -284,11 +381,14 @@ export function ApplicationsPage() {
           onMove={(id, next) => update(id, { status: next })}
         />
       ) : (
-        <ul className="tracker-list">
-          {applications.map((app) => (
-            <TrackerRow key={app.id} app={app} onUpdate={update} onLocalPatch={patchLocal} />
-          ))}
-        </ul>
+        <>
+          <ul className="tracker-list">
+            {applications.map((app) => (
+              <TrackerRow key={app.id} app={app} onUpdate={update} onLocalPatch={patchLocal} />
+            ))}
+          </ul>
+          <Pager page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
+        </>
       )}
     </div>
   );
@@ -296,16 +396,104 @@ export function ApplicationsPage() {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Previous / next, and where you are.
+ *
+ * Numbered page links were the alternative and are worse here: the tracker is
+ * sorted by recency, so page 7 is not a place anyone means to go — it is
+ * "further back than I have looked". The range readout is the part that
+ * answers the real question, which is how much is behind you.
+ *
+ * Renders nothing when everything fits on one page. A pager under a list of
+ * four says the list is truncated when it is not.
+ */
+function Pager({
+  page,
+  pageSize,
+  total,
+  onPage,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPage: (page: number) => void;
+}) {
+  if (total <= pageSize) return null;
+
+  const first = page * pageSize + 1;
+  const last = Math.min(total, (page + 1) * pageSize);
+  const lastPage = Math.max(0, Math.ceil(total / pageSize) - 1);
+
+  return (
+    <nav className="pager" aria-label="Application pages">
+      <button
+        className="btn btn-ghost"
+        onClick={() => onPage(Math.max(0, page - 1))}
+        disabled={page === 0}
+      >
+        ← Newer
+      </button>
+
+      {/*
+        aria-live, because paging replaces the whole list without moving focus:
+        a screen reader is otherwise told nothing happened.
+      */}
+      <span className="pager-range" aria-live="polite">
+        {first}–{last} of {total}
+      </span>
+
+      <button
+        className="btn btn-ghost"
+        onClick={() => onPage(Math.min(lastPage, page + 1))}
+        disabled={page >= lastPage}
+      >
+        Older →
+      </button>
+    </nav>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
 function Toolbar({
   applications,
+  exportRows,
   onImported,
 }: {
   applications: Application[];
+  /** Every row matching the current filters — not the page on screen. */
+  exportRows: () => Promise<Application[]>;
   onImported: (message: string) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [adding, setAdding] = useState(false);
+
+  /*
+   * Fetches before it writes the file.
+   *
+   * The export used to serialise whatever the page held, which was every row
+   * the API returned and so happened to be right. Once the list is paged, the
+   * same code silently exports 25 rows and calls the file
+   * jobpilot-applications.csv — a wrong answer that looks like a complete one,
+   * and one nobody checks until they need it.
+   */
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const rows = await exportRows();
+      if (rows.length === 0) {
+        onImported('Nothing to export with those filters.');
+        return;
+      }
+      downloadCsv('jobpilot-applications.csv', toCsv(rows));
+    } catch (err) {
+      onImported(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function handleImport(file: File) {
     setBusy(true);
@@ -341,10 +529,10 @@ function Toolbar({
     <div className="tracker-toolbar">
       <button
         className="btn btn-ghost"
-        onClick={() => downloadCsv('jobpilot-applications.csv', toCsv(applications))}
-        disabled={applications.length === 0}
+        onClick={() => void handleExport()}
+        disabled={exporting || applications.length === 0}
       >
-        Export CSV
+        {exporting ? 'Exporting…' : 'Export CSV'}
       </button>
 
       <input

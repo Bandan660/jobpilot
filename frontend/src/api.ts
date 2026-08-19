@@ -112,14 +112,21 @@ const liveApi = {
       from?: string;
       to?: string;
       sort?: string;
+      limit?: number;
+      offset?: number;
     } = {}
   ) => {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
-      if (value) search.set(key, value);
+      // `offset: 0` is a real value and has to survive. Dropping it as falsy
+      // sends page two with no offset — which is page one, again.
+      if (value === undefined || value === null || value === '') continue;
+      search.set(key, String(value));
     }
     const suffix = search.toString() ? `?${search}` : '';
-    return request<{ applications: Application[] }>(`/api/applications${suffix}`);
+    return request<{ applications: Application[]; total: number }>(
+      `/api/applications${suffix}`
+    );
   },
 
   updateApplication: (
@@ -448,7 +455,11 @@ function buildDemoApi(): typeof liveApi {
       return delay({ profile: demoProfile });
     },
 
-    listApplications: ({ q }: { status?: string; q?: string } = {}) => {
+    listApplications: ({
+      q,
+      limit,
+      offset = 0,
+    }: { status?: string; q?: string; limit?: number; offset?: number } = {}) => {
       const needle = q?.toLowerCase().trim();
       const filtered = needle
         ? rows.filter(
@@ -457,7 +468,10 @@ function buildDemoApi(): typeof liveApi {
               r.company.name.toLowerCase().includes(needle)
           )
         : rows;
-      return delay({ applications: filtered });
+      // Sliced the way the API slices, so demo mode exercises the pager rather
+      // than rendering every fixture on one page.
+      const page = limit === undefined ? filtered : filtered.slice(offset, offset + limit);
+      return delay({ applications: page, total: filtered.length });
     },
 
     updateStatus: (id: string, status: ApplicationStatus) => {
