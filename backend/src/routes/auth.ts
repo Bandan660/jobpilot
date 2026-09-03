@@ -28,6 +28,29 @@ const credentials = z.object({
  */
 const DECOY_HASH = `pbkdf2-sha256$100000$${btoa('\0'.repeat(16))}$${btoa('\0'.repeat(32))}`;
 
+/**
+ * The revocation cutoff a brand-new account starts with.
+ *
+ * NOT `now()`, which is what the column defaults to and what this exists to
+ * override. `tokensValidFrom` means "sessions issued before this instant are
+ * refused", and a fresh row has no sessions to refuse — but `requireAuth`
+ * compares it against the token's `iat`, and `iat` is **whole seconds** while
+ * Postgres `now()` carries microseconds. A row created at 12:00:00.734 is
+ * handed a token stamped 12:00:00.000 — earlier than the account’s own
+ * cutoff — so the first request after signing up came back 401.
+ *
+ * It presented as "session expired" on the dashboard immediately after a
+ * successful sign-in, and only ever to people creating an account: by anyone’s
+ * second sign-in the cutoff is minutes in the past. Roughly 97% of new
+ * accounts hit it. The survivors were the ones whose insert happened to land
+ * in the last few milliseconds of a second, so signing crossed the boundary
+ * and the truncation rounded the other way.
+ *
+ * The epoch says what is actually true: nothing has been revoked here yet.
+ * No amount of rounding can make a token look older than that.
+ */
+const NEVER_REVOKED = new Date(0);
+
 export const authRoutes = new Hono<AppContext>();
 
 /*
@@ -64,7 +87,9 @@ authRoutes.post('/signup', rateLimit('AUTH_LIMITER', perEmail), async (c) => {
   }
 
   const passwordHash = await hashPassword(password);
-  const [user] = await db.insert(users).values({ email, passwordHash }).returning();
+  const [user] = await db.insert(users)
+    .values({ email, passwordHash, tokensValidFrom: NEVER_REVOKED })
+    .returning();
 
   const token = await signToken(user.id, cleanSecret(c.env.JWT_SECRET));
   const body: AuthResponse = {
@@ -271,7 +296,11 @@ authRoutes.post('/firebase', rateLimit('AUTH_LIMITER'), async (c) => {
     } else {
       const [created] = await db
         .insert(users)
-        .values({ email: identity.email, firebaseUid: identity.uid })
+        .values({
+          email: identity.email,
+          firebaseUid: identity.uid,
+          tokensValidFrom: NEVER_REVOKED,
+        })
         .returning();
       user = created;
     }
